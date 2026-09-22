@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-const require_NodeRuntime = require("../chunks/NodeRuntime-CfddDOOs.js");
-const require_effect_services = require("../chunks/effect-services-BrlJlqgg.js");
+const require_Layer = require("../chunks/Layer-nAKmzBoW.js");
+const require_effect_services = require("../chunks/effect-services-BVazUC0E.js");
 let node_os = require("node:os");
-node_os = require_NodeRuntime.__toESM(node_os);
+node_os = require_Layer.__toESM(node_os);
 let node_path = require("node:path");
-node_path = require_NodeRuntime.__toESM(node_path);
+node_path = require_Layer.__toESM(node_path);
 //#region src/scripts/check-extension-installed.ts
 var json = process.argv.includes("--json");
 function output(result, exitCode) {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
 		if (json) yield* io.stdout(`${JSON.stringify(result, null, 2)}\n`);
 		else if (result.ok) yield* io.stdout(`${result.message}\n`);
@@ -17,7 +17,7 @@ function output(result, exitCode) {
 	});
 }
 function configuredExtensionId() {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
 		const explicit = require_effect_services.argValue("extension-id", process.argv.find((arg) => !arg.startsWith("--") && arg !== process.argv[0] && arg !== process.argv[1]));
 		if (explicit) return explicit;
@@ -28,11 +28,11 @@ function configuredExtensionId() {
 	});
 }
 function selectProfilePreferences(userDataDir) {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
 		const localStatePath = node_path.default.join(userDataDir, "Local State");
 		if (yield* io.exists(localStatePath)) {
-			const parsed = yield* require_NodeRuntime.either(io.readText(localStatePath));
+			const parsed = yield* require_Layer.either(io.readText(localStatePath));
 			if (parsed._tag === "Right") try {
 				const lastProfile = JSON.parse(parsed.right).profile?.last_used;
 				if (lastProfile && (yield* io.exists(node_path.default.join(userDataDir, lastProfile, "Preferences")))) return node_path.default.join(userDataDir, lastProfile, "Preferences");
@@ -51,18 +51,18 @@ function selectProfilePreferences(userDataDir) {
 	});
 }
 function preferencesPath() {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		if (process.env.OPZERO_CHROME_PREFERENCES_PATH) return process.env.OPZERO_CHROME_PREFERENCES_PATH;
 		if (process.env.OPZERO_CHROME_USER_DATA_DIR) return yield* selectProfilePreferences(process.env.OPZERO_CHROME_USER_DATA_DIR);
 		if (process.env.CHROME_PROFILE_DIR) return node_path.default.join(process.env.CHROME_PROFILE_DIR, "Preferences");
 		if (process.platform === "darwin") return yield* selectProfilePreferences(node_path.default.join(node_os.default.homedir(), "Library", "Application Support", "Google", "Chrome"));
 		if (process.platform === "linux") return yield* selectProfilePreferences(node_path.default.join(node_os.default.homedir(), ".config", "google-chrome"));
 		if (process.platform === "win32") return yield* selectProfilePreferences(node_path.default.join(node_os.default.homedir(), "AppData", "Local", "Google", "Chrome", "User Data"));
-		return yield* require_NodeRuntime.fail(/* @__PURE__ */ new Error(`Unsupported platform: ${process.platform}`));
+		return yield* require_Layer.fail(/* @__PURE__ */ new Error(`Unsupported platform: ${process.platform}`));
 	});
 }
 function readExtensionSettings(profilePreferencesPath, extensionId) {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
 		const paths = [profilePreferencesPath, node_path.default.join(node_path.default.dirname(profilePreferencesPath), "Secure Preferences")];
 		for (const settingsPath of paths) {
@@ -76,7 +76,7 @@ function readExtensionSettings(profilePreferencesPath, extensionId) {
 		return null;
 	});
 }
-require_effect_services.runScript(require_NodeRuntime.gen(function* () {
+require_effect_services.runScript(require_Layer.gen(function* () {
 	const io = yield* require_effect_services.ScriptIo;
 	const extensionId = yield* configuredExtensionId();
 	if (!extensionId) {

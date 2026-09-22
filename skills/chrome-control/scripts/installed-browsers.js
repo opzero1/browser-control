@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-const require_NodeRuntime = require("../chunks/NodeRuntime-CfddDOOs.js");
-const require_effect_services = require("../chunks/effect-services-BrlJlqgg.js");
+const require_Layer = require("../chunks/Layer-nAKmzBoW.js");
+const require_effect_services = require("../chunks/effect-services-BVazUC0E.js");
 //#region src/scripts/installed-browsers.ts
 var json = process.argv.includes("--json");
 function commandExists(command) {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
-		return (yield* require_NodeRuntime.either(process.platform === "win32" ? io.execFile("where", [command], {
+		return (yield* require_Layer.either(process.platform === "win32" ? io.execFile("where", [command], {
 			encoding: "utf8",
 			stdio: "ignore"
 		}) : io.execFile("sh", ["-c", `command -v ${command}`], {
@@ -16,7 +16,7 @@ function commandExists(command) {
 	});
 }
 function detect() {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
 		if (process.platform === "darwin") {
 			const chrome = yield* io.exists("/Applications/Google Chrome.app");
@@ -52,7 +52,7 @@ function detect() {
 		return [];
 	});
 }
-require_effect_services.runScript(require_NodeRuntime.gen(function* () {
+require_effect_services.runScript(require_Layer.gen(function* () {
 	const io = yield* require_effect_services.ScriptIo;
 	const browsers = yield* detect();
 	const result = {

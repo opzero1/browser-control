@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 const nodeEntries = {
   "native-host/host": resolve(__dirname, "src/native-host/host.ts"),
   "native-host/client": resolve(__dirname, "src/native-host/client.ts"),
+  "native-host/transport": resolve(__dirname, "src/native-host/transport.ts"),
   "scripts/install-native-host": resolve(__dirname, "src/scripts/install-native-host.ts"),
   "scripts/check-extension-installed": resolve(__dirname, "src/scripts/check-extension-installed.ts"),
   "scripts/check-native-host-manifest": resolve(__dirname, "src/scripts/check-native-host-manifest.ts"),

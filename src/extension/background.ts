@@ -1,6 +1,8 @@
 import { Context, Effect, Either, Layer } from "effect";
 import { parseJsonRpcMessage, type JsonRpcMessage, type JsonRpcRequest } from "../shared/rpc";
 import { parseWithSchema, RuntimeMessageSchema, type CursorState, type NativeHostStatus, type RuntimeMessage } from "../shared/extension-schemas";
+import { observePrivateFields, fillPrivateFields } from "./private-input";
+import { pageControl, type PageOptions } from "./page-control";
 
 const HOST_NAMES = [
   "com.opzero.chrome",
@@ -73,6 +75,14 @@ const commandQueues = new Map<number, Promise<unknown>>();
 const cursorStates = new Map<number, CursorState>();
 const cursorWaiters = new Map<string, CursorWaiter>();
 const tabOrigins = new Map<number, TabOrigin>();
+const revokedSessions = new Set<string>();
+const tabGenerations = new Map<number, number>();
+const privateObservations = new Map<number, { token: string; origin: string; url: string; documentId: string; expires: number; selectors: string[] }>();
+const pageOrigins = new Map<number, string>();
+const pageOperations = new Map<number, Promise<unknown>>();
+const pageSnapshots = new Map<number, { token: string; documentId: string }>();
+const pageRecordings = new Set<number>();
+const PRIVATE_CAPTURE_KEY = "PRIVATE_CAPTURE_QUARANTINE";
 let deliverableGroupId: number | null = null;
 let nativeTransport: NativeTransport;
 
@@ -163,6 +173,7 @@ function normalizeSessionParams(params: JsonRecord = {}) {
 
 function ensureSession(params: JsonRecord = {}): Session {
   const { sessionId, turnId } = normalizeSessionParams(params);
+  if (revokedSessions.has(sessionId)) throw createRpcError("Session revoked; reconnect requires a new session");
   let session = sessions.get(sessionId);
   if (!session) {
     session = {
@@ -318,6 +329,9 @@ function ensureDeliverableGroup(tabIds: number[]) {
 
 function registerSessionTab(session: Session, tab: chrome.tabs.Tab | { id: number }, origin: TabOrigin) {
   if (tab.id == null) throw createRpcError("Missing tab id");
+  if (sessions.get(session.id) !== session || revokedSessions.has(session.id)) throw createRpcError("Session revoked");
+  const owner = tabToSession.get(tab.id);
+  if (owner && owner !== session.id) throw createRpcError("Tab already owned");
   session.tabIds.add(tab.id);
   session.origins.set(tab.id, origin);
   tabToSession.set(tab.id, session.id);
@@ -407,6 +421,7 @@ class NativeTransport {
     const port = this.port;
     this.port = null;
     this.connected = false;
+    revokeAllSessions();
     if (port) {
       try {
         port.disconnect();
@@ -470,8 +485,9 @@ class NativeTransport {
       this.connected = true;
       this.reconnectAttempt = 0;
       this.setStatus("connected").catch(() => undefined);
-      this.port.onMessage.addListener((message) => this.onMessage(message));
-      this.port.onDisconnect.addListener(() => this.onDisconnect());
+      const port = this.port;
+      port.onMessage.addListener((message) => { if (this.port === port) this.onMessage(message); });
+      port.onDisconnect.addListener(() => { if (this.port === port) this.onDisconnect(); });
     } catch (error) {
       this.connected = false;
       this.port = null;
@@ -487,6 +503,7 @@ class NativeTransport {
     const message = chrome.runtime.lastError?.message || "Native host disconnected";
     this.connected = false;
     this.port = null;
+    revokeAllSessions();
     for (const { reject, timer } of this.pending.values()) {
       clearTimeout(timer);
       reject(new Error(message));
@@ -515,7 +532,8 @@ class NativeTransport {
       return;
     }
     if ("method" in rpcMessage) {
-      handleJsonRpcRequest(rpcMessage, (response) => this.post(response)).catch(() => undefined);
+      const port = this.port;
+      handleJsonRpcRequest(rpcMessage, (response) => { if (port && this.port === port) port.postMessage(response); }).catch(() => undefined);
     }
   }
 
@@ -566,13 +584,156 @@ class NativeTransport {
   }
 }
 
+function injectPage(tabId: number, origin: string, operation: "observe" | "act" | "capture-check" | "document-check" | "prepare-submit" | "submit", token = "", actionId = "", text?: string, documentId?: string, options: PageOptions = { selectors: [], controlsOnly: false }) {
+  return Effect.gen(function* () {
+    const chromeApi = yield* ChromeApi;
+    const owner = getSessionForTab(tabId);
+    if (!owner) throw createRpcError("Page owner revoked");
+    const results = yield* chromeApi.call<chrome.scripting.InjectionResult<Record<string, unknown>>[]>("scripting", "executeScript", {
+      target: documentId ? { tabId, documentIds: [documentId] } : { tabId, frameIds: [0] },
+      world: "ISOLATED", func: pageControl, args: [operation, origin, token, actionId, text ?? null, options]
+    });
+    const result = results[0];
+    if (getSessionForTab(tabId) !== owner || !result?.documentId || result.frameId !== 0) throw createRpcError("Page changed or owner revoked");
+    return result;
+  });
+}
+
+function scopedContext(tabId: number, origin: string, documentId?: string) {
+  return Effect.gen(function* () {
+    const chromeApi = yield* ChromeApi;
+    const key = `${PRIVATE_CAPTURE_KEY}:${tabId}`;
+    const previous = (yield* chromeApi.storageGet<Record<string, unknown>>(key))[key];
+    if (typeof previous === "string") return yield* Effect.fail(createRpcError("private-quarantine"));
+    let selectors: string[] = [], quarantinedDocument: string | undefined;
+    if (previous != null) {
+      if (typeof previous !== "object" || !("documentId" in previous) || typeof previous.documentId !== "string"
+        || !("selectors" in previous) || !Array.isArray(previous.selectors) || previous.selectors.length > 256
+        || !previous.selectors.every((s): s is string => typeof s === "string" && s.length > 0 && s.length <= 1024)) return yield* Effect.fail(createRpcError("invalid-private-selectors"));
+      selectors = previous.selectors; quarantinedDocument = previous.documentId;
+    }
+    const checked = yield* injectPage(tabId, origin, "document-check", "", "", undefined, documentId);
+    if (checked.result?.status !== "checked") return yield* Effect.fail(createRpcError("Page origin not ready or mismatch"));
+    if (quarantinedDocument === checked.documentId) return yield* Effect.fail(createRpcError("private-quarantine"));
+    return { documentId: checked.documentId, selectors };
+  });
+}
+
+function assertCapture(tabId: number, origin: string) {
+  return Effect.gen(function* () {
+    const chromeApi = yield* ChromeApi;
+    const key = `${PRIVATE_CAPTURE_KEY}:${tabId}`;
+    const stored = yield* chromeApi.storageGet<Record<string, { documentId: string; selectors: string[] } | string | null>>(key);
+    const previous = stored[key];
+    if (typeof previous === "string") throw createRpcError("private-quarantine");
+    const checked = yield* injectPage(tabId, origin, "capture-check", "", "", JSON.stringify(previous?.selectors ?? []));
+    if (checked.result?.status !== "checked") throw createRpcError("Page origin not ready or mismatch");
+    if (previous?.documentId === checked.documentId) throw createRpcError("private-quarantine");
+    if (checked.result.allowed !== true) {
+      switch (checked.result.reason) {
+        case "private-quarantine": case "populated-private-input": case "restored-private-selector": case "invalid-private-selectors":
+          throw createRpcError(checked.result.reason);
+        default: throw createRpcError("Capture privacy check failed");
+      }
+    }
+    return checked.documentId;
+  });
+}
+
 const api: Record<string, RpcHandler> = {
+  preparePrivateSubmit: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = pageOrigins.get(tabId), snapshot = pageSnapshots.get(tabId);
+    pageSnapshots.delete(tabId);
+    if (!origin || !snapshot || params.snapshot !== snapshot.token || typeof params.actionId !== "string") throw createRpcError("Fresh observed submit action required");
+    const context = yield* scopedContext(tabId, origin, snapshot.documentId);
+    const result = yield* injectPage(tabId, origin, "prepare-submit", snapshot.token, params.actionId, undefined, context.documentId, { selectors: context.selectors, controlsOnly: false });
+    return { ...result.result, documentId: result.documentId };
+  }),
+
+  submitPrivate: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = pageOrigins.get(tabId);
+    if (!origin || typeof params.submitToken !== "string" || typeof params.documentId !== "string" || pageRecordings.has(tabId)) return { status: "not-executed", reason: "invalid-or-recording" };
+    const result = yield* Effect.either(injectPage(tabId, origin, "submit", params.submitToken, "", undefined, params.documentId));
+    return Either.isRight(result) ? result.right.result : { status: "unknown", retry: false };
+  }),
+  recordingState: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    if (params.active === false) { pageRecordings.delete(tabId); return { recording: false }; }
+    const origin = pageOrigins.get(tabId);
+    if (!origin || params.active !== true || pageRecordings.has(tabId)) throw createRpcError("Recording unavailable or already active");
+    yield* assertCapture(tabId, origin);
+    pageRecordings.add(tabId);
+    return { recording: true };
+  }),
+  bindPage: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = params.expectedOrigin;
+    if (typeof origin !== "string" || new URL(origin).origin !== origin || !/^https:\/\//.test(origin) && !(params.allowInsecureLoopback === true && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin))) throw createRpcError("Exact HTTPS origin required; loopback needs opt-in");
+    if (pageOrigins.has(tabId) && pageOrigins.get(tabId) !== origin) throw createRpcError("Page origin binding is immutable");
+    pageOrigins.set(tabId, origin);
+    return { bound: true, tabId, origin };
+  }),
+
+  navigatePage: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = pageOrigins.get(tabId);
+    if (!origin || typeof params.url !== "string" || new URL(params.url).origin !== origin) throw createRpcError("Navigation outside bound origin refused");
+    pageSnapshots.delete(tabId);
+    const result = yield* sendDebuggerCommand<{ errorText?: string }>(tabId, "Page.navigate", { url: params.url });
+    if (result.errorText) throw createRpcError("Navigation failed; do not replay");
+    return { status: "dispatched", retry: false };
+  }),
+
+  observePage: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = pageOrigins.get(tabId);
+    if (!origin) throw createRpcError("Page has no origin binding");
+    pageSnapshots.delete(tabId);
+    if (params.controlsOnly !== undefined && typeof params.controlsOnly !== "boolean") throw createRpcError("Invalid observation mode");
+    const context = yield* scopedContext(tabId, origin);
+    const token = crypto.randomUUID();
+    const result = yield* injectPage(tabId, origin, "observe", token, "", undefined, context.documentId, { selectors: context.selectors, controlsOnly: params.controlsOnly === true });
+    if (result.result?.status !== "observed") {
+      switch (result.result?.reason) {
+        case "private-quarantine": case "populated-private-input": case "restored-private-selector": case "invalid-private-selectors": case "unsupported-shadow-root":
+          throw createRpcError(result.result.reason);
+        default: throw createRpcError("Observation unavailable");
+      }
+    }
+    if (result.result?.status === "observed" && result.documentId) pageSnapshots.set(tabId, { token, documentId: result.documentId });
+    return result.result;
+  }),
+
+  actPage: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = pageOrigins.get(tabId), snapshot = pageSnapshots.get(tabId);
+    pageSnapshots.delete(tabId);
+    if (!origin || !snapshot || params.snapshot !== snapshot.token || typeof params.actionId !== "string" || params.text !== undefined && typeof params.text !== "string") return { status: "not-executed", reason: "stale-or-invalid" };
+    const context = yield* Effect.either(scopedContext(tabId, origin, snapshot.documentId));
+    if (Either.isLeft(context)) return { status: "not-executed", reason: "privacy-or-document-changed", retry: false };
+    const result = yield* Effect.either(injectPage(tabId, origin, "act", snapshot.token, params.actionId, params.text, context.right.documentId, { selectors: context.right.selectors, controlsOnly: false }));
+    return Either.isRight(result) ? result.right.result : { status: "unknown", retry: false };
+  }),
+
+  capturePage: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = pageOrigins.get(tabId);
+    if (!origin) throw createRpcError("Page has no origin binding");
+    const documentId = yield* assertCapture(tabId, origin);
+    const result = yield* sendDebuggerCommand(tabId, "Page.captureScreenshot", { format: "jpeg", quality: 80 });
+    if ((yield* assertCapture(tabId, origin)) !== documentId) throw createRpcError("Document changed during capture; image discarded");
+    return result;
+  }),
   ping: () => Effect.succeed("pong"),
 
   getInfo: () => Effect.gen(function* () {
     return {
     name: "Chrome",
     version: chrome.runtime.getManifest().version,
+    protocolVersion: 2,
+    pageProtocolVersion: 2,
     type: "extension",
     metadata: {
       extensionId: chrome.runtime.id,
@@ -584,11 +745,8 @@ const api: Record<string, RpcHandler> = {
 
   getTabs: (params: JsonRecord = {}) => Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
-    const sessionId = params.session_id || params.sessionId;
-    const targetSessions = sessionId
-      ? Array.from(sessions.values()).filter((session) => session.id === sessionId)
-      : Array.from(sessions.values());
-    const tabIds = targetSessions.flatMap((session) => Array.from(session.tabIds));
+    const session = yield* Effect.try({ try: () => ensureSession(params), catch: toError });
+    const tabIds = Array.from(session.tabIds);
     const tabs = yield* Effect.all(tabIds.map((id) => chromeApi.safeCall<chrome.tabs.Tab>("tabs", "get", id)));
     return tabs.flatMap((tab) => {
       const info = tabInfo(tab);
@@ -596,8 +754,9 @@ const api: Record<string, RpcHandler> = {
     });
   }),
 
-  getUserTabs: () => Effect.gen(function* () {
+  getUserTabs: (params: JsonRecord = {}) => Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
+    yield* Effect.try({ try: () => ensureSession(params), catch: toError });
     const tabs = yield* chromeApi.call<chrome.tabs.Tab[]>("tabs", "query", {});
     return tabs.flatMap((tab) => {
       if (tab.id == null || !isControllableUrl(tab.url) || tabToSession.has(tab.id)) return [];
@@ -608,6 +767,7 @@ const api: Record<string, RpcHandler> = {
 
   getUserHistory: (params: JsonRecord = {}) => Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
+    yield* Effect.try({ try: () => ensureSession(params), catch: toError });
     const maxResults = Math.max(1, Math.min(Number(params.limit) || 100, 1000));
     const from = Number(params.from);
     const to = Number(params.to);
@@ -624,13 +784,8 @@ const api: Record<string, RpcHandler> = {
     const chromeApi = yield* ChromeApi;
     const session = yield* Effect.try({ try: () => ensureSession(params), catch: toError });
     const win = yield* findNormalWindow();
-    let tab;
-    if (win?.id) {
-      tab = yield* chromeApi.call<chrome.tabs.Tab>("tabs", "create", { windowId: win.id, url: "about:blank", active: true });
-    } else {
-      const created = yield* chromeApi.call<chrome.windows.Window>("windows", "create", { url: "about:blank", focused: false, type: "normal" });
-      tab = created.tabs?.[0];
-    }
+    if (!win?.id) return yield* Effect.fail(createRpcError("No normal window; background creation will not open a window"));
+    const tab = yield* chromeApi.call<chrome.tabs.Tab>("tabs", "create", { windowId: win.id, url: "about:blank", active: false });
     if (!tab?.id) return yield* Effect.fail(createRpcError("Failed to create tab"));
     yield* Effect.try({ try: () => registerSessionTab(session, tab, "agent"), catch: toError });
     yield* ensureSessionGroup(session, tab.id);
@@ -706,12 +861,14 @@ const api: Record<string, RpcHandler> = {
 
   attach: (params: JsonRecord = {}) => Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
-    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const { session, tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const generation = tabGenerations.get(tabId) || 0;
     if (attachedTabs.has(tabId)) return { attached: true };
     const attached = yield* Effect.either(chromeApi.call("debugger", "attach", { tabId }, DEBUGGER_VERSION));
-    if (Either.isLeft(attached)) {
-      const message = attached.left.message;
-      if (!/Another debugger|already attached/i.test(message)) return yield* Effect.fail(attached.left);
+    if (Either.isLeft(attached)) return yield* Effect.fail(attached.left);
+    if (getSessionForTab(tabId) !== session || generation !== (tabGenerations.get(tabId) || 0)) {
+      yield* chromeApi.safeCall("debugger", "detach", { tabId });
+      return yield* Effect.fail(createRpcError("Session revoked during attach"));
     }
     attachedTabs.add(tabId);
     return { attached: true };
@@ -725,13 +882,17 @@ const api: Record<string, RpcHandler> = {
 
   executeCdp: (params: JsonRecord = {}) => Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
-    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const { session, tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
     const method = String(params.method || "");
     if (!method) return yield* Effect.fail(createRpcError("Missing CDP method"));
+    if (pageOrigins.has(tabId)) throw createRpcError("Raw CDP disabled for origin-bound pages; use typed page methods");
+    const quarantine = yield* chromeApi.storageGet<Record<string, string | null>>(`${PRIVATE_CAPTURE_KEY}:${tabId}`);
+    if (quarantine[`${PRIVATE_CAPTURE_KEY}:${tabId}`]) throw createRpcError("Raw CDP disabled for a privately filled tab; bind and verify a new document first");
     if (method === "Target.getTargets") {
-      const targetInfos = yield* chromeApi.call<chrome.debugger.TargetInfo[]>("debugger", "getTargets");
-      return { targetInfos };
+      const targets = yield* chromeApi.call<chrome.debugger.TargetInfo[]>("debugger", "getTargets");
+      return { targetInfos: targets.filter(target => target.tabId != null && session.tabIds.has(target.tabId)) };
     }
+    if (/^(Target|Browser)\./.test(method)) return yield* Effect.fail(createRpcError("Cross-target CDP methods are not supported"));
     if (!attachedTabs.has(tabId)) return yield* Effect.fail(createRpcError(`Tab ${tabId} is not attached`));
     const commandParams: JsonRecord = typeof params.commandParams === "object" && params.commandParams != null
       ? params.commandParams as JsonRecord
@@ -739,6 +900,78 @@ const api: Record<string, RpcHandler> = {
     const requestedTimeoutMs = Number(params.timeoutMs);
     const timeoutMs = Number.isFinite(requestedTimeoutMs) && requestedTimeoutMs > 0 ? requestedTimeoutMs : DEFAULT_CDP_TIMEOUT_MS;
     return yield* sendDebuggerCommand(tabId, method, commandParams, timeoutMs);
+  }),
+
+  observeDocument: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const chromeApi = yield* ChromeApi;
+    const { session, tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const generation = tabGenerations.get(tabId) || 0;
+    privateObservations.delete(tabId);
+    const origin = params.expectedOrigin;
+    const expectedUrl = params.expectedUrl;
+    const selectors = params.selectors;
+    if (pageOrigins.has(tabId) && pageOrigins.get(tabId) !== origin) throw createRpcError("Private fill origin differs from bound page origin");
+    if (typeof origin !== "string" || !/^https?:\/\//.test(origin) || new URL(origin).origin !== origin
+      || !Array.isArray(selectors) || !selectors.length || selectors.length > 16
+      || !selectors.every((value): value is string => typeof value === "string" && value.length > 0 && value.length <= 1024)) {
+      return yield* Effect.fail(createRpcError("Invalid private observation request"));
+    }
+    const parsedOrigin = new URL(origin);
+    if (expectedUrl !== undefined && (typeof expectedUrl !== "string" || expectedUrl.length > 16384)) {
+      return yield* Effect.fail(createRpcError("Invalid private observation URL"));
+    }
+    if (typeof expectedUrl === "string") {
+      const parsedUrl = yield* Effect.try({ try: () => new URL(expectedUrl), catch: () => createRpcError("Invalid private observation URL") });
+      if (parsedUrl.href !== expectedUrl || parsedUrl.origin !== origin) {
+        return yield* Effect.fail(createRpcError("Private observation URL differs from expected origin"));
+      }
+    }
+    const allowInsecureLoopback = params.allowInsecureLoopback === true;
+    if (parsedOrigin.protocol !== "https:" && !(allowInsecureLoopback && ["127.0.0.1", "localhost", "[::1]"].includes(parsedOrigin.hostname))) {
+      return yield* Effect.fail(createRpcError("Private input requires HTTPS; loopback HTTP requires explicit opt-in"));
+    }
+    const token = crypto.randomUUID();
+    const results = yield* chromeApi.call<chrome.scripting.InjectionResult<{ status: string; origin?: string; url?: string }>[]>("scripting", "executeScript", {
+      target: { tabId, frameIds: [0] }, world: "ISOLATED", func: observePrivateFields, args: [origin, selectors, token, allowInsecureLoopback, expectedUrl]
+    });
+    const observed = results[0];
+    if (!observed?.documentId || observed.result?.status !== "observed" || observed.result.origin !== origin
+      || typeof observed.result.url !== "string" || (expectedUrl !== undefined && observed.result.url !== expectedUrl)
+      || new URL(observed.result.url).origin !== origin
+      || getSessionForTab(tabId) !== session || generation !== (tabGenerations.get(tabId) || 0)) {
+      return yield* Effect.fail(createRpcError("Private observation refused"));
+    }
+    const url = observed.result.url;
+    privateObservations.set(tabId, { token, origin, url, documentId: observed.documentId, expires: Date.now() + 30000, selectors });
+    return { token, origin, url, documentId: observed.documentId, expiresInMs: 30000 };
+  }),
+
+  privateFill: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const chromeApi = yield* ChromeApi;
+    const { tabId, session } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    if (pageRecordings.has(tabId)) return { status: "refused", retry: false };
+    if (!pageOrigins.has(tabId)) return { status: "refused", retry: false };
+    const observed = privateObservations.get(tabId);
+    privateObservations.delete(tabId);
+    const values = params.values;
+    if (!observed || pageOrigins.get(tabId) !== observed.origin || params.token !== observed.token || params.documentId !== observed.documentId
+      || params.expectedOrigin !== observed.origin || observed.expires < Date.now()
+      || !Array.isArray(values) || !values.length || values.length > 16
+      || !values.every((value): value is string => typeof value === "string" && value.length <= 16384)) {
+      return { status: "refused", retry: false };
+    }
+    const key = `${PRIVATE_CAPTURE_KEY}:${tabId}`;
+    const previous = (yield* chromeApi.storageGet<Record<string, { selectors: string[] } | string | null>>(key))[key];
+    if (typeof previous === "string") return { status: "refused", retry: false };
+    const selectors = [...new Set([...(previous?.selectors ?? []), ...observed.selectors])];
+    if (selectors.length > 256) return { status: "refused", retry: false };
+    yield* chromeApi.storageSet({ [key]: { documentId: observed.documentId, selectors } });
+    if (getSessionForTab(tabId) !== session) return { status: "refused", retry: false };
+    const outcome = yield* Effect.either(chromeApi.call<chrome.scripting.InjectionResult<{ status: string }>[]>("scripting", "executeScript", {
+      target: { tabId, documentIds: [observed.documentId] }, world: "ISOLATED", func: fillPrivateFields,
+      args: [observed.origin, observed.token, values]
+    }));
+    return { status: Either.isRight(outcome) && outcome.right[0]?.result?.status === "filled" ? "filled" : "unknown", retry: false };
   }),
 
   moveMouse: (params: JsonRecord = {}) => Effect.gen(function* () {
@@ -799,28 +1032,47 @@ const api: Record<string, RpcHandler> = {
 
 async function handleJsonRpcRequest(message: JsonRpcRequest, respond: (response: unknown) => void) {
   const { id, method, params } = message;
+  if (method === "internal.releaseClient") {
+    if (typeof params === "object" && params !== null && "session_id" in params && typeof params.session_id === "string") revokeSession(params.session_id);
+    return;
+  }
   if (!method || typeof method !== "string") {
     if (id != null) respond(jsonRpcError(id, createRpcError("Invalid JSON-RPC method", -32600)));
     return;
   }
-  const fn = api[method] || api.executeUnhandledCommand;
+  const fn = Object.hasOwn(api, method) ? api[method] : api.executeUnhandledCommand;
   try {
-    const result = await runChromeEffect(Effect.gen(function* () {
+    const run = () => runChromeEffect(Effect.gen(function* () {
       const rpcParams = typeof params === "object" && params != null ? params as JsonRecord : {};
       return yield* fn(rpcParams);
     }));
+    const rpcParams = typeof params === "object" && params != null ? params as JsonRecord : {};
+    const targetParams = typeof rpcParams.target === "object" && rpcParams.target != null ? rpcParams.target as JsonRecord : {};
+    const tabId = Number(rpcParams.tabId ?? targetParams.tabId);
+    const serialized = ["preparePrivateSubmit", "submitPrivate", "recordingState", "bindPage", "navigatePage", "observePage", "actPage", "capturePage", "observeDocument", "privateFill", "executeCdp"].includes(method) && Number.isInteger(tabId);
+    let result: unknown;
+    if (serialized) {
+      const previous = pageOperations.get(tabId) || Promise.resolve();
+      const generation = tabGenerations.get(tabId) || 0;
+      const next = previous.catch(() => undefined).then(() => {
+        if (generation !== (tabGenerations.get(tabId) || 0)) throw createRpcError("Stale queued page operation; not dispatched");
+        return run();
+      });
+      pageOperations.set(tabId, next);
+      try { result = await next; } finally { if (pageOperations.get(tabId) === next) pageOperations.delete(tabId); }
+    } else result = await run();
     if (id != null) respond({ jsonrpc: "2.0", id, result });
   } catch (error) {
-    if (id != null) respond(jsonRpcError(id, error));
+    if (id != null) respond(jsonRpcError(id, method === "privateFill" ? createRpcError("Private input refused or outcome unknown; do not replay") : error));
   }
 }
 
 function enqueueCdp(tabId: number, task: () => Promise<unknown>) {
   const previous = commandQueues.get(tabId) || Promise.resolve();
   const next = previous.catch(() => undefined).then(task);
-  commandQueues.set(tabId, next.finally(() => {
-    if (commandQueues.get(tabId) === next) commandQueues.delete(tabId);
-  }));
+  const settled = next.then(() => undefined, () => undefined);
+  commandQueues.set(tabId, settled);
+  void settled.then(() => { if (commandQueues.get(tabId) === settled) commandQueues.delete(tabId); });
   return next;
 }
 
@@ -832,8 +1084,14 @@ function sendDebuggerCommand<T = unknown>(
 ) {
   return Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
+    const generation = tabGenerations.get(tabId) || 0;
+    const owner = tabToSession.get(tabId);
     return yield* Effect.tryPromise({
-      try: async () => await enqueueCdp(tabId, () => withTimeout(
+      try: async () => await enqueueCdp(tabId, () => {
+        if (!attachedTabs.has(tabId) || !owner || tabToSession.get(tabId) !== owner || (tabGenerations.get(tabId) || 0) !== generation) {
+          throw createRpcError("Stale command; not replayed");
+        }
+        return withTimeout(
         Effect.runPromise(chromeApi.call<T>("debugger", "sendCommand", { tabId }, method, commandParams)),
         timeoutMs,
         `CDP command ${method}`
@@ -841,7 +1099,7 @@ function sendDebuggerCommand<T = unknown>(
         const message = error instanceof Error ? error.message : String(error);
         if (/timed out/i.test(message)) await runChromeEffect(detachTab(tabId));
         throw error;
-      })) as T,
+      }); }) as T,
       catch: toError
     });
   });
@@ -916,7 +1174,7 @@ function detachTab(tabId: number) {
   return Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
     attachedTabs.delete(tabId);
-    commandQueues.delete(tabId);
+    invalidateTab(tabId);
     yield* chromeApi.safeCall("debugger", "detach", { tabId });
   });
 }
@@ -967,8 +1225,7 @@ function waitForCursorArrival(tabId: number, sessionId: string, turnId: string, 
 
 function stopActiveSessions(reason: string) {
   return Effect.gen(function* () {
-    for (const tabId of Array.from(attachedTabs)) yield* detachTab(tabId);
-    for (const session of sessions.values()) session.active = false;
+    revokeAllSessions();
     nativeTransport?.notify("onControlStopped", { reason });
   });
 }
@@ -1032,12 +1289,14 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
 });
 
 chrome.debugger.onEvent.addListener((source, method, params) => {
-  nativeTransport?.notify("onCDPEvent", { source, method, params: params || {} });
+  const session = source.tabId == null ? null : getSessionForTab(source.tabId);
+  if (session) nativeTransport?.notify("onCDPEvent", { session_id: session.id, source, method, params: params || {} });
 });
 
 chrome.debugger.onDetach.addListener((source, reason) => {
-  if (source.tabId != null && Number.isInteger(source.tabId)) attachedTabs.delete(source.tabId);
-  nativeTransport?.notify("onCDPDetach", { source, reason });
+  const session = source.tabId == null ? null : getSessionForTab(source.tabId);
+  if (source.tabId != null && Number.isInteger(source.tabId)) { attachedTabs.delete(source.tabId); invalidateTab(source.tabId); }
+  if (session) nativeTransport?.notify("onCDPDetach", { session_id: session.id, source, reason });
 });
 
 chrome.downloads.onCreated.addListener((item) => {
@@ -1066,6 +1325,7 @@ chrome.downloads.onChanged.addListener((delta) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  invalidateTab(tabId);
   const session = getSessionForTab(tabId);
   if (session) {
     session.tabIds.delete(tabId);
@@ -1083,8 +1343,48 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
   const origin = session.origins.get(removedTabId) || "user";
   session.tabIds.delete(removedTabId);
   session.origins.delete(removedTabId);
-  registerSessionTab(session, { id: addedTabId }, origin);
+  tabToSession.delete(removedTabId);
+  tabOrigins.delete(removedTabId);
+  attachedTabs.delete(removedTabId);
+  invalidateTab(removedTabId);
+  try { registerSessionTab(session, { id: addedTabId }, origin); }
+  catch { revokeSession(session.id); }
 });
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "loading" || changeInfo.url) invalidateTab(tabId);
+});
+
+function invalidateTab(tabId: number) {
+  tabGenerations.set(tabId, (tabGenerations.get(tabId) || 0) + 1);
+    privateObservations.delete(tabId);
+    pageSnapshots.delete(tabId);
+}
+
+function revokeSession(sessionId: string) {
+  revokedSessions.add(sessionId);
+  if (revokedSessions.size > 4096) {
+    const oldest = revokedSessions.values().next().value;
+    if (oldest !== undefined) revokedSessions.delete(oldest);
+  }
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  sessions.delete(sessionId);
+  for (const tabId of session.tabIds) {
+    tabToSession.delete(tabId);
+    pageOrigins.delete(tabId);
+    pageRecordings.delete(tabId);
+    tabOrigins.delete(tabId);
+    cursorStates.delete(tabId);
+    invalidateTab(tabId);
+    void runChromeEffect(detachTab(tabId)).catch(() => undefined);
+  }
+  void runChromeEffect(persistGroupState()).catch(() => undefined);
+}
+
+function revokeAllSessions() {
+  for (const id of sessions.keys()) revokeSession(id);
+}
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === RECONNECT_ALARM && !nativeTransport?.connected && !nativeTransport?.paused) nativeTransport.connect();

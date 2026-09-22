@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-const require_NodeRuntime = require("../chunks/NodeRuntime-CfddDOOs.js");
-const require_effect_services = require("../chunks/effect-services-BrlJlqgg.js");
+const require_Layer = require("../chunks/Layer-nAKmzBoW.js");
+const require_effect_services = require("../chunks/effect-services-BVazUC0E.js");
 let node_os = require("node:os");
-node_os = require_NodeRuntime.__toESM(node_os);
+node_os = require_Layer.__toESM(node_os);
 let node_path = require("node:path");
-node_path = require_NodeRuntime.__toESM(node_path);
+node_path = require_Layer.__toESM(node_path);
 let node_process = require("node:process");
-node_process = require_NodeRuntime.__toESM(node_process);
+node_process = require_Layer.__toESM(node_process);
 //#region src/scripts/install-native-host.ts
 var root = node_path.default.resolve(__dirname, "..");
 var hostName = "com.opzero.chrome";
@@ -17,7 +17,7 @@ function chromeManifestPath() {
 	throw new Error(`Unsupported platform: ${node_process.default.platform}`);
 }
 function registerWindowsManifest(manifestPath) {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		if (node_process.default.platform !== "win32") return;
 		const io = yield* require_effect_services.ScriptIo;
 		const key = `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${hostName}`;
@@ -60,7 +60,7 @@ function windowsNativeHostLauncher() {
 ${socketPath ? `set "OPZERO_CHROME_HOST_SOCKET=${socketPath.replace(/"/g, "\"\"")}"\r\n` : ""}"${node_process.default.execPath.replace(/"/g, "\"\"")}" "%~dp0host.js"
 `;
 }
-require_effect_services.runScript(require_NodeRuntime.gen(function* () {
+require_effect_services.runScript(require_Layer.gen(function* () {
 	const io = yield* require_effect_services.ScriptIo;
 	const extensionId = require_effect_services.argValue("extension-id", node_process.default.env.OPZERO_CHROME_EXTENSION_ID);
 	if (!extensionId) {
@@ -86,9 +86,9 @@ require_effect_services.runScript(require_NodeRuntime.gen(function* () {
 	yield* io.stdout(`Installed native messaging manifest:\n${manifestPath}\n`);
 	yield* io.stdout(`Allowed extension origin: chrome-extension://${extensionId}/\n`);
 	yield* io.stdout(`Host executable: ${hostPath}\n`);
-	yield* require_NodeRuntime.catchAll(io.writeText(node_path.default.join(__dirname, "extension-id.json"), `${JSON.stringify({
+	yield* require_Layer.catchAll(io.writeText(node_path.default.join(__dirname, "extension-id.json"), `${JSON.stringify({
 		extensionId,
 		extensionHostName: hostName
-	}, null, 2)}\n`), () => require_NodeRuntime._void);
+	}, null, 2)}\n`), () => require_Layer._void);
 }));
 //#endregion
