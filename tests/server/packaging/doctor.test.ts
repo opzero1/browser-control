@@ -130,6 +130,53 @@ describe("browser-control doctor", () => {
     expect(snapshotTree(root)).toEqual(before);
   });
 
+  it("never reports a skill link, wrapper or host copy that another user owns as current, and refuses directories another user could change", async () => {
+    const { root, env, flags, deps } = setup();
+    await install(parseOptions(flags, INSTALL_FLAGS), env, deps);
+    const link = path.join(root, "skills/browser-control");
+    const wrapper = path.join(root, "state/hosts/user/browser-control-host");
+    const target = fs.readlinkSync(link);
+    // In a sticky skills directory another user could have made this link, byte for byte what install writes.
+    fs.chmodSync(path.join(root, "skills"), 0o1777);
+    const lstat = fs.lstatSync;
+    const foreign = new Set([link, wrapper]);
+    vi.spyOn(fs, "lstatSync").mockImplementation(((file: fs.PathLike, options?: fs.StatSyncOptions) => {
+      const observed = lstat(file, options as fs.StatSyncOptions & { bigint?: false }) as fs.Stats;
+      return foreign.has(String(file)) ? Object.assign(Object.create(Object.getPrototypeOf(observed)), observed, { uid: observed.uid + 1 }) : observed;
+    }) as typeof fs.lstatSync);
+    const report = byId((await run(flags, env, deps)).steps);
+    expect(report["skill:browser-control"]).toEqual({ id: "skill:browser-control", level: "fail", status: "untrusted", path: link, previous: target,
+      message: "An entry with this skill's name is here, but another user owns it and could change it. Run browser-control install --force to replace it.",
+      command: "browser-control install --force" });
+    expect(report.wrapper).toMatchObject({ level: "fail", status: "stale" });
+    vi.restoreAllMocks();
+    // A skills directory, manifest directory or socket reached through a directory others can write to.
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, 0o777);
+    fs.symlinkSync(path.join(root, "skills"), path.join(shared, "skills"));
+    fs.symlinkSync(path.join(root, "manifests"), path.join(shared, "manifests"));
+    const through = ["--state-dir", path.join(root, "state"), "--chrome-manifest-dir", path.join(shared, "manifests"), "--skills-dir", path.join(shared, "skills")];
+    const before = snapshotTree(root);
+    const refused = byId((await run(through, { ...env, BROWSER_CONTROL_HOST_SOCKET: path.join(shared, "skills/user.sock") }, deps)).steps);
+    expect(refused.skills).toMatchObject({ level: "fail", status: "unsafe-directory", path: shared });
+    expect(refused["skill:browser-control"]).toBeUndefined();
+    expect(refused.manifest).toMatchObject({ level: "fail", status: "unsafe-directory", path: shared });
+    expect(refused.endpoint).toMatchObject({ level: "fail", status: "unsafe-socket", path: shared });
+    expect(snapshotTree(root)).toEqual(before);
+  });
+
+  it("names the directory above the state directory that another user could change", async () => {
+    const { root, env, deps } = setup();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(path.join(shared, "state"), { recursive: true, mode: 0o700 });
+    fs.chmodSync(shared, 0o770);
+    const report = byId((await run(["--state-dir", path.join(shared, "state"), "--chrome-manifest-dir", path.join(root, "manifests")], env, deps)).steps);
+    expect(report.state).toEqual({ id: "state", level: "fail", status: "unsafe-ancestor", path: shared,
+      message: "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir." });
+    expect(report.host).toBeUndefined();
+  });
+
   it("names the socket when the wrapper differs from this server's only there", async () => {
     const { root, env, flags, deps } = setup();
     const installed = await install(parseOptions(flags, INSTALL_FLAGS), env, deps);

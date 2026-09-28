@@ -6,10 +6,11 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { privateSocket, type PrivateSocket } from "../../shared/trusted-path";
 import type { PackageAssets } from "../assets";
 import { envLimit, HOST_WRAPPER_NAME, nodeExecutable, SERVER_NAME, statePaths, unsharedSites, type Env } from "../config";
 import {
-  childDirectory, entryStats, fixedErrors, fixedErrorsAsync, io, listDirectory, openDirectory, readJson,
+  childDirectory, entryStats, existingDirectory, fixedErrors, fixedErrorsAsync, FsError, io, listDirectory, openDirectory, readJson,
   removeFile, syncDirectory, verified, writeJson, type PrivateDir
 } from "../fs-private";
 import { Gate } from "../gate";
@@ -634,19 +635,34 @@ function uid(): number {
   return process.getuid?.() ?? -1;
 }
 
+/**
+ * The controller's endpoint by its canonical path, with the identities privateSocket
+ * (src/shared/trusted-path.ts) checked, or null when there is no socket file. A socket or directory that fails the
+ * rule is browser-controller-unsafe-socket; nothing is connected to or removed through it.
+ */
+function checkedEndpoint(info: ControllerMetadata): PrivateSocket | null {
+  try {
+    return privateSocket(info.socket);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null)?.code;
+    if (code === "ENOENT") return null;
+    if (typeof code === "string") return io(() => { throw error; });
+    throw new Gate("browser-controller-unsafe-socket");
+  }
+}
+
 /** "absent", "stale" (a socket file with no listener) or "live". */
 export async function endpointState(info: ControllerMetadata): Promise<EndpointState> {
-  let entry: fs.Stats;
-  try {
-    entry = fs.lstatSync(info.socket);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent";
-    return io(() => { throw error; });
-  }
-  const parent = io(() => fs.lstatSync(path.dirname(info.socket)));
-  if (!entry.isSocket() || entry.uid !== uid() || parent.uid !== uid() || parent.mode & 0o077) throw new Gate("browser-controller-unsafe-socket");
-  return new Promise((resolve, reject) => {
-    const probe = net.createConnection(info.socket);
+  return (await probeEndpoint(info)).state;
+}
+
+/** endpointState, with the endpoint that was probed. */
+async function probeEndpoint(info: ControllerMetadata): Promise<{ state: EndpointState; endpoint: PrivateSocket | null }> {
+  const endpoint = checkedEndpoint(info);
+  if (endpoint === null) return { state: "absent", endpoint };
+  const state = await new Promise<EndpointState>((resolve, reject) => {
+    // The canonical path: only this user or root can change what it leads to.
+    const probe = net.createConnection(endpoint.path);
     const timer = setTimeout(() => settle(() => reject(new Gate("browser-controller-endpoint-unconfirmed"))), 1000);
     function settle(done: () => void) {
       clearTimeout(timer);
@@ -661,15 +677,35 @@ export async function endpointState(info: ControllerMetadata): Promise<EndpointS
       else reject(new Gate("browser-controller-endpoint-unconfirmed"));
     }));
   });
+  return { state, endpoint };
 }
 
+/** Whether `file`, not followed, still has the identity recorded for it. */
+function stillAt(file: string, expected: { dev: number; ino: number }): boolean {
+  const stats = io(() => fs.lstatSync(file));
+  return stats.dev === expected.dev && stats.ino === expected.ino;
+}
+
+/**
+ * Remove a stale endpoint: only the socket that was probed, at its canonical path in its private directory, once
+ * both still have the identities privateSocket recorded. A socket that was replaced meanwhile is left in place and
+ * reported as browser-controller-endpoint-unconfirmed.
+ */
 export async function clearStaleEndpoint(info: ControllerMetadata): Promise<"absent" | "removed" | "live"> {
-  const state = await endpointState(info);
-  if (state === "stale") {
-    io(() => fs.unlinkSync(info.socket));
-    return "removed";
+  const probed = await probeEndpoint(info);
+  if (probed.state !== "stale") return probed.state;
+  // Only an endpoint that exists can be stale.
+  const endpoint = probed.endpoint as PrivateSocket;
+  let current: boolean;
+  try {
+    current = stillAt(endpoint.directory.path, endpoint.directory) && stillAt(endpoint.path, endpoint);
+  } catch (error) {
+    if (error instanceof FsError && error.errno === "ENOENT") return "absent";
+    throw error;
   }
-  return state;
+  if (!current) throw new Gate("browser-controller-endpoint-unconfirmed");
+  io(() => fs.unlinkSync(endpoint.path));
+  return "removed";
 }
 
 /** Process and endpoint access for reap and reset. */
@@ -848,15 +884,15 @@ export async function reset(controller: string, options: { confirm: unknown; ctx
             const code = refusal(controllerState(current));
             if (code) throw new Gate(code);
             if ((await host.processes(info)).length || await endpointState(info) === "live") throw new Gate("browser-controller-running");
-            let entry: fs.Stats | null = null;
-            try {
-              entry = fs.lstatSync(info.profile);
-            } catch (error) {
-              if ((error as NodeJS.ErrnoException).code !== "ENOENT") io(() => { throw error; });
-            }
-            if (entry !== null) {
+            // Only inside the controller's own private directory, checked from / down, and only while the profile
+            // is still the directory that was checked: nothing another user can change is on the path removed.
+            const base = existingDirectory(path.dirname(info.profile));
+            const entry = base && entryStats(base, path.basename(info.profile));
+            if (base && entry) {
               if (!entry.isDirectory() || entry.uid !== uid()) throw new Gate("browser-controller-unsafe-directory");
-              io(() => fs.rmSync(info.profile, { recursive: true }));
+              const profile = path.join(verified(base), path.basename(info.profile));
+              if (!stillAt(profile, entry)) throw new Gate("browser-controller-unsafe-directory");
+              io(() => fs.rmSync(profile, { recursive: true }));
             }
             removeFile(current, "sites-seen.json");
             return provision(info, deps);

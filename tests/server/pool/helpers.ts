@@ -84,8 +84,8 @@ export function registryPath(target: Pool, controller: string): string {
 }
 
 /**
- * A socket file with no listener. libuv unlinks a Unix socket when its server closes, so the server listens on
- * a temporary name that is renamed into place before it closes.
+ * A socket file with no listener, owner-only as the native host leaves one. libuv unlinks a Unix socket when its
+ * server closes, so the server listens on a temporary name that is renamed into place before it closes.
  */
 export async function staleSocket(file: string): Promise<void> {
   const temporary = `${file}.t`;
@@ -94,6 +94,7 @@ export async function staleSocket(file: string): Promise<void> {
     server.once("error", reject);
     server.listen(temporary, () => resolve());
   });
+  fs.chmodSync(temporary, 0o600);
   fs.renameSync(temporary, file);
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }

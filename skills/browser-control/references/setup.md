@@ -76,7 +76,7 @@ Set these in the server's environment through your client's MCP config.
 | `BROWSER_CONTROL_STATE_DIR` | The state root. Default `~/.local/state/browser-control`. |
 | `BROWSER_CONTROL_HOST_SOCKET` | The user's Chrome endpoint. Default `sockets/user.sock` in the state root. |
 | `CUA_DRIVER` | An absolute path to cua-driver. Otherwise `PATH`, then `~/.local/bin/cua-driver`. |
-| `FAST_CHROME_ARTIFACT_ROOT` | An existing, private artifact root for tabs without a lease. Default `artifacts/user` in the state root. |
+| `FAST_CHROME_ARTIFACT_ROOT` | An existing, private artifact root for tabs without a lease, under directories that no other user can change. Default `artifacts/user` in the state root. |
 | `FAST_CHROME_ALLOW_LOOPBACK` | `1` also allows `http://localhost` and `http://127.0.0.1` tabs. |
 | `FAST_CHROME_MAX_CONTROLLERS` | Isolated controllers, default 3, clamped to 1–8. |
 | `FAST_CHROME_MAX_TENANTS` | Shared leases per controller, default 3, clamped to 1–16. |

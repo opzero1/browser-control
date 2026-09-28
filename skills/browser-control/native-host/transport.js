@@ -1,7 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_rpc = require("../chunks/rpc-CKph8efs.js");
-const require_trusted_path = require("../chunks/trusted-path-DPFFlwYe.js");
+const require_trusted_path = require("../chunks/trusted-path-OQ7soDSf.js");
 let node_net = require("node:net");
 node_net = require_Layer.__toESM(node_net);
 let node_path = require("node:path");
@@ -344,9 +344,9 @@ var ChromeTransport = class ChromeTransport {
 	async startRecording(page, artifactRoot, options = {}) {
 		const fps = options.fps ?? 5, maxSeconds = options.maxSeconds ?? 30;
 		if (!Number.isInteger(fps) || fps < 1 || fps > 15 || !Number.isFinite(maxSeconds) || maxSeconds < 1 || maxSeconds > 60 || this.#recordings.has(page.tabId)) throw new Error("Invalid or duplicate recording");
-		const stat = await node_fs_promises.default.lstat(artifactRoot);
-		if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 63) !== 0) throw new Error("Owned private artifact directory required");
-		const directory = await node_fs_promises.default.mkdtemp(node_path.default.join(artifactRoot, "tab-video-"));
+		const root = typeof artifactRoot === "string" && artifactRoot ? require_trusted_path.privateDirectory(artifactRoot) : { unsafe: String(artifactRoot) };
+		if ("unsafe" in root) throw new Error("Owned private artifact directory required");
+		const directory = await node_fs_promises.default.mkdtemp(node_path.default.join(root.path, "tab-video-"));
 		await node_fs_promises.default.chmod(directory, 448);
 		await this.#call("recordingState", {
 			...this.#owned(page),
@@ -422,6 +422,7 @@ var ChromeTransport = class ChromeTransport {
 					await node_fs_promises.default.chmod(output, 384);
 				} catch {
 					error ??= "Encoding failed; JPEG frames preserved";
+					await node_fs_promises.default.chmod(node_path.default.join(directory, "recording.mp4"), 384).catch(() => void 0);
 				}
 			}
 			const receipt = {

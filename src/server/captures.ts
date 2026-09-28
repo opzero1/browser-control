@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { privateDirectory } from "../shared/trusted-path";
 import { whichExecutable } from "./config";
 import { Gate } from "./gate";
 import { inspectJpeg } from "./jpeg";
@@ -38,17 +39,17 @@ export function strictBase64(text: unknown): Buffer | null {
   return Buffer.from(body, "base64");
 }
 
-function uid(): number {
-  return process.getuid?.() ?? -1;
-}
-
-/** A new private chrome-capture-* directory under `root`, which must be an owner-only real directory. */
+/**
+ * A new private chrome-capture-* directory, made 0700 by mkdtemp in the canonical path of `root`. The root must
+ * pass the trusted-path rule from / down and be a private directory (privateDirectory in
+ * src/shared/trusted-path.ts), so no other user can change anything the capture then writes through this path.
+ */
 export function captureDirectory(root: string): string {
   try {
     if (typeof root !== "string" || !root) throw new Error();
-    const stats = fs.lstatSync(root);
-    if (!stats.isDirectory() || stats.uid !== uid() || stats.mode & 0o077) throw new Error();
-    return fs.mkdtempSync(path.join(root, "chrome-capture-"));
+    const checked = privateDirectory(root);
+    if ("unsafe" in checked) throw new Error();
+    return fs.mkdtempSync(path.join(checked.path, "chrome-capture-"));
   } catch {
     throw new Gate("fast-chrome-private-artifact-root-required");
   }
@@ -230,6 +231,12 @@ export class Recording {
         output = video;
       } catch {
         this.error ??= "encoding-or-decode-failed";
+        // A failed encode can leave a partial video, made with the process umask.
+        try {
+          fs.chmodSync(path.join(this.directory, "recording.mp4"), 0o600);
+        } catch {
+          // No video was made.
+        }
       }
     }
     const receipt: RecordingReceipt = {

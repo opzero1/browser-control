@@ -2,6 +2,7 @@
 // the same snippets. A non-default state directory or user socket is passed to the server through its environment.
 import { BIN_NAME, HOST_SOCKET_ENV, statePaths, userSocket, type Env } from "../config";
 import { isGate } from "../gate";
+import { trustedEnv, UnsafeRoot } from "../roots";
 import { commandEnv, PACKAGE_COMMAND, parseOptions, UsageError, type CommandIo } from "./shared";
 
 export const CLIENTS = ["opencode", "claude", "codex", "cursor"] as const;
@@ -64,13 +65,14 @@ export async function runConfig(argv: readonly string[], io: CommandIo): Promise
     const options = parseOptions(argv, ["--state-dir"], 1);
     const client = options.positional[0];
     if (client !== undefined && !(CLIENTS as readonly string[]).includes(client)) throw new UsageError(`unknown client: ${client}`);
-    const env = commandEnv(io.env, options);
+    // The snippets name the state root and the socket by canonical path, once they pass the trusted-path rule.
+    const env = trustedEnv(commandEnv(io.env, options));
     if (client) io.stdout.write(mcpSnippet(client as Client, env));
     else for (const [title, text] of Object.entries(mcpSnippets(env, CLIENTS))) io.stdout.write(`${title}\n${text}\n`);
     return 0;
   } catch (error) {
-    if (isGate(error)) {
-      io.stderr.write(`browser-control config: ${error.code}\n`);
+    if (isGate(error) || error instanceof UnsafeRoot) {
+      io.stderr.write(`browser-control config: ${error instanceof UnsafeRoot ? error.message : error.code}\n`);
       return 1;
     }
     if (!(error instanceof UsageError)) throw error;

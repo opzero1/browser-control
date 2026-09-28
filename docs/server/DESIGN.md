@@ -163,7 +163,7 @@ export function idnaEncode(host: string): string;                  // str.encode
 // fs-private.ts: Python's dir_fd model as verified path handles; sync I/O
 export interface PrivateDir { readonly path: string; readonly dev: number; readonly ino: number }
 export class FsError extends Error { readonly errno: string }      // what the fixedErrors wrapper maps
-export function openDirectory(path: string): PrivateDir;           // mkdir 0700 per component, refuse symlinks, check owner/mode
+export function openDirectory(path: string): PrivateDir;           // mkdir 0700 per component, refuse symlinks, trusted-path rule on every ancestor, private target
 export function existingDirectory(path: string): PrivateDir | null;
 export function childDirectory(dir: PrivateDir, name: string): PrivateDir;
 export function checkFileStats(stats: import("node:fs").Stats): void; // regular, uid, mode&077==0, nlink==1, else unsafe-registry
@@ -243,7 +243,7 @@ export function cookieSite(value: unknown): string; export function validSite(va
 export interface CaptureTab { call(method: "capturePage" | "recordingState", params?: JsonObject): Promise<unknown>; readonly operation: BusyFlag }
 export function inspectJpeg(data: Uint8Array): { width: number; height: number } | null;
 export function strictBase64(text: unknown): Buffer | null;   // b64decode(validate=True)
-export function captureDirectory(root: string): string;       // mkdtemp chrome-capture-*; Gate fast-chrome-private-artifact-root-required
+export function captureDirectory(root: string): string;       // privateDirectory(root), then mkdtemp chrome-capture-* in its canonical path; Gate fast-chrome-private-artifact-root-required
 export function jpeg(tab: CaptureTab): Promise<Buffer>;       // Gate fast-chrome-invalid-image
 export function saveExclusive(file: string, data: Uint8Array): void;   // O_EXCL, fchmod 0600
 export interface RecordingReceipt { path: string | null; directory: string; seconds: number; frames: { file: string; seconds: number; sha256: string }[]; sample_fps: number; error: string | null; kind: "timestamped-jpeg-sampled-video"; decode_verified: boolean; playback_verified: false }
@@ -730,3 +730,158 @@ Follow-ups:
   - A root-owned manifest is not `trusted`, because the rule requires the uid's own file. Install treats it as `untrusted`, and `--force` replaces it wherever rename allows.
   - A `..` after a missing directory now fails where it used to resolve. No default path contains one; only a symlink target or a zip `--manifest-path` written with one can.
   - `client.js` and `transport.js` now also refuse a socket that group or others can use, as the server always did. A hand-made endpoint that is not `0600`, such as a test server, must be `chmod`ed.
+
+## Trusted roots round
+
+- Threat model: unchanged from the install trusted-path round. The audit of `8b56ea8` found three gaps of one kind: a path that the installers, the host, the clients or the server took from the environment, arguments or options was checked only at its last directory, or not at all, and then used as given. This round closes that class, not only the three sites.
+  - Skill installation took a link to this version's copy as current without checking its owner, even with `--force`, and linked through the `--skills-dir` as given.
+  - `ChromeTransport.startRecording` checked only the artifact directory itself, then made and wrote the recording through the path given. The server's `captureDirectory` did the same, and an explicit `FAST_CHROME_ARTIFACT_ROOT` got no ancestry check.
+  - The pool's `endpointState` checked the socket and its parent, then connected through the path given, and `clearStaleEndpoint` unlinked it without an identity check. `fs-private` checked owner and mode only at the final directory, so the state root's ancestry was checked only by install.
+- The model:
+  1. Every root taken from the environment, arguments or options goes through `trustedPath` where it enters, and is used from then on by its canonical path. A root that fails is refused with a fixed message that names it and the directory at fault.
+  2. Below a trusted root, only private directories (`0700`) and files (`0600`) are created, owned by the uid, and addressed through the canonical root. The documented exceptions are the executables (wrappers and the clipboard guard, `0700`), the Chrome manifest (`0644`) and its directory (`0755`), a created skills directory (`0755`), and what Chrome writes into its own profile.
+  3. An entry that is reused or taken as current is `lstat`ed for owner, type and mode first.
+  4. Deletes and unlinks happen only inside private directories owned by the uid, or on paths whose identity was recorded and is verified again just before.
+  5. Sockets are connected to and probed only through `privateSocketEndpoint`.
+- Shared primitives in `src/shared/trusted-path.ts`, still `node:fs` and `node:path` only, so the zip installer, the host, `client.js` and `transport.js` keep running on Node 18:
+  - `privateDirectory(given, { create })`: the canonical path of a directory that passed the rule and is private (owned by the uid, no group or other bits, the identity the walk saw). Otherwise it returns the directory or symlink at fault, which is the directory itself when only its owner or mode fails. The host's socket directory, the transport's recording root and the server's capture roots use it.
+  - `privateSocket(file)`: `privateSocketEndpoint` with the endpoint's identity and its directory's identity. `privateSocketEndpoint` returns its path, unchanged in behavior.
+  - `checkedSocketPath(file)`: `canonicalSocketPath`, or the directory at fault when the socket's directory fails the rule. `canonicalSocketPath` is now built on it.
+- `src/server/fs-private.ts`: `walk` applies the trusted-path rule to every directory above the target before it makes or looks up anything in it. It already refused every symlink and required a private target. Every `openDirectory`, `existingDirectory` and `childDirectory` walk from `/`, so every use of the state root checks its ancestry at run time: the registry, the pool, the stable copies, the locks, the clipboard guard's `bin`, and the default artifact root. An unsafe ancestor is `browser-controller-unsafe-registry`, like a state root that is not private.
+- The roots, and where they are checked (`src/server/roots.ts`: `UnsafeRoot`, `trustedRoot` and `trustedEnv`):
+  - `mcp` (`runStdioServer`) checks the state root, `FAST_CHROME_ARTIFACT_ROOT` and `BROWSER_CONTROL_HOST_SOCKET` before it creates the app. If one fails, the server writes `browser-control mcp: Refusing the <kind> <given>: <directory> must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.` to stderr, serves nothing and exits 1. A relative state root prints its existing gate code. Otherwise the app gets each root by its canonical path, and gets the same `env` object when nothing changes. Each tool checks its root again when it uses it: `captureDirectory` through `privateDirectory`, and everything else through `fs-private`.
+  - `pool` does the same for the state root and the socket and prints `browser-control pool: <message>`. `config` refuses in the same way and prints its snippets with the canonical paths.
+  - `install`: `stateStep` checks the directories above the state root first, dry runs included, so nothing is made under one that fails (`state: fail / unsafe-ancestor`). A `BROWSER_CONTROL_HOST_SOCKET` whose directory fails the rule is `wrapper: fail / unsafe-socket`, and then no wrapper, manifest or snippet is written. The wrapper counts as unchanged only when it is the uid's own file.
+  - `doctor`: the state root's ancestry is `state: fail / unsafe-ancestor`. The manifest is read only through its canonical directory (`manifest: fail / unsafe-directory`), and a socket that fails is `endpoint: fail / unsafe-socket`, with nothing sent to it. The wrapper and the host copy count as current only when they are the uid's own files.
+  - `doctor --smoke`: `TMPDIR` goes through the rule (`smoke:server: fail / temp-unsafe`), and the temporary state root is removed only while it has the identity it had when `mkdtemp` made it.
+  - The zip installer refuses a `--socket-path` whose directory fails the rule, before it writes anything, with `Refusing the native host socket <given>: <directory> must be ...`.
+  - The host names the socket's directory at fault: `Native endpoint setup refused for <socket>: <directory> is not private to you, or another user could change it; use a private directory or authenticated TCP`.
+  - The transport records only in `privateDirectory(artifactRoot)`, by its canonical path.
+- Skills (`skillSteps` in `install.ts` and `doctor.ts`, `checkedSkillsDirectories` in `shared.ts`): each `--skills-dir` must pass the rule; it need not be private. It is used by its canonical path, and flags that lead to one directory count once. One that fails is `skills: fail / unsafe-directory`, naming the directory at fault, and nothing is linked there. Only a link that the uid owns can be `unchanged` (doctor: `current`) or count as an older version's link. Another user's entry is `untrusted` without `--force`. With `--force` it is `replaced-untrusted`, or `cannot-replace` in a sticky directory that the uid does not own (`mayReplace` in `src/shared/manifest-file.ts`, which the manifest check also uses). A missing skills directory is made with `trustedPath(..., { create: 0o755 })`, and nothing is read through it before that. `linkSkill` makes its temporary link in the canonical directory and removes it only if the rename failed, through `removeCreated`.
+- Captures: `captureDirectory` and `startRecording` refuse a root under an ancestor that another user could change, and make the capture in the canonical root. Before, `startRecording` refused a root reached through any symlink; it now follows a symlink that only the uid or root can change. After a failed encode, both chmod a partial `recording.mp4` that ffmpeg left to `0600`; ffmpeg makes it with the process umask.
+- The pool: `probeEndpoint` connects only to `privateSocket(info.socket).path`. `clearStaleEndpoint` unlinks only that path, and only while the socket and its directory still have the identities `privateSocket` recorded. A socket replaced in between is left in place, and the call fails with `browser-controller-endpoint-unconfirmed`. A stale socket that group or others can use is now `browser-controller-unsafe-socket`; the host always makes its socket `0600`. `reset` removes a profile only inside the controller's own directory, which `existingDirectory` checks, and only while the profile is still the directory it `lstat`ed. The host's stale-socket probe also goes through `privateSocketEndpoint`.
+- `src/scripts/effect-services.ts` no longer offers `writeText`, `mkdir` and `chmod`, which had no caller and wrote through any path given. The zip installer is the only script that writes files, and it does so through the rule.
+- Tests: 33 new tests, and 4 existing test cases changed with the rule.
+  - `tests/server/packaging/install.test.ts` (7). A link that another uid owns (injected through `lstat`) in a sticky skills directory is `untrusted` in a normal run and in a dry run. With `--force`, it is `replaced-untrusted` when the directory is the uid's own, and `cannot-replace` when it is root's. A `--skills-dir` through a symlink in a `0770` or `0777` directory, below it, or in it, is `unsafe-directory` with and without `--force` and in a dry run, and nothing is linked. Normal flow: a `0755` user-owned skills directory such as `~/.config/<client>/skills`, one reached through a symlink, and a missing one are linked, a directory given twice counts once, and a second run is `unchanged`. An unsafe `BROWSER_CONTROL_HOST_SOCKET` gets no wrapper, manifest or snippet, and `config` refuses it. `config` names a state directory under a `0770` directory.
+  - `tests/server/packaging/doctor.test.ts` (2). Doctor reports another user's skill link as `untrusted` and another user's wrapper as `stale`. It refuses a skills directory, a manifest directory and a socket reached through a `0777` directory. It names a state root's unsafe ancestor. Nothing is written.
+  - `tests/server/foundation/captures.test.ts` (4). `captureDirectory` and `Recording.start` refuse an artifact root under a `0777`, `0770` or `0707` directory, and one reached through a symlink there, and capture nothing. With the sticky bit, the root is used. Normal flow: a root reached through a symlink that only the uid can repoint records in the canonical root.
+  - `tests/security/transport.test.ts` (3). `startRecording` refuses a root under a `0777` or `0770` directory and sends no `recordingState`. Normal flow: a root reached through macOS `/var` and a trusted symlink records in the canonical root, with a `0700` directory and `0600` files, after a screenshot.
+  - `tests/server/pool/endpoint.test.ts` (5, new file). A controller socket path through a `0777` or `0770` directory is refused, and neither probed nor unlinked; the other tree's socket survives. When a symlink on the path is repointed inside the probe's `net.createConnection`, the probe and the unlink use only the canonical endpoint, and the other tree's socket survives. A socket renamed over the probed one inside the probe is left in place, with `browser-controller-endpoint-unconfirmed`. Normal flow: absent, live and stale endpoints at the default sockets directory.
+  - `tests/server/foundation/entry.test.ts` (5). `runStdioServer` refuses a state root, an artifact root or a socket under a `0777` directory, names it, exits 1 and never creates the app. It gives the app canonical roots through a trusted symlink, and the same `env` for a default state root. The built `cli.js mcp` and `cli.js pool status` refuse a state root under a `0770` directory.
+  - `tests/server/foundation/registry-files.test.ts` (3). A private state root that was accepted is refused on its next use, once a directory above it has mode `0777`, `0770` or `0707`, and nothing is made. With the sticky bit it is used again.
+  - `tests/acceptance/distribution.test.ts` (2). The built zip installer refuses a `--socket-path` through a symlink in a `0777` or `0770` directory, and writes no manifest or state.
+  - `tests/acceptance/trusted-path.test.ts` (2): `privateDirectory`, `checkedSocketPath` and `privateSocket`.
+  - Changed: the install test for a state root under a `0777`, `0770` or `0707` directory now expects that no state directory is made, and `created` once the sticky bit is set. The `captureDirectory` test now expects a trusted symlink to be followed to the canonical root. The pool's `staleSocket` helper makes its socket `0600`, as the host does, and the transport's fake host answers `capturePage`.
+- Fail-before and pass-after: against `8b56ea8`, extracted with `git archive`, built, and run with these tests, 36 tests fail: 32 of the 33 new tests and the 4 changed cases. Only the endpoint test's normal flow passes on both. Each fails for the gap it names:
+  - The old install reported another user's link as `unchanged`, with and without `--force`. It linked through a symlink in a `0777` directory, and it linked a directory given twice twice, at the path given. It wrote a wrapper that exported an unsafe socket, and `config` printed it.
+  - The old doctor reported another user's link as `current` and a state root under a `0770` directory as `private`.
+  - The old `captureDirectory` and `Recording.start` made captures under the `0777` directory. The old transport started a recording there, and refused a root reached through a trusted symlink.
+  - The old `clearStaleEndpoint` returned `removed` for the redirected path and unlinked the other tree's socket. After the repoint, it probed the other tree. It unlinked the socket that replaced the probed one.
+  - The old `runStdioServer` kept serving with an unsafe state root, artifact root or socket. The old `cli.js mcp` and `pool status` started.
+  - The old `openDirectory` accepted a state root under a `0777` directory.
+  - The old zip installer exited 0 with the unsafe `--socket-path`.
+  - The two `trusted-path.test.ts` tests fail with `TypeError`, because `8b56ea8` has no `privateDirectory` or `checkedSocketPath`.
+- Node 18.20.8: the built skill was copied under the temporary root, and every path was given through `/var`, with `HOME` set to a temporary directory.
+  - The zip installer ran with the default paths, as the reviewer steps do. The manifest (`0644`) in `~/Library/Application Support/Google/Chrome/NativeMessagingHosts` names the wrapper under the canonical state root (`0700`).
+  - The host was started through that wrapper, as Chrome starts it. It made `~/.opzero-chrome` with mode `0700` and the socket with mode `0600`. `client.js ping` returned `pong`.
+  - `ChromeTransport` on the default socket opened a page, took a screenshot, refused a recording under a `0777` directory (which it left empty), then recorded into a private root given through `/var`. The recording directory was the canonical `/private/var/...` path, with mode `0700`. Every file in it was `0600`, including the partial `recording.mp4` that ffmpeg left from the synthetic frames. The transport then closed. The extension saw `getInfo`, `createTab`, `attach`, `bindPage`, `navigatePage`, `capturePage`, `recordingState`, four `capturePage`, `recordingState` and `finalizeTabs`.
+  - The zip installer refused a `--socket-path` through a symlink in a `0777` directory, and named that directory. The host refused the same socket and named the directory.
+  - The `8b56ea8` skill, run through the same steps, started the recording in the `0777` directory and left a `tab-video-*` directory there. Its zip installer accepted the unsafe `--socket-path` and exited 0, and its host refused without naming a path.
+- Accepted limitations: unchanged from the install trusted-path round. They are listed again in the inventory below.
+- Residual risk:
+  - A check and the call that uses its path are still two steps. Only the same uid or root can change a canonical path between them, because every directory on it passed the rule. Node has no `openat` or `unlinkat`.
+  - Executables are run by path: `CUA_DRIVER` or `PATH` for cua-driver, `PATH` for ffmpeg and `xcrun`, and the clipboard guard and host copy under the checked state root. The server does not write through those paths, so they are not roots here. The guard and the host copy are checked for owner, type and mode before use.
+  - Read-only paths from the environment are not roots here, because nothing is written through them: `BROWSER_CONTROL_USER_DATA_DIR`, `BROWSER_CONTROL_PREFERENCES_PATH`, `CHROME_PROFILE_DIR`, `BROWSER_CONTROL_HOST_TOKEN_FILE`, and an `upload_file` PDF.
+  - `mcp` now refuses to start when `FAST_CHROME_ARTIFACT_ROOT` fails the rule, where only the capture tools failed before. A missing root still fails only the capture tools, with `fast-chrome-private-artifact-root-required`, as in Python.
+  - A skills directory must now pass the rule, so `--skills-dir` under a group-writable directory without the sticky bit is refused, as the state root and the manifest directory already were.
+
+## Filesystem operation inventory
+
+How it was built: `rg` over `src/server`, `src/native-host`, `src/scripts` and `src/shared` for:
+- `fs.*`, `fsp.*` and `fs/promises` calls that create, open, write, rename, remove, chmod or link: `mkdir`, `mkdtemp`, `open`, `write`, `writeFile`, `rename`, `rm`, `rmdir`, `unlink`, `chmod`, `fchmod`, `symlink` and `link`;
+- `net.connect`, `net.createConnection`, `net.createServer` and `.listen`;
+- `child_process` `spawn`, `execFile`, `execFileSync` and the promisified `exec`, and `StdioClientTransport`;
+- `DatabaseSync` opens, and trusted-path's injectable `mkdir`.
+
+A regular expression's or a database's `.exec(` is not counted. The grep found 107 call sites at this commit, against 110 at `8b56ea8`. Five sites were removed: `effect-services.ts`'s three writers, and `linkSkill`'s `mkdirSync` and `rmSync`. Two were added: the chmod of a partial video after a failed encode, in `captures.ts` and in `transport.ts`. Of the 107 sites, 25 changed this round, marked **changed**. Seven are read-only opens, listed at the end.
+
+Protection:
+- **P**: a trusted root plus a private subtree. The root passed the trusted-path rule from `/` and is used by its canonical path; the call is inside a private directory that the uid owns.
+- **E**: a reused entry, checked for owner and type (and mode) before it is trusted.
+- **I**: the identity (`dev`, `ino`) was recorded and is verified again before the call.
+- **L**: a documented accepted limitation.
+- **none**: no file system path of ours.
+
+| Site (file:function) | Calls | Root | Protection |
+|---|---|---|---|
+| `server/fs-private.ts:mkdirQuiet` | `mkdirSync` 0700 | the state root and everything below it | P: made only inside a directory `walk` just checked; then `lstat`ed, never followed, and required private. **changed**: `walk` applies the rule to every ancestor. |
+| `server/fs-private.ts:replaceFile` | `openSync` (`O_CREAT \| O_EXCL \| O_NOFOLLOW`), `fchmodSync`, `writeSync`, `renameSync`, `unlinkSync` | any `PrivateDir` | P, I: `verified(dir)` before each call; the temporary file is removed only there |
+| `server/fs-private.ts:removeFile` | `unlinkSync` | any `PrivateDir` | P, I |
+| `server/fs-private.ts:openLockFile` | `openSync` (`O_RDWR \| O_CREAT \| O_NOFOLLOW`) | any `PrivateDir` | P (no caller) |
+| `server/lock.ts:lockFileStats` | `openSync` (`O_CREAT \| O_EXCL \| O_NOFOLLOW`) 0600 | registry, lease and `locks` directories | P, E: an existing lock file must be a regular `0600` file of the uid with one link |
+| `server/lock.ts:attempt` | `DatabaseSync` open, `mode=rw` (never creates) | the same | P, I: the lock file's identity is checked again once it is locked |
+| `server/stable-copy.ts:replaceTree` | `renameSync` ×2, `rmSync` ×2 (recursive) | `<state>/hosts`, `<state>/extensions`, `<state>/skills/<name>` | P: under `.publish.lock` in a verified `PrivateDir`; only its own `.tmp-*` and `.old-*` entries are removed. E: a copy is reused only when `treeMatches` (owner, `0700`, `0600` files with one link) |
+| `server/captures.ts:captureDirectory` | `mkdtempSync` | `FAST_CHROME_ARTIFACT_ROOT`, `<state>/artifacts/user`, a lease's artifacts | P: `privateDirectory(root)`, then `mkdtemp` (`0700`) in its canonical path. **changed** |
+| `server/captures.ts:saveExclusive` | `openSync` (`O_CREAT \| O_EXCL`) 0600, `fchmodSync`, `writeSync` | a capture directory | P. **changed** (canonical root) |
+| `server/captures.ts:stopOnce` | `chmodSync` ×2 (the video, also after a failed encode) | a capture directory | P. **changed**: canonical root; the second chmod is new |
+| `server/captures.ts:defaultRecordingDeps.run` | `execFile` ffmpeg | a capture directory (`cwd`, relative names) | P: the child writes only in the private capture directory. **changed** (canonical root) |
+| `server/host-connection.ts:connectSocket` | `net.connect` | `BROWSER_CONTROL_HOST_SOCKET`, `<state>/sockets/*.sock` | E, I: `privateSocketEndpoint` |
+| `server/pool/registry.ts:Pin.confirmed` | `unlinkSync` (marker) | `<state>/pool/registry/<id>` | P: `verified(dir)` |
+| `server/pool/registry.ts:probeEndpoint` | `net.createConnection` | `<state>/sockets` | E, I: `privateSocket`; only its canonical path. **changed** |
+| `server/pool/registry.ts:clearStaleEndpoint` | `unlinkSync` | `<state>/sockets` | I: the socket's and its directory's identities from `privateSocket` are verified again. **changed** |
+| `server/pool/registry.ts:reset` | `rmSync` (recursive profile) | `<state>/pool/controllers/<id>` | P, E, I: inside the private controller directory that `existingDirectory` checks; the profile must be the uid's directory and keep its identity. **changed** |
+| `server/pool/cua-cli.ts:runProcess` | `execFile` cua-driver, `/bin/ps` | the Chrome that `launch_app` starts writes `--user-data-dir=<state>/pool/controllers/<id>/profile` | P: `prepare` requires the profile, downloads and artifacts to be private directories of the uid; `ps` only reads |
+| `server/private/clipboard-guard.ts:startGuardian` | `spawn` the guard | `<state>/bin` | E: `guardianTrusted` (regular file, not a symlink, owner, not writable by group or others, executable); the guard writes no file |
+| `server/private/clipboard-guard.ts:compile` | `execFile` `xcrun swiftc` | `<state>/bin/.build-<uuid>` | P |
+| `server/private/clipboard-guard.ts:buildClipboardGuard` | `mkdirSync` 0700, `writeFileSync` (`wx`, 0600), `chmodSync` 0700, `renameSync`, `rmSync` (staging) | `<state>/bin` | P: `verified(bin)`; the binary is `0700` because it is executable |
+| `server/private/cua-mcp.ts:openCuaMcp` | `StdioClientTransport` (cua-driver `mcp`) | none | none: the vault reader's process gets no path of ours |
+| `server/commands/install.ts:writeManifest` | `openSync` (`O_CREAT \| O_EXCL \| O_NOFOLLOW`) 0644, `fchmodSync`, `writeSync`, `renameSync` | the manifest directory, canonical and locked | I: the locked directory's identity and `stillResolves` before the rename; the temporary file is removed through `removeCreated`. `0644` because Chrome reads it |
+| `server/commands/install.ts:linkSkill` | `symlinkSync`, `renameSync` | each `--skills-dir`, canonical | E: the entry it replaces was `lstat`ed, and only the uid's own entry can be current; a directory is never replaced. I: the temporary link is removed through `removeCreated`. The directory is the user's `0755` one. **changed** |
+| `server/commands/smoke.ts:startFixture` | `server.listen(0, "127.0.0.1")` | none | none: loopback TCP |
+| `server/commands/smoke.ts:smoke` | `mkdtempSync`, `chmodSync`, `StdioClientTransport` (the server), `rmSync` | `TMPDIR`, canonical | P: `mkdtemp` (`0700`) in the checked base; the server it starts checks the root again. I: the directory is removed only while it has the identity `mkdtemp` gave it. **changed** (`mkdtemp`, `chmod`, `rm`) |
+| `native-host/host.ts` (module) | `net.createServer` | none | none by itself; see its `listen` calls |
+| `native-host/host.ts` (startup, TCP) | `server.listen(port, "127.0.0.1")` | none | none: loopback TCP with a token file (Windows, or `BROWSER_CONTROL_HOST_TRANSPORT=tcp`) |
+| `native-host/host.ts:listenUnix` | `server.listen(socketPath)` | `BROWSER_CONTROL_HOST_SOCKET`, `~/.opzero-chrome/default.sock`, `<state>/sockets/user.sock` | P: `privateDirectory(dir, { create: 0o700 })`, canonical; the bind never replaces anything, under umask `0177` |
+| `native-host/host.ts:onUnixListening` | `chmodSync` 0600 | the same | P |
+| `native-host/host.ts:removeOwnSocket` | `unlinkSync` | the same | I |
+| `native-host/host.ts:createStartupLock` | `openSync` (`O_CREAT \| O_EXCL \| O_WRONLY \| O_NOFOLLOW`) 0600, `writeSync`, `linkSync`, `unlinkSync` | the same | P |
+| `native-host/host.ts:acquireStartupLock` | `renameSync`, `linkSync`, `unlinkSync` ×2 | the same | P, E: the lock must be a regular file of the uid. I: the moved lock's identity is compared |
+| `native-host/host.ts:releaseStartupLock` | `unlinkSync` | the same | I |
+| `native-host/host.ts:reclaimStaleSocket` | `net.connect`, `unlinkSync` | the same | E, I: the probe goes through `privateSocketEndpoint` (**changed**); the unlink checks the identity |
+| `native-host/client.ts` (module) | `net.connect` ×2 | `BROWSER_CONTROL_HOST_SOCKET`, `~/.opzero-chrome/default.sock` | E, I: `privateSocketEndpoint`; the TCP path needs the token file |
+| `native-host/transport.ts:connect` | `net.createConnection` | the socket given | E, I: `privateSocketEndpoint` |
+| `native-host/transport.ts:startRecording` | `mkdtemp`, `chmod` ×3, `writeFile` ×3 (0600), `exec` ffmpeg | the artifact root given | P: `privateDirectory(artifactRoot)`, then `mkdtemp` (`0700`) in its canonical path; ffmpeg runs with `cwd` there. **changed** (all 8) |
+| `scripts/install-native-host.ts:privateChild` | `mkdirSync` 0700 | the canonical state root | P, E: `privateAt` (a directory, not a symlink, private to the uid) |
+| `scripts/install-native-host.ts:writeNew` | `openSync` (`O_CREAT \| O_EXCL`), `writeSync`, `fchmodSync` | host staging, wrapper directory, manifest directory | I: recorded when made; removed only through `removeCreated` |
+| `scripts/install-native-host.ts:makeDirectory` | `mkdirSync` 0700 | `<state>/hosts` | P, I |
+| `scripts/install-native-host.ts:replaceTree` | `renameSync` ×3, `rmSync` (the displaced copy) | `<state>/hosts`, under `.skill-publish.lock` | P, I: `intact()` checks `hosts` and the staging directory before the move and the removal |
+| `scripts/install-native-host.ts:replaceFile` | `renameSync` | the private wrapper directory, the locked manifest directory | I: `unchangedAt` or `stillResolves` just before |
+| `scripts/install-native-host.ts:registerWindowsManifest` | `execFileInherit` `reg add` | the Windows registry | L: Windows |
+| `scripts/check-native-host-manifest.ts:checkWindowsRegistry` | `execFile` `reg query` | none | none: reads |
+| `scripts/chrome-is-running.ts` (module) | `execFile` `pgrep` or `tasklist` | none | none: reads |
+| `scripts/installed-browsers.ts:commandExists` | `execFile` ×2 (`sh -c command -v`, `where`) | none | none: reads |
+| `scripts/open-chrome-window.ts` (module) | `execFileInherit` (`open`, `google-chrome`, `cmd`) | none | none: starts the user's Chrome, which writes only its own profile |
+| `scripts/effect-services.ts:execFile`, `execFileInherit` | `execFileSync` ×2 | none | none: the runners behind the four script rows above |
+| `shared/install-lock.ts:attempt` | `mkdirSync` 0700 (staging), `openSync` (`wx`, 0600), `renameSync` | the lock's parent, canonical | I: the parent's identity before each step, and the staging directory's and entry's identities |
+| `shared/install-lock.ts:clearStale` | `unlinkSync`, `rmdirSync` | the same | I: only a regular file named `<pid>-<uuid>` of a dead process, while the lock and parent keep their identities |
+| `shared/install-lock.ts:removeCreated` | `rmdirSync`, `unlinkSync` | the same, and every installer's temporary files | I |
+| `shared/trusted-path.ts:nodeFs.mkdir`, `trustedPath` (`create`) | `mkdirSync` | each root made with `create` | P: made only inside a directory that passed; what is there afterwards is checked like any other entry |
+
+Read-only opens that the grep also finds:
+- `server/page.ts:validatedPdf` and `native-host/transport.ts:uploadFile` read an upload's `%PDF-` signature.
+- `server/commands/shared.ts:trustedGuard` reads the guard's Mach-O magic.
+- `server/fs-private.ts:openExisting` and `fsyncDirectory` open files and directories to read and to fsync.
+- `server/pool/preferences.ts:readPreferences` reads a profile's Preferences.
+- `shared/manifest-file.ts:existingManifest` reads a manifest.
+
+Each is `O_RDONLY`, and all but the two PDF checks also use `O_NOFOLLOW`.
+
+Accepted limitations, as the auditor fixed them:
+- Mutations by the same uid or by root.
+- Strict refusal of a group-writable directory without the sticky bit.
+- Timeouts when another process reuses a dead holder's pid.
+- Leftovers after a SIGKILL, and the gap while a damaged copy is replaced.
+- Windows.
+- npm refusing a `--state-dir` given through a symlink.
+- Empty directories left by a refused setup.
+- The fail-safe race where another user creates an absent manifest in a sticky directory.

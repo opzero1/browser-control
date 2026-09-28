@@ -100,24 +100,6 @@ var ScriptIoLive = require_Layer.succeed(ScriptIo, {
 		try: () => node_fs.default.readFileSync(file, "utf8"),
 		catch: toError
 	}),
-	writeText: (file, text) => require_Layer.try_({
-		try: () => {
-			node_fs.default.writeFileSync(file, text);
-		},
-		catch: toError
-	}),
-	mkdir: (dir) => require_Layer.try_({
-		try: () => {
-			node_fs.default.mkdirSync(dir, { recursive: true });
-		},
-		catch: toError
-	}),
-	chmod: (file, mode) => require_Layer.try_({
-		try: () => {
-			node_fs.default.chmodSync(file, mode);
-		},
-		catch: toError
-	}),
 	readdir: (dir) => require_Layer.try_({
 		try: () => node_fs.default.readdirSync(dir),
 		catch: toError

@@ -18,7 +18,7 @@ import {
   acquireInstallLockSync, created, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves, unchangedAt, type Created, type TrustedDirectory
 } from "../shared/install-lock";
 import { existingManifest, namedHost } from "../shared/manifest-file";
-import { canonicalSocketPath, trustedPath } from "../shared/trusted-path";
+import { checkedSocketPath, trustedPath } from "../shared/trusted-path";
 import { argValue, runScript, ScriptIo } from "./effect-services";
 
 const root = path.resolve(__dirname, "..");
@@ -348,17 +348,24 @@ function refuseExisting(file: string, wrapper: string, manifestPath = file) {
   }
 }
 
+/** The canonical path of `--socket-path`, refused when its directory fails the trusted-path rule. */
+function trustedSocket(socketPath: string) {
+  const checked = checkedSocketPath(socketPath);
+  if (typeof checked === "string") return checked;
+  throw new InstallError(`Refusing the native host socket ${socketPath}: ${checked.unsafe} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`);
+}
+
 function install(extensionId: string, manifestPath: string, socketPath: string | null) {
   // process.execPath has its symlinks resolved.
   const node = nodeExecutable();
+  // The host checks its socket's directory again when it starts; the wrapper names the socket by its canonical path.
+  const socket = socketPath && process.platform !== "win32" ? trustedSocket(socketPath) : socketPath;
   // Real paths, checked from / down: the wrapper, the host copy it execs and the manifest's path are all under them.
   const hosts = privateChild(stateDirectory(stateRoot()), "hosts");
   const files = hostFiles();
   const copyName = `skill-${digest(files).slice(0, 12)}`;
   const copyDir = path.join(hosts.path, copyName);
   const wrapper = path.join(hosts.path, "skill", wrapperName);
-  // The host checks its socket's directory again when it starts; the wrapper names the socket by its canonical path.
-  const socket = socketPath && process.platform !== "win32" ? canonicalSocketPath(socketPath) : socketPath;
   const text = launcher(node, path.join(copyDir, ...hostEntry.split("/")), socket);
   const given = path.dirname(manifestPath);
   const name = path.basename(manifestPath);

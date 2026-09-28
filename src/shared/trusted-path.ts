@@ -160,31 +160,65 @@ export function trustedPath(given: string, options: TrustedPathOptions = {}): Tr
   return { path: current, dev: stats.dev, ino: stats.ino };
 }
 
+/** Owned by this user, with no group or other bits, and still the directory the walk saw. */
+function privateAt(stats: fs.Stats, directory: TrustedDirectory): boolean {
+  return stats.isDirectory() && stats.dev === directory.dev && stats.ino === directory.ino && stats.uid === ownerId() && (stats.mode & 0o077) === 0;
+}
+
+/**
+ * The canonical path of the directory `given` once it passed the rule and is private: owned by this user, with
+ * no group or other bits, and still the directory the walk saw. Else the directory or symlink at fault, which is
+ * the canonical directory itself when only its owner or mode fails. With `create`, missing directories are made
+ * as in trustedPath. Nothing below a private directory can be changed by another user, so a caller creates and
+ * writes only there, through the path returned. On Windows, which has no owners, no directory is private.
+ */
+export function privateDirectory(given: string, options: Pick<TrustedPathOptions, "create" | "calls"> = {}): TrustedDirectory | UntrustedPath {
+  const directory = trustedPath(given, options);
+  if ("unsafe" in directory) return directory;
+  const stats = (options.calls?.lstat ?? nodeFs.lstat)(directory.path);
+  return privateAt(stats, directory) ? directory : { unsafe: directory.path };
+}
+
 /**
  * The path to export for a Unix socket: its directory's canonical path, where a missing part is kept as given,
- * and its name. A path that is relative, has no plain name, or whose directory fails the rule is returned as
- * given; the host and the server refuse it when they use it.
+ * and its name; or, when its directory fails the rule, the directory or symlink at fault. A path that is
+ * relative or has no plain name, and one whose `..` follows a missing directory, is returned as given; the host
+ * and the server refuse it when they use it.
  */
-export function canonicalSocketPath(file: string, calls: Partial<TrustedPathFs> = {}): string {
+export function checkedSocketPath(file: string, calls: Partial<TrustedPathFs> = {}): string | UntrustedPath {
   const name = path.basename(file);
   if (!path.isAbsolute(file) || !name || name === "." || name === "..") return file;
   try {
     const directory = trustedPath(path.dirname(file), { missing: true, calls });
-    return "unsafe" in directory ? file : path.join(directory.path, name);
+    return "unsafe" in directory ? directory : path.join(directory.path, name);
   } catch (error) {
     if (codeOf(error) === undefined) throw error;
     return file;
   }
 }
 
+/** checkedSocketPath, with a socket whose directory fails the rule returned as given. */
+export function canonicalSocketPath(file: string, calls: Partial<TrustedPathFs> = {}): string {
+  const checked = checkedSocketPath(file, calls);
+  return typeof checked === "string" ? checked : file;
+}
+
+/** A socket endpoint that privateSocket checked: its canonical path and identity, and its private directory. */
+export interface PrivateSocket extends Identity {
+  readonly path: string;
+  readonly directory: TrustedDirectory;
+}
+
 /**
- * The canonical path of the Unix socket `file` for a client to connect to: its directory passed the rule, is
- * private (owned by this user, no group or other bits) and still has the identity the rule saw, and the endpoint
- * there is a socket owned by this user that group and others cannot use. Only this user or root can change
- * anything on that path, so connecting through it reaches the endpoint that was checked. Anything else throws,
- * and on Windows, which has no owners, every path does. The server, client.js and transport.js all connect this way.
+ * The Unix socket `file` for a client to connect to or probe: its directory passed the rule, is private (owned by
+ * this user, no group or other bits) and still has the identity the rule saw, and the endpoint there is a socket
+ * owned by this user that group and others cannot use. Only this user or root can change anything on its
+ * canonical path, so connecting through it reaches the endpoint that was checked, and an unlink there, once the
+ * identities are checked again, removes only that endpoint. Anything else throws: a file system error such as
+ * ENOENT as it is, and an unsafe path as an Error without a code. On Windows, which has no owners, every path
+ * throws.
  */
-export function privateSocketEndpoint(file: string, calls: Partial<TrustedPathFs> = {}): string {
+export function privateSocket(file: string, calls: Partial<TrustedPathFs> = {}): PrivateSocket {
   const name = path.basename(file);
   if (!name || name === "." || name === "..") throw new Error("socket name required");
   const directory = trustedPath(path.dirname(file), { calls });
@@ -194,9 +228,16 @@ export function privateSocketEndpoint(file: string, calls: Partial<TrustedPathFs
   const uid = ownerId();
   const parent = lstat(directory.path);
   const endpoint = lstat(canonical);
-  if (!parent.isDirectory() || parent.dev !== directory.dev || parent.ino !== directory.ino || parent.uid !== uid || parent.mode & 0o077
-      || !endpoint.isSocket() || endpoint.uid !== uid || endpoint.mode & 0o077) {
+  if (!privateAt(parent, directory) || !endpoint.isSocket() || endpoint.uid !== uid || endpoint.mode & 0o077) {
     throw new Error("private owned socket required");
   }
-  return canonical;
+  return { path: canonical, dev: endpoint.dev, ino: endpoint.ino, directory };
+}
+
+/**
+ * The canonical path of the Unix socket `file` (privateSocket). The server, client.js, transport.js, the host's
+ * stale-socket probe and the pool's endpoint probe all connect this way.
+ */
+export function privateSocketEndpoint(file: string, calls: Partial<TrustedPathFs> = {}): string {
+  return privateSocket(file, calls).path;
 }

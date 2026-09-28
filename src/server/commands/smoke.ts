@@ -9,6 +9,8 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
+import { unchangedAt } from "../../shared/install-lock";
+import { trustedPath } from "../../shared/trusted-path";
 import type { PackageAssets } from "../assets";
 import { HOST_SOCKET_ENV, type Env } from "../config";
 import { runPoolCommand } from "../pool/operator";
@@ -154,13 +156,23 @@ function resultCode(value: Record<string, unknown>): string | undefined {
 
 export async function smoke(env: Env, assets: PackageAssets, deps: SmokeDeps = defaultSmokeDeps()): Promise<Step[]> {
   const steps: Step[] = [];
-  const base = deps.tempBase();
+  // TMPDIR comes from the environment, so it is used only by its canonical path once it passes the trusted-path rule.
+  const checked = trustedPath(deps.tempBase());
+  if ("unsafe" in checked) {
+    return [step("smoke:server", "fail", "temp-unsafe",
+      "Another user could change the temporary directory: it and every directory above it must be owned by you or root and writable only by their owner, unless they have the sticky bit. Set TMPDIR to such a directory.",
+      { path: checked.unsafe })];
+  }
+  const base = checked.path;
   if (!fits(base)) {
     return [step("smoke:server", "fail", "temp-path-too-long", "The temporary directory path is too long for Unix sockets. Set TMPDIR to a shorter directory.")];
   }
-  // The temporary directory is the state root itself; the user-route socket names a directory that does not exist.
+  // The temporary directory is the state root itself, made 0700 by mkdtemp in the checked base; the user-route
+  // socket names a directory that does not exist.
   const state = fs.mkdtempSync(path.join(base, "bcs-"));
   fs.chmodSync(state, 0o700);
+  // The base may be a sticky /tmp, so the directory is removed only while it is still the one made here.
+  const made = fs.lstatSync(state);
   const serverEnv = smokeEnv(env, state, path.join(state, "absent", "user.sock"));
   const fixture = await startFixture();
   const server = deps.server(assets);
@@ -240,7 +252,7 @@ export async function smoke(env: Env, assets: PackageAssets, deps: SmokeDeps = d
     await fixture.close();
     // claim_browser may have started Chrome even when it reported no ready lease.
     const stopped = !claimed || await deps.reap(serverEnv, controller).catch(() => false);
-    if (stopped) {
+    if (stopped && unchangedAt(state, made)) {
       fs.rmSync(state, { recursive: true, force: true });
       if (claimed) steps.push(step("smoke:cleanup", "ok", "removed", "Stopped the isolated browser and removed the temporary state directory."));
     } else {

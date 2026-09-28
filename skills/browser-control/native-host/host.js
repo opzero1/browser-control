@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_rpc = require("../chunks/rpc-CKph8efs.js");
-const require_trusted_path = require("../chunks/trusted-path-DPFFlwYe.js");
+const require_trusted_path = require("../chunks/trusted-path-OQ7soDSf.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_net = require("node:net");
@@ -36,6 +36,8 @@ var startupLock;
 var startupLockPath = `${socketPath}.lock`;
 var orphanedStartupLockMs = 300 * 1e3;
 var tcpToken;
+/** The socket's directory, or one above it, fails the trusted-path rule or is not private; the message names it. */
+var UntrustedSocketDirectory = class extends Error {};
 function native(message) {
 	const body = Buffer.from(JSON.stringify(message));
 	if (body.length > maxBytes) return false;
@@ -282,20 +284,18 @@ try {
 			reclaimStaleSocket(existing);
 		}
 	}
-} catch {
-	refuseEndpoint();
+} catch (setupError) {
+	refuseEndpoint(setupError instanceof UntrustedSocketDirectory ? setupError.message : void 0);
 }
-function refuseEndpoint() {
-	node_process.default.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
+function refuseEndpoint(reason = "Native endpoint setup refused; use a private directory or authenticated TCP") {
+	node_process.default.stderr.write(`${reason}\n`);
 	shutdown(1);
 }
 function privateSocketPath(requested) {
 	const name = node_path.default.basename(requested);
 	if (!name || name === "." || name === "..") throw new Error("socket name required");
-	const directory = require_trusted_path.trustedPath(node_path.default.dirname(requested), { create: 448 });
-	if ("unsafe" in directory) throw new Error("trusted socket directory required");
-	const stat = node_fs.default.lstatSync(directory.path);
-	if (!stat.isDirectory() || stat.dev !== directory.dev || stat.ino !== directory.ino || stat.uid !== node_process.default.getuid?.() || (stat.mode & 63) !== 0) throw new Error("private socket directory required");
+	const directory = require_trusted_path.privateDirectory(node_path.default.dirname(requested), { create: 448 });
+	if ("unsafe" in directory) throw new UntrustedSocketDirectory(`Native endpoint setup refused for ${requested}: ${directory.unsafe} is not private to you, or another user could change it; use a private directory or authenticated TCP`);
 	return node_path.default.join(directory.path, name);
 }
 function lstatIfExists(file) {
@@ -411,7 +411,7 @@ function releaseStartupLock() {
 	} catch {}
 }
 function reclaimStaleSocket(stale) {
-	const probe = node_net.default.connect(socketPath);
+	const probe = node_net.default.connect(require_trusted_path.privateSocketEndpoint(socketPath));
 	probe.once("connect", () => {
 		probe.destroy();
 		refuseEndpoint();

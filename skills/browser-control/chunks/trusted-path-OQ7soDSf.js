@@ -98,12 +98,29 @@ function trustedPath(given, options = {}) {
 		ino: stats.ino
 	};
 }
+/** Owned by this user, with no group or other bits, and still the directory the walk saw. */
+function privateAt(stats, directory) {
+	return stats.isDirectory() && stats.dev === directory.dev && stats.ino === directory.ino && stats.uid === ownerId() && (stats.mode & 63) === 0;
+}
+/**
+* The canonical path of the directory `given` once it passed the rule and is private: owned by this user, with
+* no group or other bits, and still the directory the walk saw. Else the directory or symlink at fault, which is
+* the canonical directory itself when only its owner or mode fails. With `create`, missing directories are made
+* as in trustedPath. Nothing below a private directory can be changed by another user, so a caller creates and
+* writes only there, through the path returned. On Windows, which has no owners, no directory is private.
+*/
+function privateDirectory(given, options = {}) {
+	const directory = trustedPath(given, options);
+	if ("unsafe" in directory) return directory;
+	return privateAt((options.calls?.lstat ?? nodeFs.lstat)(directory.path), directory) ? directory : { unsafe: directory.path };
+}
 /**
 * The path to export for a Unix socket: its directory's canonical path, where a missing part is kept as given,
-* and its name. A path that is relative, has no plain name, or whose directory fails the rule is returned as
-* given; the host and the server refuse it when they use it.
+* and its name; or, when its directory fails the rule, the directory or symlink at fault. A path that is
+* relative or has no plain name, and one whose `..` follows a missing directory, is returned as given; the host
+* and the server refuse it when they use it.
 */
-function canonicalSocketPath(file, calls = {}) {
+function checkedSocketPath(file, calls = {}) {
 	const name = node_path.default.basename(file);
 	if (!node_path.default.isAbsolute(file) || !name || name === "." || name === "..") return file;
 	try {
@@ -111,20 +128,22 @@ function canonicalSocketPath(file, calls = {}) {
 			missing: true,
 			calls
 		});
-		return "unsafe" in directory ? file : node_path.default.join(directory.path, name);
+		return "unsafe" in directory ? directory : node_path.default.join(directory.path, name);
 	} catch (error) {
 		if (codeOf(error) === void 0) throw error;
 		return file;
 	}
 }
 /**
-* The canonical path of the Unix socket `file` for a client to connect to: its directory passed the rule, is
-* private (owned by this user, no group or other bits) and still has the identity the rule saw, and the endpoint
-* there is a socket owned by this user that group and others cannot use. Only this user or root can change
-* anything on that path, so connecting through it reaches the endpoint that was checked. Anything else throws,
-* and on Windows, which has no owners, every path does. The server, client.js and transport.js all connect this way.
+* The Unix socket `file` for a client to connect to or probe: its directory passed the rule, is private (owned by
+* this user, no group or other bits) and still has the identity the rule saw, and the endpoint there is a socket
+* owned by this user that group and others cannot use. Only this user or root can change anything on its
+* canonical path, so connecting through it reaches the endpoint that was checked, and an unlink there, once the
+* identities are checked again, removes only that endpoint. Anything else throws: a file system error such as
+* ENOENT as it is, and an unsafe path as an Error without a code. On Windows, which has no owners, every path
+* throws.
 */
-function privateSocketEndpoint(file, calls = {}) {
+function privateSocket(file, calls = {}) {
 	const name = node_path.default.basename(file);
 	if (!name || name === "." || name === "..") throw new Error("socket name required");
 	const directory = trustedPath(node_path.default.dirname(file), { calls });
@@ -134,14 +153,32 @@ function privateSocketEndpoint(file, calls = {}) {
 	const uid = ownerId();
 	const parent = lstat(directory.path);
 	const endpoint = lstat(canonical);
-	if (!parent.isDirectory() || parent.dev !== directory.dev || parent.ino !== directory.ino || parent.uid !== uid || parent.mode & 63 || !endpoint.isSocket() || endpoint.uid !== uid || endpoint.mode & 63) throw new Error("private owned socket required");
-	return canonical;
+	if (!privateAt(parent, directory) || !endpoint.isSocket() || endpoint.uid !== uid || endpoint.mode & 63) throw new Error("private owned socket required");
+	return {
+		path: canonical,
+		dev: endpoint.dev,
+		ino: endpoint.ino,
+		directory
+	};
+}
+/**
+* The canonical path of the Unix socket `file` (privateSocket). The server, client.js, transport.js, the host's
+* stale-socket probe and the pool's endpoint probe all connect this way.
+*/
+function privateSocketEndpoint(file, calls = {}) {
+	return privateSocket(file, calls).path;
 }
 //#endregion
-Object.defineProperty(exports, "canonicalSocketPath", {
+Object.defineProperty(exports, "checkedSocketPath", {
 	enumerable: true,
 	get: function() {
-		return canonicalSocketPath;
+		return checkedSocketPath;
+	}
+});
+Object.defineProperty(exports, "privateDirectory", {
+	enumerable: true,
+	get: function() {
+		return privateDirectory;
 	}
 });
 Object.defineProperty(exports, "privateSocketEndpoint", {

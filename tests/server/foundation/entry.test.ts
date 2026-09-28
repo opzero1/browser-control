@@ -7,6 +7,7 @@ import type { App, AppOptions } from "../../../src/server/app";
 import { runStdioServer } from "../../../src/server/entry";
 import { SHUTDOWN_SECONDS } from "../../../src/server/runtime/shutdown";
 import { monotonic } from "../../../src/server/time";
+import { spawn } from "node:child_process";
 import { killChildren, startChild } from "../support/children";
 import { McpStdio } from "../support/mcp-stdio";
 import { privateTemp, removeTempRoots } from "../support/temp";
@@ -28,6 +29,13 @@ function fakeApp(overrides: Partial<App> = {}, seen: { options?: AppOptions; dea
       ...overrides
     };
   };
+}
+
+function text(): PassThrough & { text: () => string } {
+  const stream = new PassThrough();
+  let written = "";
+  stream.on("data", (chunk) => { written += String(chunk); });
+  return Object.assign(stream, { text: () => written });
 }
 
 function streams() {
@@ -182,4 +190,85 @@ describe("runStdioServer", () => {
     expect(Number(cleanup?.split("=")[1])).toBeGreaterThan(SHUTDOWN_SECONDS - 0.5);
     expect(child.stderr()).toBe("");
   }, 15000);
+});
+
+const RULE = "must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.";
+
+describe("the roots at server startup (trusted roots round)", () => {
+  /** A private root whose `shared` directory has `mode`, with a private directory `mine` inside it. */
+  function tree(mode: number) {
+    const root = privateTemp();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(path.join(shared, "mine"), { recursive: true, mode: 0o700 });
+    fs.chmodSync(shared, mode);
+    return { root, shared, env: { HOME: path.join(root, "home"), BROWSER_CONTROL_STATE_DIR: path.join(root, "state") } as Record<string, string> };
+  }
+
+  it.each([
+    ["the state root", "BROWSER_CONTROL_STATE_DIR", "state directory", "state"],
+    ["the artifact root", "FAST_CHROME_ARTIFACT_ROOT", "artifact directory", "mine"],
+    ["the native host socket", "BROWSER_CONTROL_HOST_SOCKET", "native host socket", "mine/user.sock"]
+  ] as const)("refuses to start when %s is under a directory another user could change, naming it, and serves nothing", async (_name, variable, kind, relative) => {
+    const { shared, env } = tree(0o777);
+    const given = path.join(shared, relative);
+    const { stdin, stdout } = streams();
+    const stderr = text();
+    const exits: number[] = [];
+    const seen = { deadlines: [] as number[] } as { options?: AppOptions; deadlines: number[] };
+    const done = runStdioServer({ stdin, stdout, stderr, env: { ...env, [variable]: given }, installSignalHandlers: false, exit: (code) => exits.push(code), app: fakeApp({}, seen) });
+    const outcome = await Promise.race([done, new Promise((resolve) => setTimeout(() => resolve("still serving"), 2000))]);
+    stdin.end();
+    await done;
+    expect(outcome).toBe(1);
+    expect(exits).toEqual([1]);
+    expect(seen.options).toBeUndefined();
+    expect(stderr.text()).toBe(`browser-control mcp: Refusing the ${kind} ${given}: ${shared} ${RULE}\n`);
+    expect(fs.readdirSync(shared)).toEqual(["mine"]);
+  });
+
+  it("gives the app the state root, the artifact root and the socket by canonical path, and the default state root as it is", async () => {
+    const { root, env } = tree(0o700);
+    fs.mkdirSync(path.join(root, "real"), { mode: 0o700 });
+    fs.symlinkSync(path.join(root, "real"), path.join(root, "link"));
+    const given = { ...env, BROWSER_CONTROL_STATE_DIR: path.join(root, "link/state"), FAST_CHROME_ARTIFACT_ROOT: path.join(root, "link"),
+      BROWSER_CONTROL_HOST_SOCKET: path.join(root, "link/sockets/user.sock") };
+    for (const [input, expected] of [
+      [given, { ...given, BROWSER_CONTROL_STATE_DIR: path.join(root, "real/state"), FAST_CHROME_ARTIFACT_ROOT: path.join(root, "real"),
+        BROWSER_CONTROL_HOST_SOCKET: path.join(root, "real/sockets/user.sock") }],
+      // The default ~/.local/state/browser-control under a HOME without symlinks is already canonical.
+      [{ HOME: env.HOME }, null]
+    ] as const) {
+      const { stdin, stdout, client } = streams();
+      const seen = { deadlines: [] as number[] } as { options?: AppOptions; deadlines: number[] };
+      const done = runStdioServer({ stdin, stdout, stderr: text(), env: input, installSignalHandlers: false, exit: () => undefined, app: fakeApp({}, seen) });
+      await client.initialize();
+      if (expected === null) expect(seen.options?.env).toBe(input);
+      else expect(seen.options?.env).toEqual(expected);
+      stdin.end();
+      expect(await done).toBe(0);
+    }
+    // Nothing was made through the symlink or under the default root by the check itself.
+    expect(fs.readdirSync(path.join(root, "real"))).toEqual([]);
+    expect(fs.existsSync(env.HOME)).toBe(false);
+  });
+
+  it("refuses the built mcp and pool commands for a state root under a directory another user could change", async () => {
+    const { shared, env } = tree(0o770);
+    const state = path.join(shared, "state");
+    const cli = path.resolve(__dirname, "../../../dist/server/cli.js");
+    for (const [args, prefix] of [[["mcp"], "browser-control mcp"], [["pool", "status"], "browser-control pool"]] as const) {
+      const child = spawn(process.execPath, [cli, ...args], { env: { ...process.env, ...env, BROWSER_CONTROL_STATE_DIR: state }, stdio: ["pipe", "pipe", "pipe"] });
+      // A server that started would serve until EOF; this one must refuse before reading anything.
+      child.stdin.end();
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk) => { stdout += chunk; });
+      child.stderr.on("data", (chunk) => { stderr += chunk; });
+      const code = await new Promise((resolve) => child.on("close", resolve));
+      expect(code, args.join(" ")).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toBe(`${prefix}: Refusing the state directory ${state}: ${shared} ${RULE}\n`);
+    }
+    expect(fs.readdirSync(shared)).toEqual(["mine"]);
+  });
 });

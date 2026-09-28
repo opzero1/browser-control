@@ -260,6 +260,130 @@ describe("browser-control install", () => {
     expect(readText(path.join(agents, "browser-control/SKILL.md"))).toBe("mine\n");
   });
 
+  it.each([
+    ["a sticky skills directory of yours, where --force replaces the link", "yours"],
+    ["a sticky skills directory of root's, where only its owner can replace the link", "root's"]
+  ] as const)("never takes a skill link that another user owns in %s as current, with or without --force", async (_name, directoryOwner) => {
+    const { root, env, assets, flags, skills } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    expect(byId((await install(options(flags), env, deps)).steps)["skill:browser-control"].status).toBe("linked");
+    const link = path.join(skills, "browser-control");
+    const target = fs.readlinkSync(link);
+    // Others can add entries to a sticky directory, as to /tmp, and the trusted-path rule accepts it. The link
+    // points at this user's current copy, byte for byte what install would write, but its owner can repoint it.
+    fs.chmodSync(skills, 0o1777);
+    const other = fs.lstatSync(link).uid + 1;
+    owned(directoryOwner === "yours" ? { [link]: other } : { [link]: other, [skills]: 0 });
+    const ino = fs.lstatSync(link).ino;
+    for (const extra of [[], ["--dry-run"]]) {
+      expect(byId((await install(options([...flags, ...extra]), env, deps)).steps)["skill:browser-control"], extra.join(" ")).toEqual({
+        id: "skill:browser-control", level: "fail", status: "untrusted", path: link, previous: target,
+        message: "An entry with this skill's name is already here, but another user owns it and could change it. Run browser-control install --force to replace it."
+      });
+    }
+    const forced = byId((await install(options([...flags, "--force"]), env, deps)).steps)["skill:browser-control"];
+    if (directoryOwner === "root's") {
+      expect(forced).toEqual({ id: "skill:browser-control", level: "fail", status: "cannot-replace", path: link, previous: target,
+        message: "The entry with this skill's name belongs to another user, in a directory with the sticky bit that is not yours, so only that user or root can replace it. Have it removed, or pass another --skills-dir." });
+      expect(fs.lstatSync(link).ino).toBe(ino);
+    } else {
+      expect(forced).toMatchObject({ level: "ok", status: "replaced-untrusted", path: link, previous: target });
+      expect(fs.lstatSync(link).ino).not.toBe(ino);
+      vi.restoreAllMocks();
+      expect(fs.readlinkSync(link)).toBe(target);
+      expect(fs.readdirSync(skills)).toEqual(["browser-control"]);
+      expect(byId((await install(options(flags), env, deps)).steps)["skill:browser-control"].status).toBe("unchanged");
+    }
+  });
+
+  it.each([["0770", 0o770], ["0777", 0o777]])("refuses a skills directory reached through a symlink in a directory with mode %s, naming it, and links nothing through it", async (_mode, mode) => {
+    const { root, env, assets, state, manifests } = setup();
+    const real = path.join(root, "real-skills");
+    fs.mkdirSync(real, { mode: 0o755 });
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, mode);
+    // Another user who can write to `shared` can repoint `link`, or put a directory of theirs in its place.
+    const link = path.join(shared, "link");
+    fs.symlinkSync(real, link);
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    for (const skillsDir of [link, path.join(link, "missing"), path.join(shared, "made")]) {
+      for (const extra of [[], ["--force"], ["--dry-run"]]) {
+        const report = await install(options(["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", skillsDir, ...extra]), env, deps);
+        expect(report.steps.filter((item) => item.id === "skills"), `${skillsDir} ${extra.join(" ")}`).toEqual([{ id: "skills", level: "fail", status: "unsafe-directory", path: shared,
+          message: "Another user could change this skills directory: it and every directory above it must be owned by you or root and writable only by their owner, unless they have the sticky bit. Fix that directory or pass another --skills-dir." }]);
+        expect(report.steps.filter((item) => item.id === "skill:browser-control")).toEqual([]);
+        expect(report.ok).toBe(false);
+      }
+    }
+    expect(fs.readdirSync(real)).toEqual([]);
+    expect(fs.readdirSync(shared)).toEqual(["link"]);
+  });
+
+  it("links into a 0755 skills directory of yours, as agent clients keep them, and into one reached through a symlink by its canonical path", async () => {
+    const { root, env, assets, state, manifests } = setup();
+    const home = env.HOME as string;
+    // A skills directory under ~/.config and ~/.claude/skills: the user's own 0755 directories, never private.
+    const opencode = path.join(home, ".config/agent-client/skills");
+    fs.mkdirSync(opencode, { recursive: true, mode: 0o755 });
+    const claude = path.join(home, ".claude");
+    fs.mkdirSync(path.join(root, "dotfiles/claude-skills"), { recursive: true, mode: 0o755 });
+    fs.mkdirSync(claude, { mode: 0o755 });
+    fs.symlinkSync(path.join(root, "dotfiles/claude-skills"), path.join(claude, "skills"));
+    const fresh = path.join(home, ".agents/skills");
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    const flags = ["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", opencode, "--skills-dir", path.join(claude, "skills"),
+      "--skills-dir", fresh, "--skills-dir", path.join(root, "dotfiles/claude-skills")];
+    const report = await install(options(flags), env, deps);
+    expect(report.ok).toBe(true);
+    const linked = report.steps.filter((item) => item.id === "skill:browser-control");
+    // The symlinked directory and its real path are one directory, linked once by its real path.
+    expect(linked.map((item) => [item.status, item.path])).toEqual([
+      ["linked", path.join(opencode, "browser-control")],
+      ["linked", path.join(root, "dotfiles/claude-skills/browser-control")],
+      ["linked", path.join(fresh, "browser-control")]
+    ]);
+    expect(fs.statSync(fresh).mode & 0o7777).toBe(0o755);
+    for (const item of linked) expect(fs.readlinkSync(item.path as string)).toMatch(new RegExp(`^${state}/skills/browser-control/1\\.2\\.3-[0-9a-f]{12}$`));
+    expect(readText(path.join(opencode, "browser-control/SKILL.md"))).toBe(readText(path.join(assets.root, "skills/browser-control/SKILL.md")));
+    const again = await install(options(flags), env, deps);
+    expect(again.steps.filter((item) => item.id === "skill:browser-control").map((item) => item.status)).toEqual(["unchanged", "unchanged", "unchanged"]);
+    expect(fs.readdirSync(opencode)).toEqual(["browser-control"]);
+  });
+
+  it("refuses a BROWSER_CONTROL_HOST_SOCKET under a directory another user could change: no wrapper, manifest or snippet names it", async () => {
+    const { root, env: base, assets, flags, state, manifests } = setup();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(path.join(shared, "run"), { recursive: true, mode: 0o700 });
+    fs.chmodSync(shared, 0o777);
+    const env = { ...base, BROWSER_CONTROL_HOST_SOCKET: path.join(shared, "run/user.sock") };
+    const report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(report.steps).wrapper).toEqual({ id: "wrapper", level: "fail", status: "unsafe-socket", path: shared,
+      message: "The native host socket's directory, or a directory above it, can be changed by another user. Every directory on BROWSER_CONTROL_HOST_SOCKET must be owned by you or root and writable only by its owner, unless it has the sticky bit." });
+    expect(byId(report.steps).manifest).toBeUndefined();
+    expect(report.snippets).toEqual({});
+    expect(fs.existsSync(path.join(state, "hosts/user/browser-control-host"))).toBe(false);
+    expect(fs.existsSync(manifests)).toBe(false);
+    const err = sink();
+    expect(await runConfig([], { stdout: sink(), stderr: err, env })).toBe(1);
+    expect(err.text).toBe(`browser-control config: Refusing the native host socket ${path.join(shared, "run/user.sock")}: ${shared} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.\n`);
+  });
+
+  it("refuses to print a configuration for a state directory under a directory another user could change, naming it", async () => {
+    const { root, env } = setup();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, 0o770);
+    const out = sink();
+    const err = sink();
+    expect(await runConfig(["opencode", "--state-dir", path.join(shared, "state")], { stdout: out, stderr: err, env })).toBe(1);
+    expect(out.text).toBe("");
+    expect(err.text).toBe(`browser-control config: Refusing the state directory ${path.join(shared, "state")}: ${shared} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.\n`);
+    fs.chmodSync(shared, 0o1770);
+    expect(await runConfig(["opencode", "--state-dir", path.join(shared, "state")], { stdout: out, stderr: sink(), env })).toBe(0);
+    expect(fs.existsSync(path.join(shared, "state"))).toBe(false);
+  });
+
   it("reports a skill the package does not contain", async () => {
     const { root, env, assets, flags } = setup();
     fs.rmSync(path.join(assets.root, "skills"), { recursive: true });
@@ -305,12 +429,13 @@ describe("browser-control install", () => {
     expect(byId(refused.steps).state).toEqual({ id: "state", level: "fail", status: "unsafe-ancestor", path: shared,
       message: "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir." });
     expect(refused.steps.map((item) => item.id)).toEqual(["node", "state", "extension", "cua-driver", "chrome-for-testing"]);
-    expect(fs.readdirSync(state)).toEqual([]);
+    // The directories above are checked first, so nothing is made under the one at fault.
+    expect(fs.existsSync(state)).toBe(false);
     expect(fs.existsSync(manifests)).toBe(false);
 
     fs.chmodSync(shared, mode | 0o1000);
     const accepted = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
-    expect(statuses(accepted.steps)).toMatchObject({ state: "unchanged", host: "created", wrapper: "created", manifest: "created" });
+    expect(statuses(accepted.steps)).toMatchObject({ state: "created", host: "created", wrapper: "created", manifest: "created" });
     const wrapper = path.join(state, "hosts/user/browser-control-host");
     expect(JSON.parse(readText(path.join(manifests, "com.opzero.chrome.json"))).path).toBe(wrapper);
     const named = [...readText(wrapper).matchAll(/'([^']*)'/g)].map((match) => match[1]);

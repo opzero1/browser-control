@@ -2,6 +2,7 @@
 // message. `--smoke` adds one isolated end-to-end run (smoke.ts) that never reaches the user's Chrome.
 import fs from "node:fs";
 import path from "node:path";
+import { checkedSocketPath, trustedPath } from "../../shared/trusted-path";
 import type { PackageAssets } from "../assets";
 import { HOST_SOCKET_ENV, nodeExecutable, statePaths, userSocket, whichExecutable, type Env } from "../config";
 import { existingDirectory } from "../fs-private";
@@ -10,9 +11,9 @@ import { Connection, type Connect } from "../host-connection";
 import { clipboardGuardBinary, stableHostPlan, treeMatches } from "../stable-copy";
 import { chromeForTestingStep, cuaStep, defaultDeps, extensionStep, type CommandDeps } from "./install";
 import {
-  bundledSkills, chromeManifestDirectory, commandEnv, exists, expectedWrapper, failed, formatSteps, gateCode, MANIFEST_FILE, manifestState,
-  nodeStep, parseOptions, readLink, readRegular, skillFiles, skillsDirectories, stableSkillDir, step, trustedGuard, UsageError,
-  userWrapperPath, type CommandIo, type Options, type Step
+  bundledSkills, checkedSkillsDirectories, chromeManifestDirectory, commandEnv, exists, expectedWrapper, failed, formatSteps, gateCode, MANIFEST_FILE,
+  manifestState, nodeStep, parseOptions, readLink, readRegular, skillFiles, stableSkillDir, step, trustedGuard, UsageError,
+  userWrapperPath, type CommandIo, type Options, type SkillsDirectory, type Step
 } from "./shared";
 import { defaultSmokeDeps, smoke, type SmokeDeps } from "./smoke";
 
@@ -30,6 +31,12 @@ const INSTALL_HINT = "browser-control install";
 
 function stateStep(env: Env): Step {
   const root = statePaths(env).root;
+  const above = trustedPath(root, { missing: true });
+  if ("unsafe" in above) {
+    return step("state", "fail", "unsafe-ancestor",
+      "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir.",
+      { path: above.unsafe });
+  }
   try {
     if (!existingDirectory(root)) return step("state", "fail", "missing", "The state directory does not exist. Run browser-control install.", { path: root, command: INSTALL_HINT });
     return step("state", "ok", "private", "The state directory is private.", { path: root });
@@ -46,7 +53,8 @@ function hostStep(env: Env, assets: PackageAssets): { step: Step; hostScript: st
     return { hostScript, step: step("host", "fail", "missing", "The native host copy for this version is missing. Run browser-control install.",
       { path: hostScript, command: INSTALL_HINT }) };
   }
-  if (!current.equals(data) || (fs.lstatSync(hostScript).mode & 0o077) !== 0) {
+  const stats = fs.lstatSync(hostScript);
+  if (!current.equals(data) || stats.uid !== process.getuid?.() || (stats.mode & 0o077) !== 0) {
     return { hostScript, step: step("host", "fail", "changed", "The native host copy does not match this package. Run browser-control install.",
       { path: hostScript, command: INSTALL_HINT }) };
   }
@@ -64,7 +72,8 @@ function wrapperStep(env: Env, hostScript: string): Step {
   const current = readRegular(wrapper);
   if (!current) return step("wrapper", "fail", "missing", "The native host wrapper is missing. Run browser-control install.", { path: wrapper, command: INSTALL_HINT });
   const node = nodeExecutable();
-  const modeOk = (fs.lstatSync(wrapper).mode & 0o777) === 0o700;
+  const stats = fs.lstatSync(wrapper);
+  const modeOk = stats.uid === process.getuid?.() && (stats.mode & 0o777) === 0o700;
   if (current.equals(Buffer.from(expectedWrapper(env, hostScript, node))) && modeOk) {
     return step("wrapper", "ok", "current", "The native host wrapper runs this version's host with this Node.js.", { path: wrapper });
   }
@@ -86,7 +95,14 @@ function manifestStep(env: Env, platform: NodeJS.Platform, options: Options): St
       "Chrome native messaging manifests are set up only on macOS and Linux. Pass --chrome-manifest-dir to choose a directory.");
   }
   const file = path.join(directory, MANIFEST_FILE);
-  const state = manifestState(file, userWrapperPath(env));
+  // Read only through the canonical directory; a missing one holds no manifest.
+  const canonical = trustedPath(directory, { missing: true });
+  if ("unsafe" in canonical) {
+    return step("manifest", "fail", "unsafe-directory",
+      "Another user could change the Chrome native messaging manifest's directory: it and every directory above it must be owned by you or root and writable only by their owner, unless they have the sticky bit.",
+      { path: canonical.unsafe });
+  }
+  const state: ReturnType<typeof manifestState> = "missing" in canonical ? { kind: "absent" } : manifestState(path.join(canonical.path, MANIFEST_FILE), userWrapperPath(env));
   switch (state.kind) {
     case "current":
       return step("manifest", "ok", "current", "The Chrome native messaging manifest names the wrapper and both extension IDs.", { path: file });
@@ -106,6 +122,13 @@ function manifestStep(env: Env, platform: NodeJS.Platform, options: Options): St
 
 /** The user route's endpoint answers the protocol 2 handshake. Chrome may simply be closed, so this only warns. */
 async function endpointStep(env: Env, connect: Connect): Promise<Step> {
+  const configured = env[HOST_SOCKET_ENV];
+  const checked = configured ? checkedSocketPath(configured) : null;
+  if (checked !== null && typeof checked !== "string") {
+    return step("endpoint", "fail", "unsafe-socket",
+      "The native host socket's directory, or a directory above it, can be changed by another user, so nothing was sent to it. Every directory on BROWSER_CONTROL_HOST_SOCKET must be owned by you or root and writable only by its owner, unless it has the sticky bit.",
+      { path: checked.unsafe });
+  }
   const socket = userSocket(env);
   try {
     const connection = await connect(socket, 2);
@@ -138,12 +161,23 @@ function clipboardStep(env: Env, deps: CommandDeps): Step {
     { path: binary, command: INSTALL_HINT });
 }
 
+function entryAt(file: string): fs.Stats | null {
+  try {
+    return fs.lstatSync(file);
+  } catch {
+    return null;
+  }
+}
+
 function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
-  const directories = skillsDirectories(options);
-  if (!directories.length) {
+  const checked = checkedSkillsDirectories(options);
+  if (!checked.length) {
     return [step("skills", "ok", "skipped", "No skills directory was given, so no skill link was checked. Pass --skills-dir <dir> to check one.")];
   }
-  const steps: Step[] = [];
+  const steps: Step[] = checked.flatMap((item) => ("unsafe" in item ? [step("skills", "fail", "unsafe-directory",
+    "Another user could change this skills directory: it and every directory above it must be owned by you or root and writable only by their owner, unless they have the sticky bit. Fix that directory or pass another --skills-dir.",
+    { path: item.unsafe })] : []));
+  const directories = checked.filter((item): item is SkillsDirectory => !("unsafe" in item));
   for (const name of bundledSkills(assets)) {
     const id = `skill:${name}`;
     const files = skillFiles(assets, name);
@@ -153,11 +187,16 @@ function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
     }
     const target = stableSkillDir(env, assets, name, files);
     for (const directory of directories) {
-      const link = path.join(directory, name);
-      const previous = readLink(link);
-      if (previous === target && treeMatches(target, files)) {
+      const link = path.join(directory.path, name);
+      // Only a link this user owns is current; nothing is read through a missing directory.
+      const entry = directory.missing ? null : entryAt(link);
+      const previous = entry ? readLink(link) : null;
+      if (entry && entry.uid !== process.getuid?.()) {
+        steps.push(step(id, "fail", "untrusted", "An entry with this skill's name is here, but another user owns it and could change it. Run browser-control install --force to replace it.",
+          { path: link, previous, command: `${INSTALL_HINT} --force` }));
+      } else if (entry?.isSymbolicLink() && previous === target && treeMatches(target, files)) {
         steps.push(step(id, "ok", "current", "The skill is linked to this version.", { path: link }));
-      } else if (!exists(link)) {
+      } else if (!entry) {
         steps.push(step(id, "warn", "missing", "The skill is not linked. Run browser-control install.", { path: link, command: INSTALL_HINT }));
       } else {
         steps.push(step(id, "warn", "stale", "The skill link does not point at this version. Run browser-control install.",

@@ -6,6 +6,7 @@ import type { Env } from "../config";
 import { Gate } from "../gate";
 import { pyDumps } from "../pyjson";
 import { pyStrip } from "../pystr";
+import { trustedEnv, UnsafeRoot } from "../roots";
 import { controllerNumber, operate, poolContext, reap, reset } from "./registry";
 import { ensure } from "./start";
 
@@ -226,7 +227,8 @@ export async function runPoolCommand(argv: readonly string[], io: { stdout: Node
   const { command, values } = parsed;
   let result: unknown;
   try {
-    const ctx = poolContext(io.env ?? process.env);
+    // The state root and the socket by canonical path, once they pass the trusted-path rule (roots.ts).
+    const ctx = poolContext(trustedEnv(io.env ?? process.env));
     const controller = values.controller as string | null;
     if (command === "ensure") {
       result = await ensure(controller, values.owner as string, { timeout: values.timeout, site: values.site as string | null, exclusive: values.exclusive as boolean, ctx });
@@ -240,6 +242,10 @@ export async function runPoolCommand(argv: readonly string[], io: { stdout: Node
   } catch (error) {
     if (error instanceof Gate) {
       io.stdout.write(`${pyDumps({ error: error.code })}\n`);
+      return 1;
+    }
+    if (error instanceof UnsafeRoot) {
+      stderr.write(`${PROGRAM}: ${error.message}\n`);
       return 1;
     }
     stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);

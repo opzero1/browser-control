@@ -60,7 +60,7 @@ roots never share an endpoint. To use another socket, set `BROWSER_CONTROL_HOST_
 |---|---|
 | `--state-dir <dir>` | Use this state directory. Give the server the same directory (the printed configuration includes it). |
 | `--chrome-manifest-dir <dir>` | Write the manifest here. The default is `~/Library/Application Support/Google/Chrome/NativeMessagingHosts` on macOS and `~/.config/google-chrome/NativeMessagingHosts` on Linux. |
-| `--skills-dir <dir>` | Link the skills here. Repeat it for more directories, for example `~/.claude/skills` or `~/.agents/skills`. There is no default: without this option, install links no skill. |
+| `--skills-dir <dir>` | Link the skills here. Repeat it for more directories, for example `~/.claude/skills` or `~/.agents/skills`. There is no default: without this option, install links no skill. The directory need not be private, but it and every directory and symlink on the way to it must be yours or root's and not writable by others unless sticky; install links there by its canonical path. |
 | `--dry-run` | Report what install would do and write nothing. |
 | `--force` | Replace a manifest or skill link that belongs to another host or skill. The report names the old path. A real directory is never removed. |
 | `--json` | Print the report as JSON. |
@@ -72,6 +72,10 @@ Install and doctor treat a manifest as current only when it is a regular file ow
 cannot write to. Any other manifest is reported as `untrusted`, even if its bytes match, because another user
 could change it. `--force` replaces it, except in a directory with the sticky bit that you do not own. There,
 install reports `cannot-replace`, because only the file's owner or root can remove another user's file.
+
+Skill links follow the same rule. A link or file with a skill's name that another user owns is never current,
+even if it points at this version's copy. Install reports it as `untrusted`, replaces it with `--force`
+(`replaced-untrusted`), and reports `cannot-replace` in a sticky directory that you do not own.
 
 ### The release zip's installer
 
@@ -173,14 +177,14 @@ command to run.
 
 | Variable | Meaning |
 |---|---|
-| `BROWSER_CONTROL_STATE_DIR` | Absolute state directory. Default `~/.local/state/browser-control`. |
+| `BROWSER_CONTROL_STATE_DIR` | Absolute state directory. Default `~/.local/state/browser-control`. Every directory and symlink on the way to it must be yours or root's and not writable by others unless sticky. `mcp`, `pool`, `config`, install and doctor refuse it otherwise and name the directory at fault; the server and `pool` then use its canonical path. |
 | `BROWSER_CONTROL_HOST_SOCKET` | The user route's native host socket. Default `<state>/sockets/user.sock`. Its directory must be private to you, and every directory and symlink on the way to it must be yours or root's and not writable by others unless sticky. Install, the host and the server use its canonical path. |
 | `BROWSER_CONTROL_USER_DATA_DIR` | Chrome user-data directory for the read-only extension check in install and doctor. |
 | `BROWSER_CONTROL_PREFERENCES_PATH` | Exact Preferences file for that check. Takes precedence over the user-data directory. |
 | `CUA_DRIVER` | Absolute path to cua-driver. |
 | `FAST_CHROME_ALLOW_LOOPBACK` | `1` allows HTTP on `127.0.0.1` and `localhost`, for synthetic checks only. |
 | `FAST_CHROME_UNSHARED_SITES` | Comma-separated registrable domains whose leases never share an isolated browser. Default none. |
-| `FAST_CHROME_ARTIFACT_ROOT` | A private directory for the user route's screenshots and recordings. Default `<state>/artifacts/user`. |
+| `FAST_CHROME_ARTIFACT_ROOT` | A private directory for the user route's screenshots and recordings. Default `<state>/artifacts/user`. Every directory and symlink on the way to it must be yours or root's and not writable by others unless sticky: the server refuses to start otherwise, and each capture checks it again. |
 | `FAST_CHROME_MAX_CONTROLLERS`, `FAST_CHROME_MAX_TENANTS` | Pool limits. |
 
 ## Upgrade and remove

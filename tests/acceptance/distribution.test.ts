@@ -276,6 +276,28 @@ describe("Browser Control distribution", () => {
     }
   });
 
+  it.each([["0777", 0o777], ["0770", 0o770]])("refuses a --socket-path reached through a directory with mode %s, naming it, before writing anything", async (_mode, mode) => {
+    const tempDir = testTemp();
+    const skillDir = path.join(tempDir, "browser-control");
+    copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
+    const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
+    const state = path.join(tempDir, "state");
+    const shared = path.join(tempDir, "shared");
+    fs.mkdirSync(path.join(tempDir, "sockets"), { mode: 0o700 });
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, mode);
+    // Another user who can write to `shared` can repoint `link` after the wrapper names it.
+    fs.symlinkSync(path.join(tempDir, "sockets"), path.join(shared, "link"));
+    const socketPath = path.join(shared, "link/h.sock");
+    const install = await runNode([path.join(skillDir, "scripts/install-native-host.js"), "--extension-id", "testextensionid",
+      "--manifest-path", manifestPath, "--socket-path", socketPath], { BROWSER_CONTROL_STATE_DIR: state });
+    expect(install.code).toBe(1);
+    expect(install.stderr).toBe(`Refusing the native host socket ${socketPath}: ${path.join(fs.realpathSync(tempDir), "shared")} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.\n`);
+    expect(fs.existsSync(manifestPath)).toBe(false);
+    expect(fs.existsSync(state)).toBe(false);
+    fs.chmodSync(shared, 0o700);
+  });
+
   it("refuses a relative state root", async () => {
     const tempDir = testTemp();
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");

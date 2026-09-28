@@ -4,7 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { canonicalSocketPath, MAX_SYMLINKS, trustedPath } from "../../src/shared/trusted-path";
+import net from "node:net";
+import {
+  canonicalSocketPath, checkedSocketPath, MAX_SYMLINKS, privateDirectory, privateSocket, trustedPath
+} from "../../src/shared/trusted-path";
 import { privateTemp, removeTempRoots } from "../server/support/temp";
 
 afterEach(() => {
@@ -165,5 +168,55 @@ describe("the canonical socket path", () => {
     fs.chmodSync(shared, 0o777);
     fs.symlinkSync(path.join(root, "real"), path.join(shared, "link"));
     for (const given of [path.join(shared, "link/s.sock"), "relative/s.sock", `${root}/link/..`]) expect(canonicalSocketPath(given)).toBe(given);
+  });
+});
+
+describe("private directories and sockets (trusted roots round)", () => {
+  it("takes a directory as private only once its path passed the rule and it is yours with no group or other bits", () => {
+    const root = privateTemp("tp-");
+    const real = path.join(root, "real");
+    fs.mkdirSync(real, { mode: 0o700 });
+    fs.symlinkSync(real, path.join(root, "link"));
+    // A symlink only this user can repoint leads to the canonical directory.
+    expect(privateDirectory(path.join(root, "link"))).toEqual(identity(real));
+    fs.chmodSync(real, 0o750);
+    expect(privateDirectory(real)).toEqual({ unsafe: real });
+    fs.chmodSync(real, 0o700);
+    expect(privateDirectory(real, { calls: { lstat: ownedBy(real, fs.lstatSync(real).uid + 1) } })).toEqual({ unsafe: real });
+    // Root's directory passes the rule but is not private to this user.
+    expect(privateDirectory(real, { calls: { lstat: ownedBy(real, 0) } })).toEqual({ unsafe: real });
+    // A private directory under one another user could change is not private: they could replace it.
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(path.join(shared, "mine"), { recursive: true, mode: 0o700 });
+    fs.chmodSync(shared, 0o777);
+    expect(privateDirectory(path.join(shared, "mine"))).toEqual({ unsafe: shared });
+    expect(privateDirectory(path.join(shared, "made"), { create: 0o700 })).toEqual({ unsafe: shared });
+    expect(fs.readdirSync(shared)).toEqual(["mine"]);
+    const made = privateDirectory(path.join(root, "a/b"), { create: 0o700 });
+    expect(made).toEqual(identity(path.join(root, "a/b")));
+  });
+
+  it("names the directory at fault for a socket that cannot be trusted, and records the endpoint's identity for one that can", async () => {
+    const root = privateTemp("tp-");
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, 0o777);
+    fs.mkdirSync(path.join(root, "real"), { mode: 0o700 });
+    fs.symlinkSync(path.join(root, "real"), path.join(shared, "link"));
+    expect(checkedSocketPath(path.join(shared, "link/s.sock"))).toEqual({ unsafe: shared });
+    expect(checkedSocketPath(path.join(root, "real/s.sock"))).toBe(path.join(root, "real/s.sock"));
+    for (const given of ["relative/s.sock", `${root}/gap/../real/s.sock`]) expect(checkedSocketPath(given)).toBe(given);
+    fs.symlinkSync(path.join(root, "real"), path.join(root, "alias"));
+    const file = path.join(root, "real/s.sock");
+    const server = net.createServer();
+    await new Promise<void>((resolve) => server.listen(file, resolve));
+    try {
+      fs.chmodSync(file, 0o600);
+      const stats = fs.lstatSync(file);
+      expect(privateSocket(path.join(root, "alias/s.sock"))).toEqual({ path: file, dev: stats.dev, ino: stats.ino, directory: identity(path.join(root, "real")) });
+      expect(() => privateSocket(path.join(shared, "link/s.sock"))).toThrow("trusted socket directory required");
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

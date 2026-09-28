@@ -271,7 +271,10 @@ export class BrowserControl implements App {
     }
   }
 
-  /** A capture root: the tab's artifact root, and the default user root created 0700 on first use (D2). */
+  /**
+   * A capture root: the tab's artifact root, and the default user root created 0700 on first use (D2).
+   * captureDirectory then checks whichever root this is from / down and captures only in its canonical path.
+   */
   private artifactRoot(tab: Tab): string {
     if (tab.artifactRoot === null) return "";
     if (tab.createArtifactRoot) {

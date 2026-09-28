@@ -1,5 +1,6 @@
 // Private registry files. Python holds directory file descriptors and uses dir_fd calls; Node has no openat,
-// so a PrivateDir is a path plus the (dev, ino) it had when verified, and every use re-verifies it first.
+// so a PrivateDir is a path plus the (dev, ino) it had when verified, and every use re-verifies it first. Opening
+// one walks the whole path from / and applies the trusted-path rule to every directory above it.
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -41,6 +42,16 @@ function checkDirectoryStats(stats: fs.Stats) {
   if (stats.uid !== uid() || stats.mode & 0o077) throw new Gate("browser-controller-unsafe-registry");
 }
 
+/**
+ * The trusted-path rule (src/shared/trusted-path.ts) for a directory above the target: owned by this user or
+ * root, and writable only by its owner unless it has the sticky bit. A walk refuses every symlink, so a path
+ * whose every directory passes is its own canonical path and only this user or root can change what it leads to.
+ */
+function checkAncestor(stats: fs.Stats) {
+  const shared = (stats.mode & 0o022) !== 0 && (stats.mode & 0o1000) === 0;
+  if ((stats.uid !== uid() && stats.uid !== 0) || shared) throw new Gate("browser-controller-unsafe-registry");
+}
+
 /** One path component opened like os.open(part, O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=...). */
 function component(file: string): fs.Stats {
   const stats = io(() => fs.lstatSync(file));
@@ -57,12 +68,18 @@ function mkdirQuiet(file: string) {
   }
 }
 
+/**
+ * Every directory from / down, checked as the kernel resolves it: none is a symlink, each above the target passes
+ * the trusted-path rule before anything is made or looked up in it, and the target is private. The state root's
+ * ancestry is so checked on every use, not only when install first made it.
+ */
 function walk(target: string, create: boolean): PrivateDir | null {
   const absolute = path.resolve(target);
   const parts = absolute.split(path.sep).filter(Boolean);
   let current = path.parse(absolute).root;
   let stats = component(current);
   for (const part of parts) {
+    checkAncestor(stats);
     current = path.join(current, part);
     if (create) mkdirQuiet(current);
     try {

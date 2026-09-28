@@ -43,12 +43,45 @@ describe("capture directories and files", () => {
     expect(path.dirname(directory)).toBe(root);
     expect(path.basename(directory)).toMatch(/^chrome-capture-/);
     expect(fs.statSync(directory).mode & 0o777).toBe(0o700);
-    fs.symlinkSync(root, path.join(root, "link"));
     fs.mkdirSync(path.join(root, "shared"), { mode: 0o750 });
     fs.chmodSync(path.join(root, "shared"), 0o750);
-    for (const bad of [path.join(root, "missing"), path.join(root, "link"), path.join(root, "shared"), ""]) {
+    for (const bad of [path.join(root, "missing"), path.join(root, "shared"), ""]) {
       expect(() => captureDirectory(bad)).toThrow("fast-chrome-private-artifact-root-required");
     }
+    // A symlink that only this user can repoint is followed, and the capture is made in the canonical root.
+    fs.symlinkSync(root, path.join(root, "link"));
+    expect(path.dirname(captureDirectory(path.join(root, "link")))).toBe(root);
+  });
+
+  it.each([["0777", 0o777], ["0770", 0o770], ["0707", 0o707]])("refuses screenshot and recording roots under a directory with mode %s, which another user could replace, and captures nothing", async (_mode, mode) => {
+    const root = privateTemp();
+    const shared = path.join(root, "shared");
+    // A private artifact root of this user's, but another user can rename it away and put their own in its place.
+    const artifacts = path.join(shared, "artifacts");
+    fs.mkdirSync(artifacts, { recursive: true, mode: 0o700 });
+    fs.chmodSync(shared, mode);
+    fs.mkdirSync(path.join(root, "real"), { mode: 0o700 });
+    fs.symlinkSync(path.join(root, "real"), path.join(shared, "link"));
+    for (const given of [artifacts, path.join(shared, "link")]) {
+      expect(() => captureDirectory(given), given).toThrow("fast-chrome-private-artifact-root-required");
+      await gate(Recording.start(fakeTab(), 5, 30, given, deps()), "fast-chrome-private-artifact-root-required");
+    }
+    expect(fs.readdirSync(artifacts)).toEqual([]);
+    expect(fs.readdirSync(path.join(root, "real"))).toEqual([]);
+    // With the sticky bit, only this user or root can rename the root, so it is used.
+    fs.chmodSync(shared, mode | 0o1000);
+    expect(path.dirname(captureDirectory(artifacts))).toBe(artifacts);
+  });
+
+  it("records in the canonical root when the root given is reached through a symlink only this user can repoint", async () => {
+    const root = privateTemp();
+    const real = path.join(root, "real");
+    fs.mkdirSync(real, { mode: 0o700 });
+    fs.symlinkSync(real, path.join(root, "link"));
+    const recording = await Recording.start(fakeTab(), 15, 30, path.join(root, "link"), deps());
+    const receipt = await recording.stop({ encode: false });
+    expect(path.dirname(receipt.directory)).toBe(real);
+    expect(fs.readdirSync(receipt.directory)).toContain("capture.json");
   });
 
   it("saves exclusively with mode 0600", () => {

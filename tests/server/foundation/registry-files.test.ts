@@ -56,6 +56,23 @@ describe("private registry directories and files", () => {
     expect(fs.statSync(child.path).mode & 0o777).toBe(0o700);
   });
 
+  it.each([["0777", 0o777], ["0770", 0o770], ["0707", 0o707]])("checks every directory above a private directory on each use: one with mode %s refuses it and nothing is made there", (_mode, mode) => {
+    const root = privateTemp();
+    const shared = path.join(root, "shared");
+    const state = openDirectory(path.join(shared, "state"));
+    // Accepted while `shared` is private; once others can write to it, they could replace the state root.
+    fs.chmodSync(shared, mode);
+    for (const use of [() => openDirectory(state.path), () => existingDirectory(state.path), () => openDirectory(path.join(state.path, "pool/registry")),
+      () => openDirectory(path.join(shared, "other"))]) {
+      expect(gateCode(use)).toBe("browser-controller-unsafe-registry");
+    }
+    expect(fs.readdirSync(shared)).toEqual(["state"]);
+    expect(fs.readdirSync(state.path)).toEqual([]);
+    // The sticky bit lets only an entry's owner rename it, as in /tmp.
+    fs.chmodSync(shared, mode | 0o1000);
+    expect(openDirectory(path.join(state.path, "pool/registry")).path).toBe(path.join(state.path, "pool/registry"));
+  });
+
   it("writes JSON atomically with Python's separators and reads it back within its limit", () => {
     const dir = openDirectory(path.join(privateTemp(), "registry"));
     writeJson(dir, "claim.json", { owner: "ses_x", lease_id: "é" });

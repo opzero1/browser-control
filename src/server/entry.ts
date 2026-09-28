@@ -4,7 +4,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import type { Readable, Writable } from "node:stream";
 import { createApp, type App, type AppOptions } from "./app";
 import type { Env } from "./config";
-import { gateResult } from "./gate";
+import { gateResult, isGate } from "./gate";
+import { trustedEnv, UnsafeRoot } from "./roots";
 import { SHUTDOWN_SECONDS, Shutdown } from "./runtime/shutdown";
 import { StdioTransport } from "./stdio-transport";
 
@@ -14,6 +15,7 @@ const BACKSTOP_SECONDS = 0.3;
 export interface StdioServerOptions {
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
+  stderr?: NodeJS.WritableStream;
   env?: Env;
   shutdownSeconds?: number;
   installSignalHandlers?: boolean;
@@ -45,12 +47,33 @@ export function mcpServer(app: App, shutdown: Shutdown): Server {
   return server;
 }
 
-/** Serve MCP over stdio until EOF or SIGTERM, then clean up within the shutdown bound and exit 0. */
+/**
+ * The environment the app runs with: the state root, the artifact root and the host socket by canonical path
+ * (roots.ts), or null once a refusal naming the root at fault was written to `stderr`.
+ */
+function startupEnv(env: Env, stderr: NodeJS.WritableStream): Env | null {
+  try {
+    return trustedEnv(env, { artifacts: true });
+  } catch (error) {
+    if (!(error instanceof UnsafeRoot) && !isGate(error)) throw error;
+    stderr.write(`browser-control mcp: ${error instanceof UnsafeRoot ? error.message : error.code}\n`);
+    return null;
+  }
+}
+
+/**
+ * Serve MCP over stdio until EOF or SIGTERM, then clean up within the shutdown bound and exit 0. A root that
+ * fails the trusted-path rule refuses the start: nothing is served and the exit status is 1.
+ */
 export async function runStdioServer(options: StdioServerOptions = {}): Promise<number> {
   const stdin: NodeJS.ReadableStream = options.stdin ?? process.stdin;
   const stdout = options.stdout ?? process.stdout;
-  const env = options.env ?? process.env;
   const exit = options.exit ?? ((code: number) => process.exit(code));
+  const env = startupEnv(options.env ?? process.env, options.stderr ?? process.stderr);
+  if (env === null) {
+    exit(1);
+    return 1;
+  }
   const shutdown = new Shutdown(options.shutdownSeconds ?? SHUTDOWN_SECONDS);
   const app = (options.app ?? createApp)({ env, shutdown });
 

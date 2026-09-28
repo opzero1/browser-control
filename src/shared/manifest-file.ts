@@ -35,6 +35,23 @@ function codeOf(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | null)?.code;
 }
 
+/**
+ * Whether this user may rename a new entry over `entry`, the entry at `file`: only the entry's owner, the
+ * directory's owner or root may replace an entry in a sticky directory. Unknown is false.
+ */
+export function mayReplace(file: string, entry: fs.Stats, calls: Partial<ManifestFileFs> = {}): boolean {
+  const lstat = calls.lstat ?? ((target: string) => fs.lstatSync(target));
+  // Windows has no POSIX owners or modes, so there only the kind of the entry is checked.
+  const uid = process.getuid?.();
+  if (uid === undefined || uid === 0 || entry.uid === uid) return true;
+  try {
+    const directory = lstat(path.dirname(file));
+    return (directory.mode & STICKY) === 0 || directory.uid === uid;
+  } catch {
+    return false;
+  }
+}
+
 /** The manifest at `file`, read without following a symlink, by the inode lstat saw. */
 export function existingManifest(file: string, calls: Partial<ManifestFileFs> = {}): ExistingManifest {
   const lstat = calls.lstat ?? ((target: string) => fs.lstatSync(target));
@@ -45,17 +62,8 @@ export function existingManifest(file: string, calls: Partial<ManifestFileFs> = 
     if (codeOf(error) === "ENOENT") return { kind: "absent" };
     return { kind: "present", text: null, trusted: false, replaceable: false };
   }
-  // Windows has no POSIX owners or modes, so there only the kind of the entry is checked.
   const uid = process.getuid?.();
-  let replaceable = uid === undefined || uid === 0 || entry.uid === uid;
-  if (!replaceable) {
-    try {
-      const directory = lstat(path.dirname(file));
-      replaceable = (directory.mode & STICKY) === 0 || directory.uid === uid;
-    } catch {
-      // Unknown, so not replaceable.
-    }
-  }
+  const replaceable = mayReplace(file, entry, calls);
   let text: string | null = null;
   if (entry.isFile() && entry.size <= LIMIT) {
     try {

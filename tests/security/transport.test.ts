@@ -13,6 +13,9 @@ afterEach(async () => {
   for (const fn of cleanup.splice(0).reverse()) await fn();
 });
 
+/** The first bytes of a JPEG, all the transport checks of a capture. */
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString("base64");
+
 /** A fake host at `socketPath`, mode 0600 as the host makes it, that answers the handshake and the page calls. */
 async function fakeHost(socketPath: string, observationError = "unused", versions = { host: 2, transport: 2, page: 2 }) {
   const methods: string[] = [];
@@ -30,6 +33,7 @@ async function fakeHost(socketPath: string, observationError = "unused", version
         const result = request.method === "host.info" ? { protocolVersion: versions.host, extensionProtocol: "ready", session_id: "test", epoch: "test" }
           : request.method === "getInfo" ? { protocolVersion: versions.transport, pageProtocolVersion: versions.page }
           : request.method === "createTab" ? { id: 1, active: false }
+          : request.method === "capturePage" ? { data: JPEG }
           : request.method === "observePage" ? { status: "observed", pageProtocolVersion: 2, snapshot: "fresh", url: "https://synthetic.invalid/", title: "Ready", text: "Ready", actions: [], mode: "full", partial: false, opaqueSurfaces: [], truncation: { text: false, actions: false, opaqueSurfaces: false, labels: false, title: false } }
           : {};
         const failed = request.method === "observePage" && observations++ === 0;
@@ -175,5 +179,45 @@ describe("the transport's socket", () => {
     expect(page).toEqual({ tabId: 7, origin: "https://synthetic.invalid" });
     await client.close();
     expect(host.native.map(request => request.method)).toEqual(["getInfo", "createTab", "attach", "bindPage", "navigatePage", "finalizeTabs"]);
+  });
+});
+
+describe("the transport's recordings (trusted roots round)", () => {
+  it.each([["0777", 0o777], ["0770", 0o770]])("refuses an artifact root under a directory with mode %s, which another user could replace, and writes nothing", async (_mode, mode) => {
+    const root = temporary();
+    const shared = path.join(root, "shared");
+    const artifacts = path.join(shared, "artifacts");
+    fs.mkdirSync(artifacts, { recursive: true, mode: 0o700 });
+    fs.chmodSync(shared, mode);
+    cleanup.push(() => fs.chmodSync(shared, 0o700));
+    await endpoint("unused", async (client, methods) => {
+      const page = await client.open("https://synthetic.invalid/");
+      await expect(client.startRecording(page, artifacts, { fps: 5, maxSeconds: 1 })).rejects.toThrow("Owned private artifact directory required");
+      expect(methods).not.toContain("recordingState");
+    });
+    expect(fs.readdirSync(artifacts)).toEqual([]);
+  });
+
+  it("records into its canonical root, reached through macOS /var and a symlink only this user can repoint, and takes screenshots", async () => {
+    // testTemp is under os.tmpdir(), which macOS reaches through the root-owned /var symlink.
+    const root = temporary();
+    const real = path.join(root, "real");
+    fs.mkdirSync(real, { mode: 0o700 });
+    fs.symlinkSync(real, path.join(root, "link"));
+    await endpoint("unused", async (client, methods) => {
+      const page = await client.open("https://synthetic.invalid/");
+      expect((await client.screenshot(page)).subarray(0, 3).toString("hex")).toBe("ffd8ff");
+      const recording = await client.startRecording(page, path.join(root, "link"), { fps: 15, maxSeconds: 1 });
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const receipt = await recording.stop();
+      expect(path.dirname(receipt.directory)).toBe(path.join(fs.realpathSync(root), "real"));
+      expect(fs.lstatSync(receipt.directory).mode & 0o777).toBe(0o700);
+      expect(receipt.frames.length).toBeGreaterThanOrEqual(1);
+      // Every file, a partial video that ffmpeg left from these synthetic frames included.
+      for (const name of fs.readdirSync(receipt.directory)) {
+        expect(fs.lstatSync(path.join(receipt.directory, name)).mode & 0o777, name).toBe(0o600);
+      }
+      expect(methods.filter(method => method === "recordingState")).toHaveLength(2);
+    });
   });
 });

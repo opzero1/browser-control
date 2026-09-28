@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_rpc = require("../chunks/rpc-CKph8efs.js");
-const require_trusted_path = require("../chunks/trusted-path-DPFFlwYe.js");
+const require_trusted_path = require("../chunks/trusted-path-OQ7soDSf.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_net = require("node:net");

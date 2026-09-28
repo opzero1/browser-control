@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
-const require_effect_services = require("../chunks/effect-services-DcZl9PNJ.js");
-const require_trusted_path = require("../chunks/trusted-path-DPFFlwYe.js");
+const require_effect_services = require("../chunks/effect-services-Bn84osw6.js");
+const require_trusted_path = require("../chunks/trusted-path-OQ7soDSf.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_os = require("node:os");
@@ -304,6 +304,21 @@ var STICKY = 512;
 function codeOf(error) {
 	return error?.code;
 }
+/**
+* Whether this user may rename a new entry over `entry`, the entry at `file`: only the entry's owner, the
+* directory's owner or root may replace an entry in a sticky directory. Unknown is false.
+*/
+function mayReplace(file, entry, calls = {}) {
+	const lstat = calls.lstat ?? ((target) => node_fs.default.lstatSync(target));
+	const uid = process.getuid?.();
+	if (uid === void 0 || uid === 0 || entry.uid === uid) return true;
+	try {
+		const directory = lstat(node_path.default.dirname(file));
+		return (directory.mode & STICKY) === 0 || directory.uid === uid;
+	} catch {
+		return false;
+	}
+}
 /** The manifest at `file`, read without following a symlink, by the inode lstat saw. */
 function existingManifest(file, calls = {}) {
 	const lstat = calls.lstat ?? ((target) => node_fs.default.lstatSync(target));
@@ -320,11 +335,7 @@ function existingManifest(file, calls = {}) {
 		};
 	}
 	const uid = process.getuid?.();
-	let replaceable = uid === void 0 || uid === 0 || entry.uid === uid;
-	if (!replaceable) try {
-		const directory = lstat(node_path.default.dirname(file));
-		replaceable = (directory.mode & STICKY) === 0 || directory.uid === uid;
-	} catch {}
+	const replaceable = mayReplace(file, entry, calls);
 	let text = null;
 	if (entry.isFile() && entry.size <= LIMIT) try {
 		const fd = node_fs.default.openSync(file, node_fs.default.constants.O_RDONLY | (node_fs.default.constants.O_NOFOLLOW ?? 0) | (node_fs.default.constants.O_NONBLOCK ?? 0));
@@ -638,14 +649,20 @@ function refuseExisting(file, wrapper, manifestPath = file) {
 	if (!force) throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\nPass --force to replace it: ${manifestPath}`);
 	if (!existing.replaceable) throw new InstallError(`Refusing to replace the native messaging manifest ${manifestPath}: another user owns it, in a directory with the sticky bit that is not yours, so only that user or root can remove it.`);
 }
+/** The canonical path of `--socket-path`, refused when its directory fails the trusted-path rule. */
+function trustedSocket(socketPath) {
+	const checked = require_trusted_path.checkedSocketPath(socketPath);
+	if (typeof checked === "string") return checked;
+	throw new InstallError(`Refusing the native host socket ${socketPath}: ${checked.unsafe} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`);
+}
 function install(extensionId, manifestPath, socketPath) {
 	const node = nodeExecutable();
+	const socket = socketPath && node_process.default.platform !== "win32" ? trustedSocket(socketPath) : socketPath;
 	const hosts = privateChild(stateDirectory(stateRoot()), "hosts");
 	const files = hostFiles();
 	const copyName = `skill-${digest(files).slice(0, 12)}`;
 	const copyDir = node_path.default.join(hosts.path, copyName);
 	const wrapper = node_path.default.join(hosts.path, "skill", wrapperName);
-	const socket = socketPath && node_process.default.platform !== "win32" ? require_trusted_path.canonicalSocketPath(socketPath) : socketPath;
 	const text = launcher(node, node_path.default.join(copyDir, ...hostEntry.split("/")), socket);
 	const given = node_path.default.dirname(manifestPath);
 	const name = node_path.default.basename(manifestPath);

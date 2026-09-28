@@ -4,6 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { existingManifest, namedHost } from "../../shared/manifest-file";
+import { trustedPath } from "../../shared/trusted-path";
 import type { PackageAssets } from "../assets";
 import {
   HOST_WRAPPER_NAME, homeDirectory, NATIVE_HOST_NAME, nodeExecutable, PACKAGE_NAME, statePaths, STORE_EXTENSION_ID, userSocket, whichExecutable,
@@ -110,6 +111,26 @@ export function chromeManifestDirectory(env: Env, platform: NodeJS.Platform, opt
  */
 export function skillsDirectories(options: Options): string[] {
   return [...new Set(options.skillsDirs)];
+}
+
+/**
+ * A --skills-dir by its canonical path, once its existing part passed the trusted-path rule. When `missing`, its
+ * first missing directory was the end of the check, so nothing may be read through it until it is made.
+ */
+export interface SkillsDirectory { readonly given: string; readonly path: string; readonly missing: boolean }
+
+/**
+ * Each --skills-dir through the trusted-path rule (src/shared/trusted-path.ts): its canonical path, or the directory
+ * or symlink at fault. Flags that lead to one directory count once. A skills directory need not be private.
+ */
+export function checkedSkillsDirectories(options: Options): Array<SkillsDirectory | { readonly given: string; readonly unsafe: string }> {
+  const result: Array<SkillsDirectory | { given: string; unsafe: string }> = [];
+  for (const given of skillsDirectories(options)) {
+    const checked = trustedPath(given, { missing: true });
+    if ("unsafe" in checked) result.push({ given, unsafe: checked.unsafe });
+    else if (!result.some((item) => "path" in item && item.path === checked.path)) result.push({ given, path: checked.path, missing: "missing" in checked });
+  }
+  return result;
 }
 
 /** The user route's wrapper, which the user Chrome manifest names. It stays put across upgrades. */

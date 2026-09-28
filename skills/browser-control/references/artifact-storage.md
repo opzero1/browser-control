@@ -15,4 +15,4 @@ Video capture returns its MP4 path through `stop_recording`. See [video capture]
 
 Frames, embeds, and shadow roots do not block capture. Choose content appropriate for the task and inspect the saved image. Known private-input quarantine and populated recognized private fields still block capture; embedded content is not exhaustively inspected. Stop recording before private credential entry, and wait for navigation away from that document before capture.
 
-If a save fails, inspect the reported directory and its permissions. The server refuses an artifact root that is missing, not a directory, or readable by other users.
+If a save fails, inspect the reported directory and its permissions. The server refuses an artifact root that is missing, not a directory, readable by other users, or under a directory that another user could change: every directory and symlink on the way to it must be yours or root's and not writable by others unless it has the sticky bit.

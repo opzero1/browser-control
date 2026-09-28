@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { parseJsonRpcMessage, isJsonRpcRequest } from "../shared/rpc";
 import { parseObservation, type Observation } from "../shared/page-protocol";
-import { privateSocketEndpoint } from "../shared/trusted-path";
+import { privateDirectory, privateSocketEndpoint } from "../shared/trusted-path";
 export type { Observation } from "../shared/page-protocol";
 
 const exec = promisify(execFile);
@@ -183,9 +183,11 @@ export class ChromeTransport {
   async startRecording(page: OwnedPage, artifactRoot: string, options: { fps?: number; maxSeconds?: number } = {}) {
     const fps = options.fps ?? 5, maxSeconds = options.maxSeconds ?? 30;
     if (!Number.isInteger(fps) || fps < 1 || fps > 15 || !Number.isFinite(maxSeconds) || maxSeconds < 1 || maxSeconds > 60 || this.#recordings.has(page.tabId)) throw new Error("Invalid or duplicate recording");
-    const stat = await fs.lstat(artifactRoot);
-    if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) throw new Error("Owned private artifact directory required");
-    const directory = await fs.mkdtemp(path.join(artifactRoot, "tab-video-"));
+    // The canonical path of a private artifact root that passed the trusted-path rule from / down; the recording
+    // is made 0700 in it and every frame, list and receipt is written through that path.
+    const root = typeof artifactRoot === "string" && artifactRoot ? privateDirectory(artifactRoot) : { unsafe: String(artifactRoot) };
+    if ("unsafe" in root) throw new Error("Owned private artifact directory required");
+    const directory = await fs.mkdtemp(path.join(root.path, "tab-video-"));
     await fs.chmod(directory, 0o700);
     await this.#call("recordingState", { ...this.#owned(page), active: true });
     const frames: RecordingReceipt["frames"] = [];
@@ -213,7 +215,11 @@ export class ChromeTransport {
         try {
           await exec("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "1", "-i", "frames.ffconcat", "-vf", "fps=30,pad=ceil(iw/2)*2:ceil(ih/2)*2", "-t", String(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "recording.mp4"], { cwd: directory, timeout: 60000, env: { PATH: process.env.PATH } });
           output = path.join(directory, "recording.mp4"); await fs.chmod(output, 0o600);
-        } catch { error ??= "Encoding failed; JPEG frames preserved"; }
+        } catch {
+          error ??= "Encoding failed; JPEG frames preserved";
+          // A failed encode can leave a partial video, made with the process umask.
+          await fs.chmod(path.join(directory, "recording.mp4"), 0o600).catch(() => undefined);
+        }
       }
       const receipt = { path: output, directory, seconds, frames, error, encodeMs: performance.now() - encodeStart, captureMs, sampleFps: fps };
       await fs.writeFile(path.join(directory, "capture.json"), JSON.stringify(receipt, null, 2), { mode: 0o600 });

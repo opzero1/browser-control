@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { isJsonRpcRequest, parseJsonRpcMessage, type JsonRpcMessage } from "../shared/rpc";
-import { trustedPath } from "../shared/trusted-path";
+import { privateDirectory, privateSocketEndpoint } from "../shared/trusted-path";
 
 const requestedSocket = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
 // Replaced by the canonical path once the socket's directory is checked; the lock, bind, recovery and cleanup use it.
@@ -29,6 +29,9 @@ let startupLock: { dev: number; ino: number } | undefined;
 let startupLockPath = `${socketPath}.lock`;
 const orphanedStartupLockMs = 5 * 60 * 1000;
 let tcpToken: Buffer | undefined;
+
+/** The socket's directory, or one above it, fails the trusted-path rule or is not private; the message names it. */
+class UntrustedSocketDirectory extends Error {}
 
 function native(message: unknown) {
   const body = Buffer.from(JSON.stringify(message));
@@ -224,14 +227,15 @@ try {
       reclaimStaleSocket(existing);
     }
   }
-} catch {
-  refuseEndpoint();
+} catch (setupError) {
+  refuseEndpoint(setupError instanceof UntrustedSocketDirectory ? setupError.message : undefined);
 }
 
-function refuseEndpoint() {
-  process.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
+function refuseEndpoint(reason = "Native endpoint setup refused; use a private directory or authenticated TCP") {
+  process.stderr.write(`${reason}\n`);
   shutdown(1);
 }
+
 
 // The socket's directory must pass the trusted-path rule (src/shared/trusted-path.ts) and be private: owned by
 // this user, mode 0700. A missing directory is made 0700, and only inside one that passed. The canonical socket
@@ -239,11 +243,9 @@ function refuseEndpoint() {
 function privateSocketPath(requested: string) {
   const name = path.basename(requested);
   if (!name || name === "." || name === "..") throw new Error("socket name required");
-  const directory = trustedPath(path.dirname(requested), { create: 0o700 });
-  if ("unsafe" in directory) throw new Error("trusted socket directory required");
-  const stat = fs.lstatSync(directory.path);
-  if (!stat.isDirectory() || stat.dev !== directory.dev || stat.ino !== directory.ino || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
-    throw new Error("private socket directory required");
+  const directory = privateDirectory(path.dirname(requested), { create: 0o700 });
+  if ("unsafe" in directory) {
+    throw new UntrustedSocketDirectory(`Native endpoint setup refused for ${requested}: ${directory.unsafe} is not private to you, or another user could change it; use a private directory or authenticated TCP`);
   }
   return path.join(directory.path, name);
 }
@@ -355,9 +357,10 @@ function releaseStartupLock() {
 
 // A host killed without cleanup leaves its socket file behind. The startup
 // lock is held here, so no other host is binding or recovering this path, and
-// a refused connection proves that no live host owns the socket.
+// a refused connection proves that no live host owns the socket. The probe
+// connects only to a private socket of this user's (privateSocketEndpoint).
 function reclaimStaleSocket(stale: fs.Stats) {
-  const probe = net.connect(socketPath);
+  const probe = net.connect(privateSocketEndpoint(socketPath));
   probe.once("connect", () => { probe.destroy(); refuseEndpoint(); });
   probe.once("error", (probeError: NodeJS.ErrnoException) => {
     try {

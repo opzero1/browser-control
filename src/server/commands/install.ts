@@ -7,9 +7,10 @@ import {
   acquireInstallLock, created as createdEntry, InstallLockBusy, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves,
   type Created, type InstallLock, type TrustedDirectory
 } from "../../shared/install-lock";
-import { trustedPath } from "../../shared/trusted-path";
+import { mayReplace } from "../../shared/manifest-file";
+import { checkedSocketPath, trustedPath } from "../../shared/trusted-path";
 import { packageAssets, type PackageAssets } from "../assets";
-import { HOST_WRAPPER_NAME, nodeExecutable, resolveCuaDriver, statePaths, STORE_EXTENSION_ID, type Env } from "../config";
+import { HOST_SOCKET_ENV, HOST_WRAPPER_NAME, nodeExecutable, resolveCuaDriver, statePaths, STORE_EXTENSION_ID, type Env } from "../config";
 import { childDirectory, existingDirectory, openDirectory, writePrivate } from "../fs-private";
 import { BUNDLE } from "../pool/start";
 import { buildClipboardGuard } from "../private/clipboard-guard";
@@ -17,10 +18,10 @@ import { clipboardGuardBinary, ensureStableHost, publishTree, stableHostPlan, tr
 import { mcpSnippets } from "./config";
 import { checkExtensionInstalled } from "./extension";
 import {
-  bundledSkills, CHROME_FOR_TESTING_EXECUTABLE, CHROME_FOR_TESTING_INSTALL_COMMAND, chromeManifestDirectory, commandEnv, CUA_INSTALL_COMMAND,
-  exists, expectedWrapper, failed, formatSteps, gateCode, launchServicesApp, MANIFEST_FILE, manifestState, manifestText, nodeStep, parseOptions,
-  readLink, readRegular, skillFiles, skillsDirectories, stableSkillDir, step, STORE_URL, trustedGuard, UsageError, userWrapperPath,
-  XCODE_TOOLS_COMMAND, xcodeToolsSelected, type CommandIo, type ManifestState, type Options, type Step
+  bundledSkills, checkedSkillsDirectories, CHROME_FOR_TESTING_EXECUTABLE, CHROME_FOR_TESTING_INSTALL_COMMAND, chromeManifestDirectory, commandEnv,
+  CUA_INSTALL_COMMAND, exists, expectedWrapper, failed, formatSteps, gateCode, launchServicesApp, MANIFEST_FILE, manifestState, manifestText, nodeStep,
+  parseOptions, readLink, readRegular, skillFiles, stableSkillDir, step, STORE_URL, trustedGuard, UsageError, userWrapperPath,
+  XCODE_TOOLS_COMMAND, xcodeToolsSelected, type CommandIo, type ManifestState, type Options, type SkillsDirectory, type Step
 } from "./shared";
 
 export interface CommandDeps {
@@ -39,13 +40,18 @@ export function defaultDeps(): CommandDeps {
 
 export const INSTALL_FLAGS = ["--state-dir", "--chrome-manifest-dir", "--skills-dir", "--dry-run", "--force", "--json"] as const;
 
+const UNSAFE_ANCESTOR = "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir.";
+
 /**
  * The wrapper and the manifest name paths under the state root, so it must be a path no other user can change.
- * fs-private refuses a symlink anywhere in the root and requires the root itself to be private, so the root is its
- * own canonical path; the directories above it must also pass the trusted-path rule (src/shared/trusted-path.ts).
+ * The directories above it must pass the trusted-path rule (src/shared/trusted-path.ts), checked first so nothing
+ * is made under one that fails, dry runs included. fs-private refuses a symlink anywhere in the root and requires
+ * the root itself to be private, so the root is its own canonical path.
  */
 function stateStep(env: Env, dryRun: boolean): Step {
   const root = statePaths(env).root;
+  const above = trustedPath(root, { missing: true });
+  if ("unsafe" in above) return step("state", "fail", "unsafe-ancestor", UNSAFE_ANCESTOR, { path: above.unsafe });
   let created: boolean;
   try {
     created = !exists(root);
@@ -58,16 +64,35 @@ function stateStep(env: Env, dryRun: boolean): Step {
   }
   const checked = trustedPath(root);
   if ("unsafe" in checked || checked.path !== root) {
-    return step("state", "fail", "unsafe-ancestor",
-      "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir.",
-      { path: "unsafe" in checked ? checked.unsafe : root });
+    return step("state", "fail", "unsafe-ancestor", UNSAFE_ANCESTOR, { path: "unsafe" in checked ? checked.unsafe : root });
   }
   return created
     ? step("state", "ok", "created", "Created the private state directory.", { path: root })
     : step("state", "ok", "unchanged", "The state directory is private.", { path: root });
 }
 
+/**
+ * A BROWSER_CONTROL_HOST_SOCKET whose directory fails the trusted-path rule, which the wrapper would export, as a
+ * failed step naming the directory at fault; null for the default socket or one that passes.
+ */
+function unsafeSocket(env: Env): Step | null {
+  const socket = env[HOST_SOCKET_ENV];
+  const checked = socket ? checkedSocketPath(socket) : null;
+  if (checked === null || typeof checked === "string") return null;
+  return step("wrapper", "fail", "unsafe-socket",
+    "The native host socket's directory, or a directory above it, can be changed by another user. Every directory on BROWSER_CONTROL_HOST_SOCKET must be owned by you or root and writable only by its owner, unless it has the sticky bit.",
+    { path: checked.unsafe });
+}
+
+/** A reused file this user owns and that has exactly `mode`. */
+function ownedWithMode(file: string, mode: number): boolean {
+  const stats = lstat(file);
+  return stats !== null && stats.uid === process.getuid?.() && (stats.mode & 0o777) === mode;
+}
+
 async function hostSteps(env: Env, assets: PackageAssets, dryRun: boolean): Promise<Step[]> {
+  const refused = unsafeSocket(env);
+  if (refused) return [refused];
   const node = nodeExecutable();
   const planned = stableHostPlan(env, assets);
   const hostCurrent = readRegular(planned.hostScript, planned.data.length)?.equals(planned.data) ?? false;
@@ -87,7 +112,7 @@ async function hostSteps(env: Env, assets: PackageAssets, dryRun: boolean): Prom
   const wrapper = userWrapperPath(env);
   const text = Buffer.from(expectedWrapper(env, hostScript, node));
   const current = readRegular(wrapper);
-  if (current?.equals(text) && (fs.lstatSync(wrapper).mode & 0o777) === 0o700) {
+  if (current?.equals(text) && ownedWithMode(wrapper, 0o700)) {
     steps.push(step("wrapper", "ok", "unchanged", "The native host wrapper is current.", { path: wrapper }));
   } else if (dryRun) {
     steps.push(current
@@ -309,15 +334,21 @@ async function clipboardStep(env: Env, deps: CommandDeps, dryRun: boolean): Prom
   return step("clipboard-guard", "ok", "built", "Built and verified the clipboard guard.", { path: binary });
 }
 
-/** Point `link` at `target` atomically: a temporary symlink beside it, then rename over the old entry. */
-function linkSkill(link: string, target: string) {
-  fs.mkdirSync(path.dirname(link), { recursive: true });
-  const temporary = path.join(path.dirname(link), `.${path.basename(link)}.${randomUUID()}.tmp`);
+/**
+ * Point <directory>/<name> at `target` atomically: a temporary symlink beside it in the canonical skills
+ * directory, then a rename over the old entry, which replaces a link or file and fails on a directory. The
+ * temporary link is removed only if the rename failed, and only while it is still the link made here.
+ */
+function linkSkill(directory: TrustedDirectory, name: string, target: string) {
+  const temporary = path.join(directory.path, `.${name}.${randomUUID()}.tmp`);
   fs.symlinkSync(target, temporary);
+  const made = createdEntry(temporary, fs.lstatSync(temporary));
+  let placed = false;
   try {
-    fs.renameSync(temporary, link);
+    fs.renameSync(temporary, path.join(directory.path, name));
+    placed = true;
   } finally {
-    fs.rmSync(temporary, { force: true });
+    if (!placed) removeCreated([made], directory);
   }
 }
 
@@ -331,15 +362,18 @@ function lstat(file: string): fs.Stats | null {
 
 /**
  * Link each bundled skill into each --skills-dir. Links point at a stable copy under the state root, never
- * into the npx cache. An older version's link is ours to move; anything else needs --force, and a real
- * directory is never removed. Without --skills-dir nothing is linked.
+ * into the npx cache. Each skills directory is used by its canonical path once it passes the trusted-path rule;
+ * it need not be private. Only a link this user owns can be current or an older version's link to move; another
+ * user's entry is replaced only with --force and only where this user may replace it, anything else needs
+ * --force, and a real directory is never removed. Without --skills-dir nothing is linked.
  */
 async function skillSteps(env: Env, assets: PackageAssets, options: Options): Promise<Step[]> {
-  const directories = skillsDirectories(options);
-  if (!directories.length) {
+  const checked = checkedSkillsDirectories(options);
+  if (!checked.length) {
     return [step("skills", "ok", "skipped", "No skills directory was given, so no skill was linked. Pass --skills-dir <dir> to link the bundled skills.")];
   }
-  const steps: Step[] = [];
+  const steps: Step[] = checked.flatMap((item) => ("unsafe" in item ? [unsafeSkillsDirectory(item.unsafe)] : []));
+  const directories = checked.filter((item): item is SkillsDirectory => !("unsafe" in item));
   for (const name of bundledSkills(assets)) {
     const id = `skill:${name}`;
     const files = skillFiles(assets, name);
@@ -350,11 +384,13 @@ async function skillSteps(env: Env, assets: PackageAssets, options: Options): Pr
     const target = stableSkillDir(env, assets, name, files);
     const copyCurrent = treeMatches(target, files);
     for (const directory of directories) {
-      const link = path.join(directory, name);
-      const stats = lstat(link);
+      const link = path.join(directory.path, name);
+      // Nothing is read through a directory that is missing: another user may make it first in a sticky parent.
+      const stats = directory.missing ? null : lstat(link);
+      const owned = stats !== null && stats.uid === process.getuid?.();
       const previous = stats?.isSymbolicLink() ? readLink(link) : null;
-      const ours = previous !== null && path.dirname(previous) === path.dirname(target);
-      if (previous === target && copyCurrent) {
+      const ours = owned && previous !== null && path.dirname(previous) === path.dirname(target);
+      if (owned && previous === target && copyCurrent) {
         steps.push(step(id, "ok", "unchanged", "The skill link is current.", { path: link }));
         continue;
       }
@@ -363,25 +399,50 @@ async function skillSteps(env: Env, assets: PackageAssets, options: Options): Pr
           "A directory with this skill's name already exists here. Move it away, then run browser-control install again.", { path: link }));
         continue;
       }
-      if (stats && !ours && !options.force) {
+      if (stats && !owned && !options.force) {
+        steps.push(step(id, "fail", "untrusted", UNTRUSTED_SKILL, { path: link, previous }));
+        continue;
+      }
+      if (stats && !owned && !mayReplace(link, stats)) {
+        steps.push(step(id, "fail", "cannot-replace", CANNOT_REPLACE_SKILL, { path: link, previous }));
+        continue;
+      }
+      if (stats && owned && !ours && !options.force) {
         steps.push(step(id, "fail", "conflict",
           "Another skill with this name is installed here. Run browser-control install --force to replace the link.", { path: link, previous }));
         continue;
       }
       if (options.dryRun) {
         if (!stats) steps.push(step(id, "ok", "would-create", "Would link the skill.", { path: link }));
+        else if (!owned) steps.push(step(id, "ok", "would-replace-untrusted", "Would replace the entry with this skill's name that another user owns.", { path: link, previous }));
         else if (ours) steps.push(step(id, "ok", "would-update", "Would link the skill to this version.", { path: link }));
         else steps.push(step(id, "ok", "would-replace", "Would replace the link to another skill with this name.", { path: link, previous }));
         continue;
       }
       await publishTree(openDirectory(path.dirname(target)), path.basename(target), files);
-      if (previous !== target) linkSkill(link, target);
+      // 0755 like the skills directories agent clients make; made only inside directories that passed.
+      const made = trustedPath(directory.path, { create: 0o755 });
+      if ("unsafe" in made) {
+        steps.push(unsafeSkillsDirectory(made.unsafe));
+        continue;
+      }
+      if (!(owned && previous === target)) linkSkill(made, name, target);
       if (!stats) steps.push(step(id, "ok", "linked", "Linked the skill.", { path: link }));
+      else if (!owned) steps.push(step(id, "ok", "replaced-untrusted", "Replaced the entry with this skill's name that another user owned.", { path: link, previous }));
       else if (ours) steps.push(step(id, "ok", "updated", "Linked the skill to this version.", { path: link }));
       else steps.push(step(id, "ok", "replaced", "Replaced the link to another skill with this name.", { path: link, previous }));
     }
   }
   return steps;
+}
+
+const UNTRUSTED_SKILL = "An entry with this skill's name is already here, but another user owns it and could change it. Run browser-control install --force to replace it.";
+const CANNOT_REPLACE_SKILL = "The entry with this skill's name belongs to another user, in a directory with the sticky bit that is not yours, so only that user or root can replace it. Have it removed, or pass another --skills-dir.";
+
+function unsafeSkillsDirectory(at: string): Step {
+  return step("skills", "fail", "unsafe-directory",
+    "Another user could change this skills directory: it and every directory above it must be owned by you or root and writable only by their owner, unless they have the sticky bit. Fix that directory or pass another --skills-dir.",
+    { path: at });
 }
 
 async function guarded(id: string, body: () => Promise<Step[]> | Step[]): Promise<Step[]> {
@@ -413,7 +474,8 @@ export async function install(options: Options, env: Env, deps: CommandDeps = de
     steps.push(...await guarded("clipboard-guard", async () => [await clipboardStep(scoped, deps, options.dryRun)]));
     steps.push(...await guarded("skills", () => skillSteps(scoped, deps.assets, options)));
   }
-  const snippets = ready ? mcpSnippets(scoped) : {};
+  // Snippets name the state root and the socket, so none is printed for a root that was refused.
+  const snippets = ready && !steps.some((item) => item.status === "unsafe-socket") ? mcpSnippets(scoped) : {};
   return { command: "install", version: deps.assets.version, dryRun: options.dryRun, ok: !failed(steps), steps, snippets };
 }
 
