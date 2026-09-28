@@ -14,6 +14,7 @@ export async function background() {
   let nextTab = 1;
   const port = { onMessage: event(), onDisconnect: event(), postMessage: (msg: any) => responses.push(msg), disconnect: vi.fn() };
   const storage: Record<string, unknown> = {};
+  let group = { id: 1, title: "", collapsed: false };
   const chrome = {
     runtime: { connectNative: () => port, getManifest: () => ({ version: "test" }), id: "test", onMessage: event(), onStartup: event(), onInstalled: event(), onUpdateAvailable: event(), reload: vi.fn() },
     storage: { local: { get: (key: string, cb: Function) => cb({ [key]: storage[key] }), set: (value: object, cb: Function) => { Object.assign(storage, value); cb(); } }, session: { get: (_: unknown, cb: Function) => cb({}) } },
@@ -27,7 +28,10 @@ export async function background() {
       onRemoved: event(), onReplaced: event(), onUpdated: event()
     },
     history: { search: vi.fn((_: unknown, cb: Function) => cb([])) },
-    tabGroups: { get: (_: unknown, cb: Function) => cb({}), update: (_: unknown, __: unknown, cb: Function) => cb({}) },
+    tabGroups: {
+      get: vi.fn((_: unknown, cb: Function) => cb({ ...group })),
+      update: vi.fn((_: unknown, value: object, cb: Function) => { group = { ...group, ...value }; cb({ ...group }); })
+    },
     debugger: { attach: vi.fn((_: unknown, __: unknown, cb: Function) => cb()), detach: (_: unknown, cb: Function) => cb(), getTargets: (cb: Function) => cb([{ tabId: 1 }, { tabId: 2 }]), sendCommand: vi.fn((_: unknown, __: unknown, ___: unknown, cb: Function) => cb({})), onEvent: event(), onDetach: event() },
     downloads: { onCreated: event(), onChanged: event() },
     scripting: { executeScript: vi.fn((_: unknown, cb: Function) => cb([{ documentId: "doc-1", frameId: 0, result: { status: "observed", origin: "https://synthetic.invalid", url: "https://synthetic.invalid/" } }])) }

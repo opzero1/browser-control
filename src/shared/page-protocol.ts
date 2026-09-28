@@ -1,4 +1,4 @@
-export type PageAction = { id: string; kind: "fill" | "click"; label: string; role: string; disabled: boolean };
+export type PageAction = { id: string; kind: "fill" | "click" | "upload"; label: string; role: string; disabled: boolean };
 export type Observation = {
   status: "observed"; pageProtocolVersion: 2; snapshot: string; url: string; title: string; text: string; actions: PageAction[];
   mode: "full" | "controls-only"; partial: boolean;
@@ -16,7 +16,7 @@ export function parseObservation(value: unknown): Observation {
     || !Array.isArray(raw.actions) || raw.actions.length > 100 || !Array.isArray(raw.opaqueSurfaces) || raw.opaqueSurfaces.length > 100) fail();
   const actions = (raw.actions as unknown[]).map((value): PageAction => {
     const a = object(value);
-    if (a.kind !== "fill" && a.kind !== "click") return fail();
+    if (a.kind !== "fill" && a.kind !== "click" && a.kind !== "upload") return fail();
     return { id: string(a.id, 100), kind: a.kind, label: string(a.label, 160), role: string(a.role, 80), disabled: bool(a.disabled) };
   });
   const opaqueSurfaces = (raw.opaqueSurfaces as unknown[]).map((value, index) => {

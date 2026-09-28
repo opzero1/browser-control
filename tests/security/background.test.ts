@@ -84,11 +84,78 @@ it("rescans restored selectors on observation and action with no public quaranti
   expect(b.chrome.scripting.executeScript.mock.calls.some(([r]: any) => r.args[0] === "act")).toBe(false);
 });
 
+it.each([12, 4 * 1024 * 1024 + 1, 64 * 1024 * 1024 + 1])("uploads %i bytes through one exact marker and confirms metadata once", async (size) => {
+  const b = await background();
+  const owner = { session_id: "owner", turn_id: "turn", tabId: 1, expectedOrigin: "https://synthetic.invalid" };
+  await b.rpc("createTab", owner); await b.rpc("attach", owner); await b.rpc("bindPage", owner);
+  b.chrome.scripting.executeScript.mockImplementation((request: any, cb: Function) => {
+    const operation = request.args[0];
+    const result = operation === "document-check" ? { status: "checked" }
+      : operation === "observe" ? { status: "observed", snapshot: request.args[2] }
+      : operation === "prepare-file" ? { status: "prepared", fileToken: "file-token", selector: "[data-marker]" }
+      : operation === "validate-file" ? { status: "validated" }
+      : operation === "verify-file" ? { status: "attached" } : { status: "cancelled" };
+    cb([{ documentId: "doc-1", frameId: 0, result }]);
+  });
+  b.chrome.debugger.sendCommand.mockImplementation((_: unknown, method: string, __: unknown, cb: Function) => cb(
+    method === "DOM.getDocument" ? { root: { nodeId: 7 } } : method === "DOM.querySelectorAll" ? { nodeIds: [9] } : {}));
+  const snapshot = (await b.rpc("observePage", owner)).result.snapshot;
+  expect((await b.rpc("uploadFile", { ...owner, snapshot, actionId: "0", path: "/owned/invoice.pdf", name: "invoice.pdf", size })).result).toEqual({ status: "attached", retry: false });
+  expect(b.chrome.debugger.sendCommand.mock.calls.map(call => call[1])).toEqual(["DOM.getDocument", "DOM.querySelectorAll", "DOM.setFileInputFiles"]);
+  expect(b.chrome.debugger.sendCommand.mock.calls[2][2]).toEqual({ nodeId: 9, files: ["/owned/invoice.pdf"] });
+  expect((await b.rpc("uploadFile", { ...owner, snapshot, actionId: "0", path: "/owned/invoice.pdf", name: "invoice.pdf", size })).result.status).toBe("not-executed");
+});
+
+it("fails closed before dispatch for duplicate file markers and while recording", async () => {
+  const b = await background(); const owner = { session_id: "owner", turn_id: "turn", tabId: 1, expectedOrigin: "https://synthetic.invalid" };
+  await b.rpc("createTab", owner); await b.rpc("attach", owner); await b.rpc("bindPage", owner);
+  b.chrome.scripting.executeScript.mockImplementation((request: any, cb: Function) => cb([{ documentId: "doc-1", frameId: 0, result:
+    request.args[0] === "document-check" ? { status: "checked", allowed: true } : request.args[0] === "observe" ? { status: "observed", snapshot: request.args[2] } : request.args[0] === "prepare-file" ? { status: "prepared", fileToken: "token", selector: "[marker]" } : { status: "cancelled" } }]));
+  b.chrome.debugger.sendCommand.mockImplementation((_: unknown, method: string, __: unknown, cb: Function) => cb(method === "DOM.getDocument" ? { root: { nodeId: 1 } } : { nodeIds: [2, 3] }));
+  let snapshot = (await b.rpc("observePage", owner)).result.snapshot;
+  expect((await b.rpc("uploadFile", { ...owner, snapshot, actionId: "0", path: "/x.pdf", name: "x.pdf", size: 1 })).result.status).toBe("not-executed");
+  expect(b.chrome.debugger.sendCommand.mock.calls.some(call => call[1] === "DOM.setFileInputFiles")).toBe(false);
+  await b.rpc("recordingState", { ...owner, active: true }); snapshot = (await b.rpc("observePage", owner)).result.snapshot;
+  expect((await b.rpc("uploadFile", { ...owner, snapshot, actionId: "0", path: "/x.pdf", name: "x.pdf", size: 1 })).result.status).toBe("not-executed");
+});
+
+it("invalidates file upload on navigation, privacy quarantine, and ownership mismatch", async () => {
+  const b = await background(); const owner = { session_id: "owner", turn_id: "turn", tabId: 1, expectedOrigin: "https://synthetic.invalid" };
+  await b.rpc("createTab", owner); await b.rpc("attach", owner); await b.rpc("bindPage", owner);
+  b.chrome.scripting.executeScript.mockImplementation((request: any, cb: Function) => cb([{ documentId: "doc-1", frameId: 0, result:
+    request.args[0] === "document-check" ? { status: "checked" } : { status: "observed", snapshot: request.args[2] } }]));
+  let snapshot = (await b.rpc("observePage", owner)).result.snapshot;
+  b.chrome.tabs.onUpdated.emit(1, { status: "loading" });
+  expect((await b.rpc("uploadFile", { ...owner, snapshot, actionId: "0", path: "/x.pdf", name: "x.pdf", size: 1 })).result.status).toBe("not-executed");
+  snapshot = (await b.rpc("observePage", owner)).result.snapshot;
+  b.chrome.storage.local.set({ "PRIVATE_CAPTURE_QUARANTINE:1": { documentId: "doc-1", selectors: [] } }, () => {});
+  expect((await b.rpc("uploadFile", { ...owner, snapshot, actionId: "0", path: "/x.pdf", name: "x.pdf", size: 1 })).result.status).toBe("not-executed");
+  expect((await b.rpc("uploadFile", { ...owner, session_id: "other", snapshot, actionId: "0", path: "/x.pdf", name: "x.pdf", size: 1 })).error).toBeDefined();
+  expect(b.chrome.debugger.sendCommand).not.toHaveBeenCalled();
+});
+
 it("creates an inactive tab without activating a window", async () => {
   const b = await background();
   const response = await b.rpc("createTab", { session_id: "owner", turn_id: "turn" });
   expect(response.error).toBeUndefined();
   expect(b.chrome.tabs.create.mock.calls[0][0].active).toBe(false);
+});
+
+it("confirms a session group title from Chrome instead of trusting dispatch", async () => {
+  const b = await background();
+  const params = { session_id: "owner", turn_id: "turn" };
+  expect((await b.rpc("nameSession", { ...params, name: "Before group" })).result).toEqual({ name: "Before group", confirmed: false });
+  await b.rpc("createTab", params);
+  expect((await b.rpc("nameSession", { ...params, name: "agent2 · Preview 1704" })).result).toEqual({ name: "agent2 · Preview 1704", confirmed: true });
+  b.chrome.tabGroups.get.mockImplementation((_: unknown, cb: Function) => cb({ id: 1, title: "Wrong title" }));
+  const refused = await b.rpc("nameSession", { ...params, name: "agent2 · Preview 1705" });
+  expect(refused.result).toBeUndefined();
+  expect(refused.error.message).toBe("Session group title confirmation failed");
+  b.chrome.tabGroups.get.mockImplementation((_: unknown, cb: Function) => cb({ id: 1, title: "agent2 · Preview 1704" }));
+  await b.rpc("createTab", params);
+  expect(b.chrome.tabGroups.update.mock.calls.at(-1)?.[1].title).toBe("agent2 · Preview 1704");
+  b.chrome.tabGroups.update.mockImplementationOnce(() => { throw new Error("synthetic update failure"); });
+  expect((await b.rpc("nameSession", { ...params, name: "agent2 · Preview 1706" })).error).toBeDefined();
 });
 
 it("advertises protocol v2 and gates profile reads after revocation", async () => {

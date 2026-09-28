@@ -31,16 +31,21 @@ export class Element extends Node {
   style = { display: "block", visibility: "visible", opacity: "1" };
   clicks = 0;
   modal = false;
+  listeners = new Map<string, Set<EventListener>>();
   constructor(public localName: string, text = "") { super(); if (text) this.append(new Text(text)); }
   get shadowRoot() { return this.root?.mode === "open" ? this.root : null; }
   attachShadow(mode: "open" | "closed") { return this.root = new ShadowRoot(this, mode); }
   getAttribute(name: string) { return this.attrs.get(name) ?? null; }
   setAttribute(name: string, value: string) { this.attrs.set(name, value); }
+  removeAttribute(name: string) { this.attrs.delete(name); }
   hasAttribute(name: string) { return this.attrs.has(name); }
   checkVisibility() { return this.style.display !== "none"; }
-  matches(selector: string): boolean { return selector.split(",").some(s => s === ":modal" ? this.modal : s === ":disabled" ? this.hasAttribute("disabled") : s.startsWith("#") ? this.getAttribute("id") === s.slice(1) : ["[role=button]", "[role=option]", "[role=menuitem]", "[role=menuitemcheckbox]", "[role=menuitemradio]"].includes(s) ? this.getAttribute("role") === s.slice(6, -1) : s === "a[href]" ? this.localName === "a" && this.hasAttribute("href") : s === "head > title" ? this.localName === "title" && this.parentElement?.localName === "head" : this.localName === s); }
+  getBoundingClientRect() { return { width: 20, height: 20 }; }
+  matches(selector: string): boolean { return selector.split(",").some(s => s === ":modal" ? this.modal : s === ":disabled" ? this.hasAttribute("disabled") : s.startsWith("#") ? this.getAttribute("id") === s.slice(1) : ["[role=button]", "[role=option]", "[role=menuitem]", "[role=menuitemcheckbox]", "[role=menuitemradio]", "[role=checkbox]", "[role=radio]"].includes(s) ? this.getAttribute("role") === s.slice(6, -1) : s === "a[href]" ? this.localName === "a" && this.hasAttribute("href") : s === "head > title" ? this.localName === "title" && this.parentElement?.localName === "head" : this.localName === s); }
+  addEventListener(type: string, listener: EventListener) { const listeners = this.listeners.get(type) ?? new Set<EventListener>(); listeners.add(listener); this.listeners.set(type, listeners); }
+  removeEventListener(type: string, listener: EventListener) { this.listeners.get(type)?.delete(listener); }
   click() { this.clicks++; }
-  dispatchEvent(_event: Event) { return true; }
+  dispatchEvent(event: Event) { for (const listener of this.listeners.get(event.type) ?? []) listener.call(this as unknown as EventTarget, event); return true; }
 }
 export class Input extends Element {
   constructor() { super("input"); }
@@ -51,10 +56,19 @@ export class Input extends Element {
   set type(value: string) { this.setAttribute("type", value); }
   autocomplete = "";
   readOnly = false;
+  checked = false;
+  indeterminate = false;
   labels: Element[] = [];
+  files: { length: number; [index: number]: { name: string; size: number; type: string } } | null = null;
   form: Form | null = null;
   formAction = "";
   formTarget = "";
+  override click() {
+    super.click();
+    if (this.type === "checkbox") this.checked = !this.checked;
+    if (this.type === "radio") this.checked = true;
+    if (this.type === "checkbox" || this.type === "radio") this.indeterminate = false;
+  }
 }
 export class Textarea extends Element {
   constructor() { super("textarea"); }

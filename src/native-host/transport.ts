@@ -18,6 +18,7 @@ function string(value: unknown): string { if (typeof value !== "string") throw n
 export type OwnedPage = Readonly<{ tabId: number; origin: string }>;
 export type PrivateSubmission = Readonly<{ submitToken: string; documentId: string }>;
 export type ActionOutcome = { status: "executed" | "not-executed" | "unknown"; retry: false; reason?: string };
+export type UploadOutcome = { status: "attached" | "not-executed" | "unknown"; retry: false; name?: string; mime?: "application/pdf"; size?: number };
 export type RecordingReceipt = { path: string | null; directory: string; seconds: number; frames: { file: string; seconds: number; sha256: string }[]; error: string | null; encodeMs: number; captureMs: number; sampleFps: number };
 
 export class ChromeTransport {
@@ -125,6 +126,18 @@ export class ChromeTransport {
     const result = object(await this.#call("actPage", { ...this.#owned(page), snapshot, actionId, ...(text === undefined ? {} : { text }) }));
     if (result.status !== "executed" && result.status !== "not-executed" && result.status !== "unknown") throw new Error("Invalid action result; no replay");
     return { status: result.status, retry: false, ...(typeof result.reason === "string" ? { reason: result.reason } : {}) };
+  }
+  async uploadFile(page: OwnedPage, snapshot: string, actionId: string, filePath: string): Promise<UploadOutcome> {
+    if (this.#recordings.has(page.tabId) || !path.isAbsolute(filePath) || filePath.includes("\0") || path.extname(filePath).toLowerCase() !== ".pdf") throw new Error("Valid local PDF required and recording must be stopped");
+    const info = await fs.lstat(filePath);
+    if (!info.isFile() || info.isSymbolicLink() || info.uid !== process.getuid?.() || info.size < 1) throw new Error("Current-user-owned regular PDF required");
+    const handle = await fs.open(filePath, "r");
+    try { const magic = Buffer.alloc(5); if ((await handle.read(magic, 0, 5, 0)).bytesRead !== 5 || magic.toString() !== "%PDF-") throw new Error("PDF signature required"); }
+    finally { await handle.close(); }
+    const name = path.basename(filePath);
+    const result = object(await this.#call("uploadFile", { ...this.#owned(page), snapshot, actionId, path: filePath, name, size: info.size }));
+    if (result.status !== "attached" && result.status !== "not-executed" && result.status !== "unknown") throw new Error("Invalid upload result; no replay");
+    return result.status === "attached" ? { status: "attached", retry: false, name, mime: "application/pdf", size: info.size } : { status: result.status, retry: false };
   }
   async privateFill(page: OwnedPage, selectors: string[], values: string[], options: { allowInsecureLoopback?: boolean } = {}) {
     if (this.#recordings.has(page.tabId)) throw new Error("Stop recording before private input");

@@ -11,7 +11,10 @@ it("allows embedded surfaces while preserving fixed private diagnostics", () => 
   vi.stubGlobal("location", { origin: "https://synthetic.invalid" });
   vi.stubGlobal("HTMLInputElement", Input);
   vi.stubGlobal("HTMLTextAreaElement", class {});
+  vi.stubGlobal("HTMLElement", class {});
+  vi.stubGlobal("chrome", { dom: { openOrClosedShadowRoot: () => null } });
   vi.stubGlobal("document", {
+    childNodes: [],
     querySelectorAll: (selector: string) => {
       if (selector === "[") throw new Error("synthetic-secret");
       return inputs;

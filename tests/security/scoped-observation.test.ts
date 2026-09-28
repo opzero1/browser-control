@@ -9,7 +9,7 @@ const origin = "https://synthetic.invalid";
 const observe = (controlsOnly = false, selectors: string[] = []) => pageControl("observe", origin, "fresh", "", null, { controlsOnly, selectors });
 const act = (id = "0", text?: string) => pageControl("act", origin, "fresh", id, text);
 beforeEach(() => { doc = dom(); });
-afterEach(() => { for (const key of ["__opzeroSnapshot", "__opzeroSubmit", "__opzeroPrivateDocument", "__opzeroPrivateForms", "__opzeroPrivateNodes"]) Reflect.deleteProperty(globalThis, key); vi.unstubAllGlobals(); });
+afterEach(() => { vi.useRealTimers(); for (const key of ["__opzeroSnapshot", "__opzeroSubmit", "__opzeroFile", "__opzeroPrivateDocument", "__opzeroPrivateForms", "__opzeroPrivateNodes"]) Reflect.deleteProperty(globalThis, key); vi.unstubAllGlobals(); });
 
 it("excludes embed fallback and closed hosts from text, labels, inventory and markers", () => {
   const button = new Button("Public");
@@ -34,6 +34,120 @@ it("fills public input next to embeds and tolerates unrelated text updates", () 
   doc.body.append(input, status, new Element("iframe"));
   expect(observe().status).toBe("observed"); status.append(new Text("Ready"));
   expect(act("0", "Public value").status).toBe("executed"); expect(input.value).toBe("Public value");
+});
+
+it("discovers only named visible or visibly labelled file inputs", () => {
+  const hidden = new Input(), labelled = new Input(), label = new Element("label", "Upload statement"), visible = new Input(), tiny = new Input();
+  const emptyLabelled = new Input(), emptyLabel = new Element("label"), hiddenParent = new Element("div"), nested = new Input(), nestedLabel = new Element("label", "Hidden ancestor");
+  hidden.type = labelled.type = visible.type = tiny.type = emptyLabelled.type = nested.type = "file"; hidden.style.display = labelled.style.display = emptyLabelled.style.display = nested.style.display = "none";
+  labelled.labels = [label]; label.append(labelled); visible.setAttribute("aria-label", "Upload invoice"); tiny.setAttribute("aria-label", "Tiny generic input"); tiny.getBoundingClientRect = () => ({ width: 1, height: 1 });
+  emptyLabelled.labels = [emptyLabel]; emptyLabel.append(emptyLabelled); nested.labels = [nestedLabel]; hiddenParent.setAttribute("inert", ""); hiddenParent.append(nested); doc.body.append(hidden, label, visible, tiny, emptyLabel, hiddenParent, nestedLabel);
+  expect(parseObservation(observe()).actions).toEqual([
+    expect.objectContaining({ kind: "upload", label: "Upload statement" }),
+    expect.objectContaining({ kind: "upload", label: "Upload invoice" })
+  ]);
+});
+
+it("keeps file attachment behind a fresh single-use prepared capability", () => {
+  const input = new Input(); input.type = "file"; input.setAttribute("aria-label", "Upload PDF"); doc.body.append(input);
+  const observation = parseObservation(observe()); expect(observation.actions[0].kind).toBe("upload");
+  expect(act().reason).toBe("file-requires-upload-rpc");
+  const fresh = parseObservation(observe());
+  const prepared = pageControl("prepare-file", origin, fresh.snapshot, "0");
+  expect(prepared.status).toBe("prepared"); expect(pageControl("validate-file", origin, prepared.fileToken!).status).toBe("validated");
+  input.files = { 0: { name: "invoice.pdf", size: 12, type: "application/pdf" }, length: 1 };
+  expect(pageControl("verify-file", origin, prepared.fileToken!, "", JSON.stringify({ name: "invoice.pdf", size: 12 })).status).toBe("attached");
+  expect(pageControl("verify-file", origin, prepared.fileToken!, "", JSON.stringify({ name: "invoice.pdf", size: 12 })).status).toBe("not-executed");
+});
+
+it("returns unknown when prepared file metadata does not match", () => {
+  const input = new Input(); input.type = "file"; input.setAttribute("aria-label", "Upload PDF"); doc.body.append(input);
+  const snapshot = parseObservation(observe()); const prepared = pageControl("prepare-file", origin, snapshot.snapshot, "0");
+  input.files = { 0: { name: "other.pdf", size: 12, type: "application/pdf" }, length: 1 };
+  expect(pageControl("verify-file", origin, prepared.fileToken!, "", JSON.stringify({ name: "invoice.pdf", size: 12 }))).toEqual({ status: "unknown", retry: false });
+});
+
+it("rechecks privacy before file metadata readback and token-binds cleanup", () => {
+  const input = new Input(), password = new Input(); input.type = "file"; input.setAttribute("aria-label", "Upload PDF"); password.type = "password"; doc.body.append(input, password);
+  const snapshot = parseObservation(observe()); const prepared = pageControl("prepare-file", origin, snapshot.snapshot, "0");
+  password.value = "PRIVATE_CANARY";
+  const verified = pageControl("verify-file", origin, prepared.fileToken!, "", JSON.stringify({ name: "invoice.pdf", size: 12 }));
+  expect(verified.reason).toBe("populated-private-input"); expect(JSON.stringify(verified)).not.toContain("CANARY");
+  expect(pageControl("cancel-file", origin, "wrong").reason).toBe("file-cancel-refused");
+  expect(pageControl("cancel-file", origin, prepared.fileToken!).status).toBe("cancelled");
+});
+
+it.each(["option", "menuitem", "menuitemcheckbox", "menuitemradio", "checkbox", "radio"])("observes and executes an ARIA %s", role => {
+  const item = new Element("div", `Select ${role}`); item.setAttribute("role", role); doc.body.append(item);
+  const result = parseObservation(observe());
+  expect(result.actions).toEqual([expect.objectContaining({ id: "0", kind: "click", label: `Select ${role}`, role })]);
+  expect(act().status).toBe("executed");
+  expect(item.clicks).toBe(1);
+});
+
+it("labels and clicks the unique caret beside a custom combobox", () => {
+  const fieldLabel = new Element("label", "Rule"), current = new Element("span", "Deny");
+  fieldLabel.setAttribute("id", "rule-label"); current.setAttribute("id", "rule-value");
+  const combobox = new Element("div");
+  combobox.setAttribute("role", "combobox");
+  combobox.setAttribute("aria-labelledby", "rule-label rule-value");
+  combobox.setAttribute("aria-expanded", "false");
+  combobox.append(current);
+  const caret = new Button("");
+  const wrapper = new Element("div"); wrapper.append(combobox, caret);
+  doc.body.append(fieldLabel, wrapper);
+  const result = parseObservation(observe());
+  expect(result.actions).toEqual([
+    expect.objectContaining({ id: "0", kind: "click", label: "Rule Deny options", role: "button" })
+  ]);
+  expect(act("0").status).toBe("executed");
+  expect(combobox.clicks).toBe(0);
+  expect(caret.clicks).toBe(1);
+});
+
+it("refuses a custom caret action after its adjacent value changes", () => {
+  const combobox = new Element("div", "Deny"), caret = new Button("");
+  combobox.setAttribute("role", "combobox");
+  const wrapper = new Element("div"); wrapper.append(combobox, caret); doc.body.append(wrapper);
+  observe();
+  combobox.append(new Text("Allow"));
+  expect(act().status).toBe("not-executed");
+  expect(caret.clicks).toBe(0);
+});
+
+it("leaves an anonymous caret unnamed when its combobox sibling is ambiguous", () => {
+  const wrapper = new Element("div"), first = new Element("div", "Rule"), second = new Element("div", "Other"), caret = new Button("");
+  first.setAttribute("role", "combobox"); second.setAttribute("role", "combobox");
+  wrapper.append(first, second, caret); doc.body.append(wrapper);
+  expect(parseObservation(observe()).actions[0].label).toBe("");
+});
+
+it("exposes Direct's stay-signed-in role checkbox before private transfer", () => {
+  const checkbox = new Element("div", "Stay signed in for 2 weeks"); checkbox.setAttribute("role", "checkbox"); checkbox.setAttribute("aria-checked", "false"); doc.body.append(checkbox);
+  const result = parseObservation(observe());
+  expect(result.actions).toEqual([expect.objectContaining({ id: "0", kind: "click", label: "Stay signed in for 2 weeks", role: "checkbox" })]);
+  expect(act().status).toBe("executed");
+  expect(checkbox.clicks).toBe(1);
+});
+
+it.each(["checkbox", "radio"])("observes and executes a native %s input", type => {
+  const item = new Input(); item.type = type; item.setAttribute("aria-label", `Select ${type}`); doc.body.append(item);
+  const result = parseObservation(observe());
+  expect(result.actions).toEqual([expect.objectContaining({ id: "0", kind: "click", label: `Select ${type}`, role: "input" })]);
+  expect(act().status).toBe("executed");
+  expect(item.clicks).toBe(1);
+  expect(item.checked).toBe(true);
+});
+
+it.each(["aria-selected", "checked", "indeterminate"])("invalidates changed fallback-control %s state", state => {
+  const item = state === "aria-selected" ? new Element("div", "Option") : new Input();
+  if (state === "aria-selected") { item.setAttribute("role", "option"); item.setAttribute("aria-selected", "false"); }
+  else { (item as Input).type = "checkbox"; item.setAttribute("aria-label", "Check"); }
+  doc.body.append(item); observe();
+  if (state === "aria-selected") item.setAttribute("aria-selected", "true");
+  else (item as Input)[state] = true;
+  expect(act().status).toBe("not-executed");
+  expect(item.clicks).toBe(0);
 });
 
 it.each(["closed", "object", "nested-open"])("keeps global light-root private checks outside the output scope: %s", surface => {
@@ -120,6 +234,90 @@ it("keeps only the prepared single-use private submit exception", () => {
   expect(act().status).toBe("not-executed");
   expect(pageControl("submit", origin, prepared.submitToken!).status).toBe("executed");
   expect(pageControl("submit", origin, prepared.submitToken!).status).toBe("not-executed"); expect(button.clicks).toBe(1);
+});
+
+const privateSubmit = (disabled = false) => {
+  const form = new Form(), button = new Button(); button.type = "submit"; button.form = form; form.append(button); doc.body.append(form);
+  if (disabled) button.setAttribute("disabled", "");
+  Object.assign(button, { formMethod: "", formEnctype: "", formNoValidate: false }); Object.assign(form, { enctype: "application/x-www-form-urlencoded", noValidate: false });
+  observe(); const prepared = pageControl("prepare-submit", origin, "fresh", "0");
+  vi.stubGlobal("__opzeroPrivateDocument", true); vi.stubGlobal("__opzeroPrivateForms", new Set([form]));
+  return { form, button, prepared };
+};
+
+it.each([
+  ["submitter formMethod", "button", { formMethod: "get" }], ["submitter formEnctype", "button", { formEnctype: "text/plain" }],
+  ["submitter formNoValidate", "button", { formNoValidate: true }], ["form method", "form", { method: "get" }],
+  ["form enctype", "form", { enctype: "multipart/form-data" }], ["form noValidate", "form", { noValidate: true }]
+] as const)("refuses a prepared private submit after its %s changes", (_, owner, change) => {
+  const { form, button, prepared } = privateSubmit();
+  expect(prepared.status).toBe("prepared");
+  Object.assign(owner === "button" ? button : form, change);
+  expect(pageControl("submit", origin, prepared.submitToken!)).toMatchObject({ status: "not-executed" }); expect(button.clicks).toBe(0);
+});
+
+it.each([[60000, "executed"], [90001, "not-executed"]] as const)("bounds a prepared private submit across the credential read: %i ms", (elapsed, status) => {
+  vi.useFakeTimers();
+  const { button, prepared } = privateSubmit();
+  expect(prepared).toMatchObject({ status: "prepared", expiresInMs: 90000 });
+  vi.advanceTimersByTime(elapsed);
+  expect(pageControl("submit", origin, prepared.submitToken!)).toMatchObject({ status }); expect(button.clicks).toBe(status === "executed" ? 1 : 0);
+});
+
+it.each(["enabled-later", "still-disabled", "changed-while-pending"])("refuses a disabled private submit synchronously without replay: %s", async outcome => {
+  vi.useFakeTimers();
+  const { form, button, prepared } = privateSubmit(true);
+  setTimeout(() => { if (outcome === "enabled-later") button.removeAttribute("disabled"); else if (outcome === "changed-while-pending") form.action = "https://synthetic.invalid/other"; }, 300);
+  const submitted = pageControl("submit", origin, prepared.submitToken!);
+  expect(submitted).toMatchObject({ status: "not-executed" });
+  await vi.advanceTimersByTimeAsync(2500);
+  expect(button.clicks).toBe(0);
+  expect(pageControl("submit", origin, prepared.submitToken!)).toMatchObject({ status: "not-executed" }); expect(button.clicks).toBe(0);
+});
+
+it.each(["password", "otp", "restored", "nested", "closed"])("blocks capture for a populated %s control inside a shadow root without returning it", mode => {
+  const host = new Element("x-login"), input = new Input(); input.setAttribute("id", "private"); input.value = "PRIVATE_CANARY";
+  if (mode === "otp") input.autocomplete = "one-time-code"; else if (mode !== "restored") input.type = "password";
+  const root = host.attachShadow(mode === "closed" ? "closed" : "open");
+  if (mode === "nested") { const inner = new Element("x-inner"); root.append(inner); inner.attachShadow("open").append(input); } else root.append(input);
+  doc.body.append(host, new Button());
+  const result = pageControl("capture-check", origin, "", "", JSON.stringify(mode === "restored" ? ["#private"] : []));
+  expect(result).toEqual({ status: "checked", allowed: false, reason: mode === "restored" ? "restored-private-selector" : "populated-private-input" });
+  expect(JSON.stringify(result)).not.toContain("CANARY");
+});
+
+it("allows capture beside a disabled display-only password mask inside a shadow root", () => {
+  const host = new Element("x-settings"), mask = new Input(); mask.type = "password"; mask.value = "••••••••"; Object.assign(mask, { disabled: true, defaultValue: "••••••••" });
+  host.attachShadow("open").append(mask); doc.body.append(host);
+  expect(pageControl("capture-check", origin, "")).toEqual({ status: "checked", allowed: true });
+  mask.value = "PRIVATE_CANARY";
+  expect(pageControl("capture-check", origin, "")).toEqual({ status: "checked", allowed: false, reason: "populated-private-input" });
+});
+
+it("fails capture closed without the shadow-root detection primitive", () => {
+  vi.stubGlobal("chrome", {});
+  expect(pageControl("capture-check", origin, "")).toEqual({ status: "checked", allowed: false, reason: "unsupported-shadow-root" });
+});
+
+it("refuses a disabled submit in the serialized built bundle without a delayed click", async () => {
+  const b = await background();
+  const owner = { session_id: "owner", turn_id: "turn", tabId: 1, expectedOrigin: origin };
+  await b.rpc("createTab", owner); await b.rpc("bindPage", owner);
+  const form = new Form(), button = new Button(); button.type = "submit"; button.form = form; button.setAttribute("disabled", ""); form.append(button); doc.body.append(form);
+  b.chrome.scripting.executeScript.mockImplementation((request: any, cb: Function) => {
+    const injected = new Function(`return (${request.func.toString()})`)();
+    void Promise.resolve(injected(...request.args)).then(result => cb([{ documentId: "doc-1", frameId: 0, result }]));
+  });
+  const observed = parseObservation((await b.rpc("observePage", owner)).result);
+  const prepared = (await b.rpc("preparePrivateSubmit", { ...owner, snapshot: observed.snapshot, actionId: "0" })).result;
+  expect(prepared).toMatchObject({ status: "prepared", expiresInMs: 90000, documentId: "doc-1" });
+  vi.stubGlobal("__opzeroPrivateDocument", true); vi.stubGlobal("__opzeroPrivateForms", new Set([form]));
+  setTimeout(() => button.removeAttribute("disabled"), 200);
+  expect((await b.rpc("submitPrivate", { ...owner, submitToken: prepared.submitToken, documentId: prepared.documentId })).result).toMatchObject({ status: "not-executed" });
+  expect(button.clicks).toBe(0);
+  await new Promise(resolve => setTimeout(resolve, 400));
+  expect(button.clicks).toBe(0);
+  expect((await b.rpc("submitPrivate", { ...owner, submitToken: prepared.submitToken, documentId: prepared.documentId })).result).toMatchObject({ status: "not-executed" });
 });
 
 it("reports controls-only and all output bounds without treating labels as private-safe", () => {

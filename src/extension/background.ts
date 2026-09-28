@@ -584,7 +584,7 @@ class NativeTransport {
   }
 }
 
-function injectPage(tabId: number, origin: string, operation: "observe" | "act" | "capture-check" | "document-check" | "prepare-submit" | "submit", token = "", actionId = "", text?: string, documentId?: string, options: PageOptions = { selectors: [], controlsOnly: false }) {
+function injectPage(tabId: number, origin: string, operation: "observe" | "act" | "capture-check" | "document-check" | "prepare-submit" | "submit" | "prepare-file" | "validate-file" | "verify-file" | "cancel-file", token = "", actionId = "", text?: string, documentId?: string, options: PageOptions = { selectors: [], controlsOnly: false }) {
   return Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
     const owner = getSessionForTab(tabId);
@@ -641,6 +641,40 @@ function assertCapture(tabId: number, origin: string) {
 }
 
 const api: Record<string, RpcHandler> = {
+  uploadFile: (params: JsonRecord = {}) => Effect.gen(function* () {
+    const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
+    const origin = pageOrigins.get(tabId), snapshot = pageSnapshots.get(tabId);
+    pageSnapshots.delete(tabId);
+    const valid = typeof params.snapshot === "string" && typeof params.actionId === "string" && typeof params.path === "string" && params.path.startsWith("/") && !params.path.includes("\0")
+      && typeof params.name === "string" && params.name.length > 0 && params.name.length <= 255 && !/[\\/\0]/.test(params.name)
+      && Number.isInteger(params.size) && (params.size as number) > 0;
+    if (!origin || !snapshot || params.snapshot !== snapshot.token || !valid || pageRecordings.has(tabId)) return { status: "not-executed", retry: false };
+    const context = yield* Effect.either(scopedContext(tabId, origin, snapshot.documentId));
+    if (Either.isLeft(context)) return { status: "not-executed", retry: false };
+    const prepared = yield* Effect.either(injectPage(tabId, origin, "prepare-file", snapshot.token, params.actionId as string, undefined,
+      context.right.documentId, { selectors: context.right.selectors, controlsOnly: false }));
+    if (Either.isLeft(prepared) || prepared.right.result?.status !== "prepared" || typeof prepared.right.result.fileToken !== "string"
+      || typeof prepared.right.result.selector !== "string") return { status: "not-executed", retry: false };
+    const fileToken = prepared.right.result.fileToken, selector = prepared.right.result.selector;
+    const cancel = () => injectPage(tabId, origin, "cancel-file", fileToken, "", undefined, context.right.documentId);
+    const root = yield* Effect.either(sendDebuggerCommand<{ root?: { nodeId?: number } }>(tabId, "DOM.getDocument", { depth: 0, pierce: true }));
+    if (Either.isLeft(root) || !Number.isInteger(root.right.root?.nodeId)) { yield* Effect.either(cancel()); return { status: "not-executed", retry: false }; }
+    const matches = yield* Effect.either(sendDebuggerCommand<{ nodeIds?: number[] }>(tabId, "DOM.querySelectorAll", { nodeId: root.right.root!.nodeId, selector }));
+    if (Either.isLeft(matches) || !Array.isArray(matches.right.nodeIds) || matches.right.nodeIds.length !== 1 || !Number.isInteger(matches.right.nodeIds[0])) {
+      yield* Effect.either(cancel()); return { status: "not-executed", retry: false };
+    }
+    const fresh = yield* Effect.either(scopedContext(tabId, origin, context.right.documentId));
+    if (Either.isLeft(fresh)) { yield* Effect.either(cancel()); return { status: "not-executed", retry: false }; }
+    const validated = yield* Effect.either(injectPage(tabId, origin, "validate-file", fileToken, "", undefined, context.right.documentId,
+      { selectors: fresh.right.selectors, controlsOnly: false }));
+    if (Either.isLeft(validated) || validated.right.result?.status !== "validated") { yield* Effect.either(cancel()); return { status: "not-executed", retry: false }; }
+    const dispatched = yield* Effect.either(sendDebuggerCommand(tabId, "DOM.setFileInputFiles", { nodeId: matches.right.nodeIds[0], files: [params.path] }));
+    if (Either.isLeft(dispatched)) { yield* Effect.either(cancel()); return { status: "unknown", retry: false }; }
+    const verified = yield* Effect.either(injectPage(tabId, origin, "verify-file", fileToken, "", JSON.stringify({ name: params.name, size: params.size }), context.right.documentId,
+      { selectors: fresh.right.selectors, controlsOnly: false }));
+    if (Either.isLeft(verified) || verified.right.result?.status !== "attached") { yield* Effect.either(cancel()); return { status: "unknown", retry: false }; }
+    return { status: "attached", retry: false };
+  }),
   preparePrivateSubmit: (params: JsonRecord = {}) => Effect.gen(function* () {
     const { tabId } = yield* Effect.try({ try: () => requireSessionTab(params), catch: toError });
     const origin = pageOrigins.get(tabId), snapshot = pageSnapshots.get(tabId);
@@ -851,12 +885,16 @@ const api: Record<string, RpcHandler> = {
     const chromeApi = yield* ChromeApi;
     const session = yield* Effect.try({ try: () => ensureSession(params), catch: toError });
     const name = String(params.name || DEFAULT_SESSION_TITLE).slice(0, 80);
-    session.title = name || DEFAULT_SESSION_TITLE;
+    const nextTitle = name || DEFAULT_SESSION_TITLE;
+    const confirmed = session.groupId != null;
     if (session.groupId != null) {
-      yield* chromeApi.safeCall("tabGroups", "update", session.groupId, { title: session.title, collapsed: false });
+      yield* chromeApi.call("tabGroups", "update", session.groupId, { title: nextTitle, collapsed: false });
+      const group = yield* chromeApi.call<chrome.tabGroups.TabGroup>("tabGroups", "get", session.groupId);
+      if (group.title !== nextTitle) throw createRpcError("Session group title confirmation failed");
     }
+    session.title = nextTitle;
     yield* persistGroupState();
-    return { name: session.title };
+    return { name: session.title, confirmed };
   }),
 
   attach: (params: JsonRecord = {}) => Effect.gen(function* () {
@@ -1049,7 +1087,7 @@ async function handleJsonRpcRequest(message: JsonRpcRequest, respond: (response:
     const rpcParams = typeof params === "object" && params != null ? params as JsonRecord : {};
     const targetParams = typeof rpcParams.target === "object" && rpcParams.target != null ? rpcParams.target as JsonRecord : {};
     const tabId = Number(rpcParams.tabId ?? targetParams.tabId);
-    const serialized = ["preparePrivateSubmit", "submitPrivate", "recordingState", "bindPage", "navigatePage", "observePage", "actPage", "capturePage", "observeDocument", "privateFill", "executeCdp"].includes(method) && Number.isInteger(tabId);
+    const serialized = ["uploadFile", "preparePrivateSubmit", "submitPrivate", "recordingState", "bindPage", "navigatePage", "observePage", "actPage", "capturePage", "observeDocument", "privateFill", "executeCdp"].includes(method) && Number.isInteger(tabId);
     let result: unknown;
     if (serialized) {
       const previous = pageOperations.get(tabId) || Promise.resolve();

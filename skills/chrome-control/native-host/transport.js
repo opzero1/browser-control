@@ -22,7 +22,7 @@ function parseObservation(value) {
 	if (raw.status !== "observed" || raw.pageProtocolVersion !== 2 || raw.mode !== "full" && raw.mode !== "controls-only" || !Array.isArray(raw.actions) || raw.actions.length > 100 || !Array.isArray(raw.opaqueSurfaces) || raw.opaqueSurfaces.length > 100) fail();
 	const actions = raw.actions.map((value) => {
 		const a = object(value);
-		if (a.kind !== "fill" && a.kind !== "click") return fail();
+		if (a.kind !== "fill" && a.kind !== "click" && a.kind !== "upload") return fail();
 		return {
 			id: string(a.id, 100),
 			kind: a.kind,
@@ -242,6 +242,38 @@ var ChromeTransport = class ChromeTransport {
 			status: result.status,
 			retry: false,
 			...typeof result.reason === "string" ? { reason: result.reason } : {}
+		};
+	}
+	async uploadFile(page, snapshot, actionId, filePath) {
+		if (this.#recordings.has(page.tabId) || !node_path.default.isAbsolute(filePath) || filePath.includes("\0") || node_path.default.extname(filePath).toLowerCase() !== ".pdf") throw new Error("Valid local PDF required and recording must be stopped");
+		const info = await node_fs_promises.default.lstat(filePath);
+		if (!info.isFile() || info.isSymbolicLink() || info.uid !== process.getuid?.() || info.size < 1) throw new Error("Current-user-owned regular PDF required");
+		const handle = await node_fs_promises.default.open(filePath, "r");
+		try {
+			const magic = Buffer.alloc(5);
+			if ((await handle.read(magic, 0, 5, 0)).bytesRead !== 5 || magic.toString() !== "%PDF-") throw new Error("PDF signature required");
+		} finally {
+			await handle.close();
+		}
+		const name = node_path.default.basename(filePath);
+		const result = object(await this.#call("uploadFile", {
+			...this.#owned(page),
+			snapshot,
+			actionId,
+			path: filePath,
+			name,
+			size: info.size
+		}));
+		if (result.status !== "attached" && result.status !== "not-executed" && result.status !== "unknown") throw new Error("Invalid upload result; no replay");
+		return result.status === "attached" ? {
+			status: "attached",
+			retry: false,
+			name,
+			mime: "application/pdf",
+			size: info.size
+		} : {
+			status: result.status,
+			retry: false
 		};
 	}
 	async privateFill(page, selectors, values, options = {}) {
