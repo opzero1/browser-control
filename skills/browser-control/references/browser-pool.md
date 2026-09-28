@@ -91,12 +91,13 @@ The operator CLI is `npx -y @op1/browser-control pool <command>`. It shows every
 npx -y @op1/browser-control pool status
 npx -y @op1/browser-control pool ensure --owner <session-id>
 npx -y @op1/browser-control pool release --owner <session-id> --lease <lease-id>
+npx -y @op1/browser-control pool reap isolated-1 --dry-run
 npx -y @op1/browser-control pool reset isolated-1 --confirm
 ```
 
 - CLI `ensure` defaults to exclusive; `--shared` opts in. CLI `claim` is exclusive and ownership-only.
 - CLI `release` works after tab cleanup. Use it for a lease left behind by a restarted server process; see [release an orphaned lease](#release-an-orphaned-lease).
-- The CLI also stops an idle controller's Chrome. That command requires no leases, pins, cleanup markers, startup record, or open HTTP(S) tabs; kept deliverables block it. It sends SIGTERM only to the exact profile process and verifies exit, and a dry-run option reads tabs and processes without writing an intent or sending a signal. If exit is unconfirmed, its record remains and blocks allocation until a later run confirms cleanup. It keeps the profile.
+- `pool reap [controller] [--dry-run]` stops an idle controller's Chrome; without a controller it tries each one and reports each result. It requires no leases, pins, cleanup markers, startup record, or open HTTP(S) tabs; kept deliverables block it. It sends SIGTERM only to the exact profile process and verifies exit. `--dry-run` reads tabs and processes without writing an intent or sending a signal. If exit is unconfirmed, its record remains and blocks allocation until a later `pool reap` confirms cleanup. It keeps the profile.
 - `reset --confirm` requires an idle, stopped controller and no live endpoint. It deletes and re-provisions only the profile and site history; downloads and artifacts remain.
 
 Neither stopping nor resetting runs automatically.
