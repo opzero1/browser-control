@@ -23,16 +23,22 @@ var InstallLockBusy = class extends Error {
 		this.name = "InstallLockBusy";
 	}
 };
+function unsafeMessage(lockPath, at, fault, replaced) {
+	if (replaced && fault === "lock") return `The installer lock ${lockPath} was replaced while this installer held it, so nothing was removed. Make sure no other installer is running, then try again.`;
+	if (replaced) return `The directory ${at} that holds the installer lock ${lockPath} was replaced while this installer used it, so nothing was removed. Make sure no other installer is running, then try again.`;
+	if (fault === "lock") return `Refusing the installer lock ${lockPath}: ${at} must be a real directory owned by you that no other user can write to.`;
+	return `Refusing the installer lock ${lockPath}: ${at} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`;
+}
 /**
-* Another user could change the lock, so it was not used: `path` is the lock or its parent directory at fault.
-* With `replaced`, the lock directory this installer held is no longer at its path, and nothing was removed.
+* Another user could change the lock, so it was not used: `path` is the lock, or the directory above it, at
+* fault. With `replaced`, that directory is no longer the one this installer checked, and nothing was removed.
 */
 var InstallLockUnsafe = class extends Error {
 	lockPath;
 	code = "browser-controller-unsafe-install-lock";
 	path;
-	constructor(lockPath, at, replaced = false) {
-		super(replaced ? `The installer lock ${lockPath} was replaced while this installer held it, so nothing was removed. Make sure no other installer is running, then try again.` : `Refusing the installer lock ${lockPath}: ${at} must be a real directory owned by you that no other user can write to.`);
+	constructor(lockPath, at, fault = "lock", replaced = false) {
+		super(unsafeMessage(lockPath, at, fault, replaced));
 		this.lockPath = lockPath;
 		this.name = "InstallLockUnsafe";
 		this.path = at;
@@ -40,8 +46,8 @@ var InstallLockUnsafe = class extends Error {
 };
 var nodeFs = {
 	lstat: (file) => node_fs.default.lstatSync(file),
-	stat: (file) => node_fs.default.statSync(file),
-	readdir: (directory) => node_fs.default.readdirSync(directory)
+	readdir: (directory) => node_fs.default.readdirSync(directory),
+	realpath: (file) => node_fs.default.realpathSync(file)
 };
 /** The lock that serializes every installer's check and replacement of one native messaging manifest. */
 function manifestLockPath(manifestFile) {
@@ -55,40 +61,96 @@ var STICKY = 512;
 function codeOf(error) {
 	return error?.code;
 }
-/** Windows has no POSIX owners or modes, so there only the kind and identity of the lock are checked. */
+/** Windows has no POSIX owners or modes, so there only the kind and identity of each directory are checked. */
 function ownerId() {
 	return process.getuid?.();
 }
-/**
-* The parent (followed if it is a symlink) must be a directory owned by this user. If group or others can write
-* to it, it needs the sticky bit, so that they cannot rename or remove the lock, which must then be ours.
-*/
-function checkParent(lockPath, io) {
-	const parent = node_path.default.dirname(lockPath);
-	const stats = io.stat(parent);
+/** Only its owner, this user or root, can change the directory: others may write to it only if it is sticky. */
+function trusted(stats) {
+	if (stats.isSymbolicLink() || !stats.isDirectory()) return false;
 	const uid = ownerId();
+	if (uid === void 0) return true;
 	const shared = (stats.mode & WRITABLE_BY_OTHERS) !== 0 && (stats.mode & STICKY) === 0;
-	if (!stats.isDirectory() || uid !== void 0 && (stats.uid !== uid || shared)) throw new InstallLockUnsafe(lockPath, parent);
+	return (stats.uid === uid || stats.uid === 0) && !shared;
 }
-/** The identity of the lock directory, or null when nothing is at its path; anything unsafe there is refused. */
-function inspect(lockPath, io) {
+function checkChain(directory, io) {
+	const real = io.realpath(directory);
+	const { root } = node_path.default.parse(real);
+	let current = root;
+	let stats = io.lstat(current);
+	if (!trusted(stats)) return { unsafe: current };
+	for (const part of real.slice(root.length).split(node_path.default.sep)) {
+		if (!part) continue;
+		current = node_path.default.join(current, part);
+		stats = io.lstat(current);
+		if (!trusted(stats)) return { unsafe: current };
+	}
+	return {
+		path: current,
+		dev: stats.dev,
+		ino: stats.ino
+	};
+}
+/** Whether `file`, not followed, is still what `expected` identifies; a missing file is not. */
+function unchangedAt(file, expected, calls = {}) {
 	let stats;
 	try {
-		stats = io.lstat(lockPath);
+		stats = (calls.lstat ?? nodeFs.lstat)(file);
+	} catch (error) {
+		if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return false;
+		throw error;
+	}
+	return !stats.isSymbolicLink() && stats.dev === expected.dev && stats.ino === expected.ino;
+}
+/** What `stats` says `file` is, as this process made it. */
+function created(file, stats) {
+	return {
+		path: file,
+		dev: stats.dev,
+		ino: stats.ino,
+		directory: stats.isDirectory()
+	};
+}
+/**
+* Remove `items` in order, each only while `within` (when given) and the item's own path are still what was
+* recorded: a file is unlinked, and a directory removed with rmdir, which fails unless it is empty. The first
+* mismatch or failure stops the removal and leaves the rest, which is harmless. Returns whether all were removed.
+*/
+function removeCreated(items, within, calls = {}) {
+	for (const item of items) try {
+		if (within && !unchangedAt(within.path, within, calls) || !unchangedAt(item.path, item, calls)) return false;
+		if (item.directory) node_fs.default.rmdirSync(item.path);
+		else node_fs.default.unlinkSync(item.path);
+	} catch (error) {
+		if (codeOf(error) === void 0) throw error;
+		return false;
+	}
+	return true;
+}
+/** The identity of the lock directory, or null when nothing is at its path; anything unsafe there is refused. */
+function inspect(lockPath, lock, io) {
+	let stats;
+	try {
+		stats = io.lstat(lock);
 	} catch (error) {
 		if (codeOf(error) === "ENOENT") return null;
 		throw error;
 	}
 	const uid = ownerId();
-	if (stats.isSymbolicLink() || !stats.isDirectory() || uid !== void 0 && (stats.uid !== uid || stats.mode & WRITABLE_BY_OTHERS)) throw new InstallLockUnsafe(lockPath, lockPath);
+	if (stats.isSymbolicLink() || !stats.isDirectory() || uid !== void 0 && (stats.uid !== uid || stats.mode & WRITABLE_BY_OTHERS)) throw new InstallLockUnsafe(lockPath, lock);
 	return {
 		dev: stats.dev,
 		ino: stats.ino
 	};
 }
-/** The lock path still names the directory `expected` identifies (and is still safe). */
-function unchanged(lockPath, expected, io) {
-	const current = inspect(lockPath, io);
+/** The parent is still the directory that was checked; otherwise nothing more is done in it. */
+function keepParent(lockPath, parent, io) {
+	if (!unchangedAt(parent.path, parent, io)) throw new InstallLockUnsafe(lockPath, parent.path, "directory", true);
+}
+/** The parent and the lock path still name the directories `parent` and `expected` identify (and are still safe). */
+function unchanged(lockPath, lock, expected, parent, io) {
+	if (!unchangedAt(parent.path, parent, io)) return false;
+	const current = inspect(lockPath, lock, io);
 	return current !== null && current.dev === expected.dev && current.ino === expected.ino;
 }
 /** Whether a process may have this id: only ESRCH proves it gone (EPERM means another user's process). */
@@ -102,16 +164,16 @@ function running(pid) {
 }
 /**
 * Remove the entries of processes that are gone, then the lock directory if that left it empty (rmdir removes
-* only an empty directory). Only regular files named like an entry are removed, and only while the lock path
-* still names the directory that was listed; if another process replaced it, the next attempt checks the new
-* one. Returns a live holder's pid, or null when none is known.
+* only an empty directory). Only regular files named like an entry are removed, and only while the parent and
+* the lock path still name the directories that were checked and listed; if another process replaced the lock,
+* the next attempt checks the new one. Returns a live holder's pid, or null when none is known.
 */
-function clearStale(lockPath, io) {
-	const listed = inspect(lockPath, io);
+function clearStale(lockPath, lock, parent, io) {
+	const listed = inspect(lockPath, lock, io);
 	if (!listed) return null;
 	let names;
 	try {
-		names = io.readdir(lockPath);
+		names = io.readdir(lock);
 	} catch (error) {
 		if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return null;
 		throw error;
@@ -121,21 +183,22 @@ function clearStale(lockPath, io) {
 		const match = ENTRY.exec(name);
 		if (!match) continue;
 		const pid = Number(match[1]);
-		if (!(pid === process.pid ? !held.has(`${lockPath}\0${name}`) : !running(pid))) {
+		if (!(pid === process.pid ? !held.has(`${lock}\0${name}`) : !running(pid))) {
 			holder = pid;
 			continue;
 		}
-		if (!unchanged(lockPath, listed, io)) return null;
-		const file = node_path.default.join(lockPath, name);
+		const file = node_path.default.join(lock, name);
 		try {
-			if (io.lstat(file).isFile()) node_fs.default.unlinkSync(file);
+			if (!io.lstat(file).isFile()) continue;
+			if (!unchanged(lockPath, lock, listed, parent, io)) return null;
+			node_fs.default.unlinkSync(file);
 		} catch (error) {
 			if (codeOf(error) !== "ENOENT") throw error;
 		}
 	}
-	if (!unchanged(lockPath, listed, io)) return null;
+	if (!unchanged(lockPath, lock, listed, parent, io)) return null;
 	try {
-		node_fs.default.rmdirSync(lockPath);
+		node_fs.default.rmdirSync(lock);
 	} catch (error) {
 		if (![
 			"ENOENT",
@@ -147,59 +210,81 @@ function clearStale(lockPath, io) {
 	return holder;
 }
 /** One attempt: the lock, or the pid of a live holder (null when unknown). */
-function attempt(lockPath, io) {
-	checkParent(lockPath, io);
-	inspect(lockPath, io);
+function attempt(lockPath, parent, io) {
+	const lock = node_path.default.join(parent.path, node_path.default.basename(lockPath));
+	keepParent(lockPath, parent, io);
+	inspect(lockPath, lock, io);
 	const entry = `${process.pid}-${node_crypto.default.randomUUID()}`;
-	const staging = `${lockPath}.${node_crypto.default.randomUUID()}.tmp`;
+	const staging = `${lock}.${node_crypto.default.randomUUID()}.tmp`;
 	node_fs.default.mkdirSync(staging, { mode: 448 });
-	let created;
+	const made = [];
+	let taken = false;
+	let stagingDir;
+	let entryFile;
 	try {
-		created = io.lstat(staging);
-		node_fs.default.closeSync(node_fs.default.openSync(node_path.default.join(staging, entry), "wx", 384));
+		stagingDir = created(staging, io.lstat(staging));
+		made.push(stagingDir);
+		keepParent(lockPath, parent, io);
+		const fd = node_fs.default.openSync(node_path.default.join(staging, entry), "wx", 384);
 		try {
-			node_fs.default.renameSync(staging, lockPath);
+			entryFile = created(node_path.default.join(staging, entry), node_fs.default.fstatSync(fd));
+			made.unshift(entryFile);
+		} finally {
+			node_fs.default.closeSync(fd);
+		}
+		keepParent(lockPath, parent, io);
+		try {
+			node_fs.default.renameSync(staging, lock);
+			taken = true;
 		} catch (error) {
 			const code = codeOf(error) ?? "";
 			if (!([
 				"EEXIST",
 				"ENOTEMPTY",
 				"ENOTDIR"
-			].includes(code) || ["EPERM", "EACCES"].includes(code) && inspect(lockPath, io) !== null)) throw error;
-			return { holder: clearStale(lockPath, io) };
+			].includes(code) || ["EPERM", "EACCES"].includes(code) && inspect(lockPath, lock, io) !== null)) throw error;
+			const holder = clearStale(lockPath, lock, parent, io);
+			keepParent(lockPath, parent, io);
+			return { holder };
 		}
 	} finally {
-		node_fs.default.rmSync(staging, {
-			recursive: true,
-			force: true
-		});
+		if (!taken) removeCreated(made, parent, io);
 	}
 	const identity = {
-		dev: created.dev,
-		ino: created.ino
+		dev: stagingDir.dev,
+		ino: stagingDir.ino
 	};
-	if (!unchanged(lockPath, identity, io)) throw new InstallLockUnsafe(lockPath, lockPath, true);
-	const key = `${lockPath}\0${entry}`;
+	const own = {
+		...entryFile,
+		path: node_path.default.join(lock, entry)
+	};
+	keepParent(lockPath, parent, io);
+	if (!unchanged(lockPath, lock, identity, parent, io)) throw new InstallLockUnsafe(lockPath, lock, "lock", true);
+	const key = `${lock}\0${entry}`;
 	held.add(key);
 	let released = false;
 	return {
 		path: lockPath,
+		directory: parent,
 		release() {
 			if (released) return;
 			released = true;
 			held.delete(key);
-			if (!unchanged(lockPath, identity, io)) throw new InstallLockUnsafe(lockPath, lockPath, true);
-			try {
-				node_fs.default.unlinkSync(node_path.default.join(lockPath, entry));
-			} catch (error) {
-				if (codeOf(error) !== "ENOENT") throw error;
-			}
-			if (!unchanged(lockPath, identity, io)) return;
-			try {
-				node_fs.default.rmdirSync(lockPath);
-			} catch {}
+			keepParent(lockPath, parent, io);
+			if (!unchanged(lockPath, lock, identity, parent, io)) throw new InstallLockUnsafe(lockPath, lock, "lock", true);
+			removeCreated([own, {
+				path: lock,
+				...identity,
+				directory: true
+			}], parent, io);
 		}
 	};
+}
+/** The lock's parent, resolved and checked from / down; an acquisition works only in that directory. */
+function trustedParent(lockPath, io) {
+	const checked = checkChain(node_path.default.dirname(lockPath), io);
+	if ("unsafe" in checked) throw new InstallLockUnsafe(lockPath, checked.unsafe, "directory");
+	return checked;
 }
 var POLL_MS = 20;
 /** The same, for the zip's synchronous installer, which has nothing else to run while it waits. */
@@ -208,10 +293,11 @@ function acquireInstallLockSync(lockPath, timeoutMs = 1e4, calls = {}) {
 		...nodeFs,
 		...calls
 	};
+	const parent = trustedParent(lockPath, io);
 	const deadline = performance.now() + timeoutMs;
 	const pause = new Int32Array(new SharedArrayBuffer(4));
 	while (true) {
-		const result = attempt(lockPath, io);
+		const result = attempt(lockPath, parent, io);
 		if ("release" in result) return result;
 		if (performance.now() >= deadline) throw new InstallLockBusy(lockPath, result.holder);
 		Atomics.wait(pause, 0, 0, POLL_MS);
@@ -328,15 +414,26 @@ function treeState(target, files) {
 	}
 	return "matches";
 }
+/** Create `file` with `data`; if writing fails, the file is removed while it is still the one made here. */
 function writeNew(file, data, mode) {
 	const fd = node_fs.default.openSync(file, node_fs.default.constants.O_WRONLY | node_fs.default.constants.O_CREAT | node_fs.default.constants.O_EXCL, mode);
+	let made = null;
 	try {
+		made = created(file, node_fs.default.fstatSync(fd));
 		node_fs.default.writeSync(fd, typeof data === "string" ? Buffer.from(data) : data);
 		node_fs.default.fsyncSync(fd);
-	} finally {
+		node_fs.default.fchmodSync(fd, mode);
+	} catch (error) {
 		node_fs.default.closeSync(fd);
+		if (made) removeCreated([made]);
+		throw error;
 	}
-	node_fs.default.chmodSync(file, mode);
+	node_fs.default.closeSync(fd);
+	return made;
+}
+function makeDirectory(dir) {
+	node_fs.default.mkdirSync(dir, { mode: 448 });
+	return created(dir, node_fs.default.lstatSync(dir));
 }
 /**
 * Publish `files` as <parent>/<name>/. Publications are serialized by a lock in <parent>, and the target is
@@ -352,8 +449,8 @@ function publishTree(parent, name, files) {
 	if (current !== "matches") {
 		const lock = acquireInstallLockSync(node_path.default.join(parent, publishLock));
 		try {
-			const state = treeState(target, files);
-			if (state !== "matches") replaceTree(parent, target, files, state === "differs");
+			const state = treeState(node_path.default.join(lock.directory.path, name), files);
+			if (state !== "matches") replaceTree(lock.directory, name, files, state === "differs");
 		} finally {
 			lock.release();
 		}
@@ -362,47 +459,54 @@ function publishTree(parent, name, files) {
 	return target;
 }
 /**
-* Under the publish lock: stage a private directory beside `target`, then rename it into place. A copy that
-* differs is moved aside first and deleted only once the new copy is in place; if the new copy cannot be
-* renamed in, the old one is put back.
+* Under the publish lock, in `hosts`: write the new copy into a private staging directory made here, then
+* rename it to `name`. A copy that differs is first moved into that staging directory, and deleted only once
+* the new copy is in place; if the new copy cannot be renamed in, the old one is put back.
+*
+* What was written is removed one entry at a time, each only while it is still what was made. The displaced
+* copy may hold anything, so it is the one tree removed recursively, and only inside the staging directory,
+* once `hosts` and the staging directory are verified to be the directories that were checked and made.
 */
-function replaceTree(parent, target, files, moveAside) {
-	const staging = node_path.default.join(parent, `.tmp-${node_crypto.default.randomUUID()}`);
-	const displaced = node_path.default.join(parent, `.old-${node_crypto.default.randomUUID()}`);
+function replaceTree(hosts, name, files, moveAside) {
+	const target = node_path.default.join(hosts.path, name);
+	const staging = makeDirectory(node_path.default.join(hosts.path, `.tmp-${node_crypto.default.randomUUID()}`));
+	const copy = node_path.default.join(staging.path, "copy");
+	const displaced = node_path.default.join(staging.path, "old");
+	const intact = () => unchangedAt(hosts.path, hosts) && unchangedAt(staging.path, staging);
+	const made = [staging];
 	let moved = false;
+	let placed = false;
 	try {
-		node_fs.default.mkdirSync(staging, { mode: 448 });
+		made.push(makeDirectory(copy));
 		for (const [relative, data] of files) {
-			const file = node_path.default.join(staging, relative);
-			node_fs.default.mkdirSync(node_path.default.dirname(file), {
-				recursive: true,
-				mode: 448
-			});
-			writeNew(file, data, 384);
+			const parts = relative.split("/");
+			for (let depth = 1; depth < parts.length; depth += 1) {
+				const dir = node_path.default.join(copy, ...parts.slice(0, depth));
+				if (!made.some((item) => item.path === dir)) made.push(makeDirectory(dir));
+			}
+			made.push(writeNew(node_path.default.join(copy, ...parts), data, 384));
 		}
 		if (moveAside) {
+			if (!intact()) throw new InstallError(`${hosts.path} changed while the native host copy was being replaced; nothing was moved.`);
 			node_fs.default.renameSync(target, displaced);
 			moved = true;
 		}
 		try {
-			node_fs.default.renameSync(staging, target);
+			node_fs.default.renameSync(copy, target);
+			placed = true;
 		} catch (error) {
-			const restore = moved;
-			moved = false;
-			if (restore) try {
+			if (moved) try {
 				node_fs.default.renameSync(displaced, target);
+				moved = false;
 			} catch {}
 			throw error;
 		}
 	} finally {
-		node_fs.default.rmSync(staging, {
+		if (placed && moved && intact()) node_fs.default.rmSync(displaced, {
 			recursive: true,
 			force: true
 		});
-		if (moved) node_fs.default.rmSync(displaced, {
-			recursive: true,
-			force: true
-		});
+		removeCreated((placed ? [staging] : made).slice().reverse(), hosts);
 	}
 }
 /** The Node running this installer, which the wrapper execs; never a PATH lookup or a fixed location. */
@@ -432,12 +536,12 @@ function launcher(node, host, socketPath) {
 }
 /** Replace `file` atomically with `text`: a temporary file beside it, then a rename. */
 function replaceFile(file, text, mode) {
-	const temporary = node_path.default.join(node_path.default.dirname(file), `.${node_path.default.basename(file)}.${node_crypto.default.randomUUID()}.tmp`);
+	const temporary = writeNew(node_path.default.join(node_path.default.dirname(file), `.${node_path.default.basename(file)}.${node_crypto.default.randomUUID()}.tmp`), text, mode);
 	try {
-		writeNew(temporary, text, mode);
-		node_fs.default.renameSync(temporary, file);
-	} finally {
-		node_fs.default.rmSync(temporary, { force: true });
+		node_fs.default.renameSync(temporary.path, file);
+	} catch (error) {
+		removeCreated([temporary]);
+		throw error;
 	}
 }
 /** The host an existing manifest names: undefined when there is none, null when it names none readably. */

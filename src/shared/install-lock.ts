@@ -5,17 +5,37 @@
 // is never held. A waiter removes an entry only when the process that made it no longer exists; entry names are
 // unique, so removing one can never release another installer's lock.
 //
-// No other user may be able to change the lock: it must be a real directory owned by this user that group and
-// others cannot write to, in a parent directory owned by this user that they cannot write to either unless it
-// has the sticky bit. Node has no
-// unlinkat, so, as in src/server/fs-private.ts, the lock directory is a path plus the (dev, ino) it had when it
-// was checked, and nothing is removed through that path until it is checked again.
+// No other user may be able to change the lock. Its parent is resolved to its real path, and every directory
+// from / down to it must be owned by this user or root and writable only by its owner, unless it has the sticky
+// bit (OpenSSH's safe_path rule); the lock works in that real path from then on. The lock itself must be a real
+// directory owned by this user that group and others cannot write to. Node has no unlinkat, so, as in
+// src/server/fs-private.ts, a directory is a path plus the (dev, ino) it had when it was checked, and nothing
+// is removed through that path until it is checked again. Nothing here removes recursively: a file is
+// unlinked and a directory removed with rmdir, which fails on one that is not empty.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+export interface Identity {
+  readonly dev: number;
+  readonly ino: number;
+}
+
+/** A directory whose real path was checked from / down, with the identity it had then. */
+export interface TrustedDirectory extends Identity {
+  readonly path: string;
+}
+
+/** A file or directory this process made, with the identity it had when it was made. */
+export interface Created extends Identity {
+  readonly path: string;
+  readonly directory: boolean;
+}
+
 export interface InstallLock {
   readonly path: string;
+  /** The lock's parent, checked from / down: work in `directory.path` rather than through the path given. */
+  readonly directory: TrustedDirectory;
   release(): void;
 }
 
@@ -27,17 +47,26 @@ export class InstallLockBusy extends Error {
   }
 }
 
+function unsafeMessage(lockPath: string, at: string, fault: "lock" | "directory", replaced: boolean): string {
+  if (replaced && fault === "lock") {
+    return `The installer lock ${lockPath} was replaced while this installer held it, so nothing was removed. Make sure no other installer is running, then try again.`;
+  }
+  if (replaced) {
+    return `The directory ${at} that holds the installer lock ${lockPath} was replaced while this installer used it, so nothing was removed. Make sure no other installer is running, then try again.`;
+  }
+  if (fault === "lock") return `Refusing the installer lock ${lockPath}: ${at} must be a real directory owned by you that no other user can write to.`;
+  return `Refusing the installer lock ${lockPath}: ${at} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`;
+}
+
 /**
- * Another user could change the lock, so it was not used: `path` is the lock or its parent directory at fault.
- * With `replaced`, the lock directory this installer held is no longer at its path, and nothing was removed.
+ * Another user could change the lock, so it was not used: `path` is the lock, or the directory above it, at
+ * fault. With `replaced`, that directory is no longer the one this installer checked, and nothing was removed.
  */
 export class InstallLockUnsafe extends Error {
   readonly code = "browser-controller-unsafe-install-lock";
   readonly path: string;
-  constructor(readonly lockPath: string, at: string, replaced = false) {
-    super(replaced
-      ? `The installer lock ${lockPath} was replaced while this installer held it, so nothing was removed. Make sure no other installer is running, then try again.`
-      : `Refusing the installer lock ${lockPath}: ${at} must be a real directory owned by you that no other user can write to.`);
+  constructor(readonly lockPath: string, at: string, fault: "lock" | "directory" = "lock", replaced = false) {
+    super(unsafeMessage(lockPath, at, fault, replaced));
     this.name = "InstallLockUnsafe";
     this.path = at;
   }
@@ -46,14 +75,14 @@ export class InstallLockUnsafe extends Error {
 /** The file system reads the lock's checks make; tests replace them to simulate another owner or a race. */
 export interface InstallLockFs {
   lstat(file: string): fs.Stats;
-  stat(file: string): fs.Stats;
   readdir(directory: string): string[];
+  realpath(file: string): string;
 }
 
 const nodeFs: InstallLockFs = {
   lstat: (file) => fs.lstatSync(file),
-  stat: (file) => fs.statSync(file),
-  readdir: (directory) => fs.readdirSync(directory)
+  readdir: (directory) => fs.readdirSync(directory),
+  realpath: (file) => fs.realpathSync(file)
 };
 
 /** The lock that serializes every installer's check and replacement of one native messaging manifest. */
@@ -67,51 +96,109 @@ const held = new Set<string>();
 const WRITABLE_BY_OTHERS = 0o022;
 const STICKY = 0o1000;
 
-interface Identity {
-  readonly dev: number;
-  readonly ino: number;
-}
-
 function codeOf(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | null)?.code;
 }
 
-/** Windows has no POSIX owners or modes, so there only the kind and identity of the lock are checked. */
+/** Windows has no POSIX owners or modes, so there only the kind and identity of each directory are checked. */
 function ownerId(): number | undefined {
   return process.getuid?.();
 }
 
-/**
- * The parent (followed if it is a symlink) must be a directory owned by this user. If group or others can write
- * to it, it needs the sticky bit, so that they cannot rename or remove the lock, which must then be ours.
- */
-function checkParent(lockPath: string, io: InstallLockFs): void {
-  const parent = path.dirname(lockPath);
-  const stats = io.stat(parent);
+/** Only its owner, this user or root, can change the directory: others may write to it only if it is sticky. */
+function trusted(stats: fs.Stats): boolean {
+  if (stats.isSymbolicLink() || !stats.isDirectory()) return false;
   const uid = ownerId();
+  if (uid === undefined) return true;
   const shared = (stats.mode & WRITABLE_BY_OTHERS) !== 0 && (stats.mode & STICKY) === 0;
-  if (!stats.isDirectory() || (uid !== undefined && (stats.uid !== uid || shared))) throw new InstallLockUnsafe(lockPath, parent);
+  return (stats.uid === uid || stats.uid === 0) && !shared;
+}
+
+function checkChain(directory: string, io: InstallLockFs): TrustedDirectory | { readonly unsafe: string } {
+  const real = io.realpath(directory);
+  const { root } = path.parse(real);
+  let current = root;
+  let stats = io.lstat(current);
+  if (!trusted(stats)) return { unsafe: current };
+  for (const part of real.slice(root.length).split(path.sep)) {
+    if (!part) continue;
+    current = path.join(current, part);
+    stats = io.lstat(current);
+    if (!trusted(stats)) return { unsafe: current };
+  }
+  return { path: current, dev: stats.dev, ino: stats.ino };
+}
+
+/**
+ * The real path of `directory` and its identity, once every directory from / down to it is owned by this user
+ * or root and writable only by its owner unless it has the sticky bit; otherwise the first directory that is
+ * not. Only this user or root can then rename, replace or remove anything in it.
+ */
+export function checkDirectory(directory: string, calls: Partial<InstallLockFs> = {}): TrustedDirectory | { readonly unsafe: string } {
+  return checkChain(directory, { ...nodeFs, ...calls });
+}
+
+/** Whether `file`, not followed, is still what `expected` identifies; a missing file is not. */
+export function unchangedAt(file: string, expected: Identity, calls: Partial<InstallLockFs> = {}): boolean {
+  let stats: fs.Stats;
+  try {
+    stats = (calls.lstat ?? nodeFs.lstat)(file);
+  } catch (error) {
+    if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return false;
+    throw error;
+  }
+  return !stats.isSymbolicLink() && stats.dev === expected.dev && stats.ino === expected.ino;
+}
+
+/** What `stats` says `file` is, as this process made it. */
+export function created(file: string, stats: fs.Stats): Created {
+  return { path: file, dev: stats.dev, ino: stats.ino, directory: stats.isDirectory() };
+}
+
+/**
+ * Remove `items` in order, each only while `within` (when given) and the item's own path are still what was
+ * recorded: a file is unlinked, and a directory removed with rmdir, which fails unless it is empty. The first
+ * mismatch or failure stops the removal and leaves the rest, which is harmless. Returns whether all were removed.
+ */
+export function removeCreated(items: readonly Created[], within?: TrustedDirectory, calls: Partial<InstallLockFs> = {}): boolean {
+  for (const item of items) {
+    try {
+      if ((within && !unchangedAt(within.path, within, calls)) || !unchangedAt(item.path, item, calls)) return false;
+      if (item.directory) fs.rmdirSync(item.path);
+      else fs.unlinkSync(item.path);
+    } catch (error) {
+      if (codeOf(error) === undefined) throw error;
+      return false;
+    }
+  }
+  return true;
 }
 
 /** The identity of the lock directory, or null when nothing is at its path; anything unsafe there is refused. */
-function inspect(lockPath: string, io: InstallLockFs): Identity | null {
+function inspect(lockPath: string, lock: string, io: InstallLockFs): Identity | null {
   let stats: fs.Stats;
   try {
-    stats = io.lstat(lockPath);
+    stats = io.lstat(lock);
   } catch (error) {
     if (codeOf(error) === "ENOENT") return null;
     throw error;
   }
   const uid = ownerId();
   if (stats.isSymbolicLink() || !stats.isDirectory() || (uid !== undefined && (stats.uid !== uid || stats.mode & WRITABLE_BY_OTHERS))) {
-    throw new InstallLockUnsafe(lockPath, lockPath);
+    throw new InstallLockUnsafe(lockPath, lock);
   }
   return { dev: stats.dev, ino: stats.ino };
 }
 
-/** The lock path still names the directory `expected` identifies (and is still safe). */
-function unchanged(lockPath: string, expected: Identity, io: InstallLockFs): boolean {
-  const current = inspect(lockPath, io);
+/** The parent is still the directory that was checked; otherwise nothing more is done in it. */
+function keepParent(lockPath: string, parent: TrustedDirectory, io: InstallLockFs): void {
+  if (!unchangedAt(parent.path, parent, io)) throw new InstallLockUnsafe(lockPath, parent.path, "directory", true);
+}
+
+/** The parent and the lock path still name the directories `parent` and `expected` identify (and are still safe). */
+function unchanged(lockPath: string, lock: string, expected: Identity, parent: TrustedDirectory, io: InstallLockFs): boolean {
+  if (!unchangedAt(parent.path, parent, io)) return false;
+  const current = inspect(lockPath, lock, io);
   return current !== null && current.dev === expected.dev && current.ino === expected.ino;
 }
 
@@ -127,16 +214,16 @@ function running(pid: number): boolean {
 
 /**
  * Remove the entries of processes that are gone, then the lock directory if that left it empty (rmdir removes
- * only an empty directory). Only regular files named like an entry are removed, and only while the lock path
- * still names the directory that was listed; if another process replaced it, the next attempt checks the new
- * one. Returns a live holder's pid, or null when none is known.
+ * only an empty directory). Only regular files named like an entry are removed, and only while the parent and
+ * the lock path still name the directories that were checked and listed; if another process replaced the lock,
+ * the next attempt checks the new one. Returns a live holder's pid, or null when none is known.
  */
-function clearStale(lockPath: string, io: InstallLockFs): number | null {
-  const listed = inspect(lockPath, io);
+function clearStale(lockPath: string, lock: string, parent: TrustedDirectory, io: InstallLockFs): number | null {
+  const listed = inspect(lockPath, lock, io);
   if (!listed) return null;
   let names: string[];
   try {
-    names = io.readdir(lockPath);
+    names = io.readdir(lock);
   } catch (error) {
     if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return null;
     throw error;
@@ -146,22 +233,23 @@ function clearStale(lockPath: string, io: InstallLockFs): number | null {
     const match = ENTRY.exec(name);
     if (!match) continue;
     const pid = Number(match[1]);
-    const stale = pid === process.pid ? !held.has(`${lockPath}\0${name}`) : !running(pid);
+    const stale = pid === process.pid ? !held.has(`${lock}\0${name}`) : !running(pid);
     if (!stale) {
       holder = pid;
       continue;
     }
-    if (!unchanged(lockPath, listed, io)) return null;
-    const file = path.join(lockPath, name);
+    const file = path.join(lock, name);
     try {
-      if (io.lstat(file).isFile()) fs.unlinkSync(file);
+      if (!io.lstat(file).isFile()) continue;
+      if (!unchanged(lockPath, lock, listed, parent, io)) return null;
+      fs.unlinkSync(file);
     } catch (error) {
       if (codeOf(error) !== "ENOENT") throw error;
     }
   }
-  if (!unchanged(lockPath, listed, io)) return null;
+  if (!unchanged(lockPath, lock, listed, parent, io)) return null;
   try {
-    fs.rmdirSync(lockPath);
+    fs.rmdirSync(lock);
   } catch (error) {
     if (!["ENOENT", "ENOTEMPTY", "EEXIST", "ENOTDIR"].includes(codeOf(error) ?? "")) throw error;
   }
@@ -169,55 +257,75 @@ function clearStale(lockPath: string, io: InstallLockFs): number | null {
 }
 
 /** One attempt: the lock, or the pid of a live holder (null when unknown). */
-function attempt(lockPath: string, io: InstallLockFs): InstallLock | { holder: number | null } {
-  // Refuse an unsafe parent or lock before anything is created beside it or removed from it.
-  checkParent(lockPath, io);
-  inspect(lockPath, io);
+function attempt(lockPath: string, parent: TrustedDirectory, io: InstallLockFs): InstallLock | { holder: number | null } {
+  const lock = path.join(parent.path, path.basename(lockPath));
+  // Refuse a replaced parent or an unsafe lock before anything is created beside it or removed from it.
+  keepParent(lockPath, parent, io);
+  inspect(lockPath, lock, io);
   const entry = `${process.pid}-${crypto.randomUUID()}`;
-  const staging = `${lockPath}.${crypto.randomUUID()}.tmp`;
+  const staging = `${lock}.${crypto.randomUUID()}.tmp`;
   fs.mkdirSync(staging, { mode: 0o700 });
-  let created: fs.Stats;
+  // Until the rename takes it, the staging directory holds only this entry. Each is removed only while it is
+  // still what was made here, the entry first, and rmdir leaves the directory if anything else is in it.
+  const made: Created[] = [];
+  let taken = false;
+  let stagingDir: Created;
+  let entryFile: Created;
   try {
-    created = io.lstat(staging);
-    fs.closeSync(fs.openSync(path.join(staging, entry), "wx", 0o600));
+    stagingDir = created(staging, io.lstat(staging));
+    made.push(stagingDir);
+    keepParent(lockPath, parent, io);
+    const fd = fs.openSync(path.join(staging, entry), "wx", 0o600);
+    try {
+      entryFile = created(path.join(staging, entry), fs.fstatSync(fd));
+      made.unshift(entryFile);
+    } finally {
+      fs.closeSync(fd);
+    }
+    keepParent(lockPath, parent, io);
     try {
       // Replaces a missing or empty lock directory; fails while another installer's entry is in it.
-      fs.renameSync(staging, lockPath);
+      fs.renameSync(staging, lock);
+      taken = true;
     } catch (error) {
       const code = codeOf(error) ?? "";
-      const contended = ["EEXIST", "ENOTEMPTY", "ENOTDIR"].includes(code) || (["EPERM", "EACCES"].includes(code) && inspect(lockPath, io) !== null);
+      const contended = ["EEXIST", "ENOTEMPTY", "ENOTDIR"].includes(code) || (["EPERM", "EACCES"].includes(code) && inspect(lockPath, lock, io) !== null);
       if (!contended) throw error;
-      return { holder: clearStale(lockPath, io) };
+      const holder = clearStale(lockPath, lock, parent, io);
+      keepParent(lockPath, parent, io);
+      return { holder };
     }
   } finally {
-    fs.rmSync(staging, { recursive: true, force: true });
+    if (!taken) removeCreated(made, parent, io);
   }
-  // A rename keeps the inode, so the lock is the directory made above.
-  const identity: Identity = { dev: created.dev, ino: created.ino };
-  if (!unchanged(lockPath, identity, io)) throw new InstallLockUnsafe(lockPath, lockPath, true);
-  const key = `${lockPath}\0${entry}`;
+  // A rename keeps the inode, so the lock is the directory made above, and the entry the file made in it.
+  const identity: Identity = { dev: stagingDir.dev, ino: stagingDir.ino };
+  const own: Created = { ...entryFile, path: path.join(lock, entry) };
+  keepParent(lockPath, parent, io);
+  if (!unchanged(lockPath, lock, identity, parent, io)) throw new InstallLockUnsafe(lockPath, lock, "lock", true);
+  const key = `${lock}\0${entry}`;
   held.add(key);
   let released = false;
   return {
     path: lockPath,
+    directory: parent,
     release() {
       if (released) return;
       released = true;
       held.delete(key);
-      if (!unchanged(lockPath, identity, io)) throw new InstallLockUnsafe(lockPath, lockPath, true);
-      try {
-        fs.unlinkSync(path.join(lockPath, entry));
-      } catch (error) {
-        if (codeOf(error) !== "ENOENT") throw error;
-      }
-      if (!unchanged(lockPath, identity, io)) return;
-      try {
-        fs.rmdirSync(lockPath);
-      } catch {
-        // Another installer already took the emptied lock, or it is gone.
-      }
+      keepParent(lockPath, parent, io);
+      if (!unchanged(lockPath, lock, identity, parent, io)) throw new InstallLockUnsafe(lockPath, lock, "lock", true);
+      // Another installer may take the emptied lock before the rmdir, which then fails and removes nothing.
+      removeCreated([own, { path: lock, ...identity, directory: true }], parent, io);
     }
   };
+}
+
+/** The lock's parent, resolved and checked from / down; an acquisition works only in that directory. */
+function trustedParent(lockPath: string, io: InstallLockFs): TrustedDirectory {
+  const checked = checkChain(path.dirname(lockPath), io);
+  if ("unsafe" in checked) throw new InstallLockUnsafe(lockPath, checked.unsafe, "directory");
+  return checked;
 }
 
 const POLL_MS = 20;
@@ -225,9 +333,10 @@ const POLL_MS = 20;
 /** Take the lock at `lockPath` (its parent must exist), polling without blocking the event loop. */
 export async function acquireInstallLock(lockPath: string, timeoutMs = 10000, calls: Partial<InstallLockFs> = {}): Promise<InstallLock> {
   const io = { ...nodeFs, ...calls };
+  const parent = trustedParent(lockPath, io);
   const deadline = performance.now() + timeoutMs;
   while (true) {
-    const result = attempt(lockPath, io);
+    const result = attempt(lockPath, parent, io);
     if ("release" in result) return result;
     if (performance.now() >= deadline) throw new InstallLockBusy(lockPath, result.holder);
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
@@ -237,10 +346,11 @@ export async function acquireInstallLock(lockPath: string, timeoutMs = 10000, ca
 /** The same, for the zip's synchronous installer, which has nothing else to run while it waits. */
 export function acquireInstallLockSync(lockPath: string, timeoutMs = 10000, calls: Partial<InstallLockFs> = {}): InstallLock {
   const io = { ...nodeFs, ...calls };
+  const parent = trustedParent(lockPath, io);
   const deadline = performance.now() + timeoutMs;
   const pause = new Int32Array(new SharedArrayBuffer(4));
   while (true) {
-    const result = attempt(lockPath, io);
+    const result = attempt(lockPath, parent, io);
     if ("release" in result) return result;
     if (performance.now() >= deadline) throw new InstallLockBusy(lockPath, result.holder);
     Atomics.wait(pause, 0, 0, POLL_MS);

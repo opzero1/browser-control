@@ -137,7 +137,7 @@ async function manifestStep(env: Env, platform: NodeJS.Platform, options: Option
   } catch (error) {
     if (!(error instanceof InstallLockUnsafe)) throw error;
     return step("manifest", "fail", "unsafe-lock",
-      "The lock beside the Chrome native messaging manifest is unsafe: it and its directory must be real directories owned by you that no other user can write to or replace. Fix that path, then run browser-control install again.",
+      "The lock beside the Chrome native messaging manifest is unsafe: it must be a real directory owned by you that no other user can write to, and every directory above it must be owned by you or root and writable only by its owner unless it has the sticky bit. Fix that path, then run browser-control install again.",
       { path: error.path, code: error.code });
   }
 }

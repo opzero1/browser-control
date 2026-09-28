@@ -9,7 +9,9 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { Effect } from "effect";
-import { acquireInstallLockSync, manifestLockPath } from "../shared/install-lock";
+import {
+  acquireInstallLockSync, created, manifestLockPath, removeCreated, unchangedAt, type Created, type TrustedDirectory
+} from "../shared/install-lock";
 import { argValue, runScript, ScriptIo } from "./effect-services";
 
 const root = path.resolve(__dirname, "..");
@@ -128,15 +130,27 @@ function treeState(target: string, files: ReadonlyMap<string, Buffer>): TreeStat
   return "matches";
 }
 
-function writeNew(file: string, data: string | Buffer, mode: number) {
+/** Create `file` with `data`; if writing fails, the file is removed while it is still the one made here. */
+function writeNew(file: string, data: string | Buffer, mode: number): Created {
   const fd = fs.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL, mode);
+  let made: Created | null = null;
   try {
+    made = created(file, fs.fstatSync(fd));
     fs.writeSync(fd, typeof data === "string" ? Buffer.from(data) : data);
     fs.fsyncSync(fd);
-  } finally {
+    fs.fchmodSync(fd, mode);
+  } catch (error) {
     fs.closeSync(fd);
+    if (made) removeCreated([made]);
+    throw error;
   }
-  fs.chmodSync(file, mode);
+  fs.closeSync(fd);
+  return made;
+}
+
+function makeDirectory(dir: string): Created {
+  fs.mkdirSync(dir, { mode: 0o700 });
+  return created(dir, fs.lstatSync(dir));
 }
 
 /**
@@ -155,8 +169,9 @@ function publishTree(parent: string, name: string, files: ReadonlyMap<string, Bu
   if (current !== "matches") {
     const lock = acquireInstallLockSync(path.join(parent, publishLock));
     try {
-      const state = treeState(target, files);
-      if (state !== "matches") replaceTree(parent, target, files, state === "differs");
+      // The lock checked `parent` from / down, so everything under it is done in that real path.
+      const state = treeState(path.join(lock.directory.path, name), files);
+      if (state !== "matches") replaceTree(lock.directory, name, files, state === "differs");
     } finally {
       lock.release();
     }
@@ -166,42 +181,57 @@ function publishTree(parent: string, name: string, files: ReadonlyMap<string, Bu
 }
 
 /**
- * Under the publish lock: stage a private directory beside `target`, then rename it into place. A copy that
- * differs is moved aside first and deleted only once the new copy is in place; if the new copy cannot be
- * renamed in, the old one is put back.
+ * Under the publish lock, in `hosts`: write the new copy into a private staging directory made here, then
+ * rename it to `name`. A copy that differs is first moved into that staging directory, and deleted only once
+ * the new copy is in place; if the new copy cannot be renamed in, the old one is put back.
+ *
+ * What was written is removed one entry at a time, each only while it is still what was made. The displaced
+ * copy may hold anything, so it is the one tree removed recursively, and only inside the staging directory,
+ * once `hosts` and the staging directory are verified to be the directories that were checked and made.
  */
-function replaceTree(parent: string, target: string, files: ReadonlyMap<string, Buffer>, moveAside: boolean) {
-  const staging = path.join(parent, `.tmp-${crypto.randomUUID()}`);
-  const displaced = path.join(parent, `.old-${crypto.randomUUID()}`);
+function replaceTree(hosts: TrustedDirectory, name: string, files: ReadonlyMap<string, Buffer>, moveAside: boolean) {
+  const target = path.join(hosts.path, name);
+  const staging = makeDirectory(path.join(hosts.path, `.tmp-${crypto.randomUUID()}`));
+  const copy = path.join(staging.path, "copy");
+  const displaced = path.join(staging.path, "old");
+  const intact = () => unchangedAt(hosts.path, hosts) && unchangedAt(staging.path, staging);
+  // In the order they were made, so reversed each file comes before its directory.
+  const made: Created[] = [staging];
   let moved = false;
+  let placed = false;
   try {
-    fs.mkdirSync(staging, { mode: 0o700 });
+    made.push(makeDirectory(copy));
     for (const [relative, data] of files) {
-      const file = path.join(staging, relative);
-      fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-      writeNew(file, data, 0o600);
+      const parts = relative.split("/");
+      for (let depth = 1; depth < parts.length; depth += 1) {
+        const dir = path.join(copy, ...parts.slice(0, depth));
+        if (!made.some((item) => item.path === dir)) made.push(makeDirectory(dir));
+      }
+      made.push(writeNew(path.join(copy, ...parts), data, 0o600));
     }
     if (moveAside) {
+      if (!intact()) throw new InstallError(`${hosts.path} changed while the native host copy was being replaced; nothing was moved.`);
       fs.renameSync(target, displaced);
       moved = true;
     }
     try {
-      fs.renameSync(staging, target);
+      fs.renameSync(copy, target);
+      placed = true;
     } catch (error) {
-      const restore = moved;
-      moved = false;
-      if (restore) {
+      if (moved) {
         try {
           fs.renameSync(displaced, target);
+          moved = false;
         } catch {
-          // The old copy stays beside the target; nothing deletes it.
+          // The old copy stays in the staging directory; nothing deletes it.
         }
       }
       throw error;
     }
   } finally {
-    fs.rmSync(staging, { recursive: true, force: true });
-    if (moved) fs.rmSync(displaced, { recursive: true, force: true });
+    if (placed && moved && intact()) fs.rmSync(displaced, { recursive: true, force: true });
+    // Once placed, the new copy's entries are the target's, so only the staging directory is left to remove.
+    removeCreated((placed ? [staging] : made).slice().reverse(), hosts);
   }
 }
 
@@ -244,12 +274,12 @@ function launcher(node: string, host: string, socketPath: string | null) {
 
 /** Replace `file` atomically with `text`: a temporary file beside it, then a rename. */
 function replaceFile(file: string, text: string, mode: number) {
-  const temporary = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomUUID()}.tmp`);
+  const temporary = writeNew(path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomUUID()}.tmp`), text, mode);
   try {
-    writeNew(temporary, text, mode);
-    fs.renameSync(temporary, file);
-  } finally {
-    fs.rmSync(temporary, { force: true });
+    fs.renameSync(temporary.path, file);
+  } catch (error) {
+    removeCreated([temporary]);
+    throw error;
   }
 }
 

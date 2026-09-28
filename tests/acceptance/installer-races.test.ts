@@ -4,10 +4,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
-  acquireInstallLock, acquireInstallLockSync, InstallLockBusy, InstallLockUnsafe, manifestLockPath, type InstallLock
+  acquireInstallLock, acquireInstallLockSync, checkDirectory, InstallLockBusy, InstallLockUnsafe, manifestLockPath, type InstallLock
 } from "../../src/shared/install-lock";
 import { childPath } from "../server/support/children";
 import { realDefaultPaths } from "../server/support/packaging";
@@ -32,6 +33,26 @@ function foreign(stats: fs.Stats): fs.Stats {
 
 function unsafeMessage(lockPath: string, at: string): string {
   return `Refusing the installer lock ${lockPath}: ${at} must be a real directory owned by you that no other user can write to.`;
+}
+
+/** The refusal of a directory at or above the lock's parent. */
+function directoryMessage(lockPath: string, at: string): string {
+  return `Refusing the installer lock ${lockPath}: ${at} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`;
+}
+
+/** Every directory from / down to `directory`, in order. */
+function chain(directory: string): string[] {
+  const { root } = path.parse(directory);
+  const result = [root];
+  for (const part of directory.slice(root.length).split(path.sep).filter(Boolean)) result.push(path.join(result[result.length - 1], part));
+  return result;
+}
+
+/** The staging directory an acquisition has made beside the lock, by name. */
+function stagingIn(directory: string): string {
+  const names = fs.readdirSync(directory).filter((name) => /^x\.lock\.[0-9a-f-]{36}\.tmp$/.test(name));
+  expect(names).toHaveLength(1);
+  return names[0];
 }
 
 let defaults: Record<string, string>;
@@ -179,6 +200,21 @@ describe("concurrent zip installers", () => {
     expect(fs.readFileSync(host, "utf8")).not.toContain("// changed");
     expect(fs.readdirSync(path.join(state, "hosts")).filter((name) => name.startsWith("."))).toEqual([]);
   });
+
+  it("replaces a copy that became a symlink, and deletes nothing where it pointed", async () => {
+    const { root, state, zip, zipWrapper } = setup();
+    expect((await zip().done).code).toBe(0);
+    const copy = path.dirname(path.dirname(wrapperHost(zipWrapper)));
+    const outside = path.join(root, "outside");
+    fs.mkdirSync(path.join(outside, "native-host"), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(outside, "native-host/host.js"), "keep");
+    fs.rmSync(copy, { recursive: true });
+    fs.symlinkSync(outside, copy);
+    expect(await zip().done).toMatchObject({ code: 0, stderr: "" });
+    expect(fs.lstatSync(copy).isDirectory()).toBe(true);
+    expect(fs.readFileSync(path.join(outside, "native-host/host.js"), "utf8")).toBe("keep");
+    expect(fs.readdirSync(path.join(state, "hosts")).filter((name) => name.startsWith("."))).toEqual([]);
+  });
 });
 
 describe("the zip installer and browser-control install on one manifest", () => {
@@ -270,7 +306,7 @@ describe("the zip installer and browser-control install on one manifest", () => 
     fs.mkdirSync(directory);
     fs.chmodSync(directory, 0o777);
     const zipResult = await zip().done;
-    expect(zipResult).toMatchObject({ code: 1, stderr: `${unsafeMessage(manifestLockPath(manifest), directory)}\n` });
+    expect(zipResult).toMatchObject({ code: 1, stderr: `${directoryMessage(manifestLockPath(manifest), directory)}\n` });
     const npmResult = await npm().done;
     expect(npmResult.code).toBe(1);
     expect(JSON.parse(npmResult.stdout).steps.find((item: { id: string }) => item.id === "manifest"))
@@ -366,15 +402,15 @@ describe("the installers' lock", () => {
     const lockPath = path.join(parent, "x.lock");
     const error = await acquireInstallLock(lockPath, 200).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(InstallLockUnsafe);
-    expect(error).toMatchObject({ lockPath, path: parent, code: UNSAFE_CODE, message: unsafeMessage(lockPath, parent) });
+    expect(error).toMatchObject({ lockPath, path: parent, code: UNSAFE_CODE, message: directoryMessage(lockPath, parent) });
     expect(fs.readdirSync(parent)).toEqual([]);
   });
 
   it("refuses a parent directory that another user owns, and creates nothing in it", async () => {
     const parent = privateTemp("il-");
     const lockPath = path.join(parent, "x.lock");
-    const stat = (file: string) => (file === parent ? foreign(fs.statSync(file)) : fs.statSync(file));
-    const error = await acquireInstallLock(lockPath, 200, { stat }).catch((caught: unknown) => caught);
+    const lstat = (file: string) => (file === parent ? foreign(fs.lstatSync(file)) : fs.lstatSync(file));
+    const error = await acquireInstallLock(lockPath, 200, { lstat }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(InstallLockUnsafe);
     expect(error).toMatchObject({ lockPath, path: parent });
     expect(fs.readdirSync(parent)).toEqual([]);
@@ -509,5 +545,185 @@ describe("the installers' lock", () => {
     expect(fs.readdirSync(lockPath)).toEqual([expect.stringMatching(new RegExp(`^${process.pid}-`))]);
     first!.release();
     expect(fs.existsSync(lockPath)).toBe(false);
+  });
+});
+
+describe("the directories above the installers' lock", () => {
+  it.each([["0770", 0o770], ["0707", 0o707], ["0777", 0o777]])("refuse one with mode %s and no sticky bit, and are accepted once it has the sticky bit", async (_mode, mode) => {
+    const shared = path.join(privateTemp("il-"), "shared");
+    const parent = path.join(shared, "manifests");
+    fs.mkdirSync(parent, { recursive: true });
+    fs.chmodSync(parent, 0o755);
+    fs.chmodSync(shared, mode);
+    const lockPath = path.join(parent, "x.lock");
+    const error = await acquireInstallLock(lockPath, 200).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(InstallLockUnsafe);
+    expect(error).toMatchObject({ lockPath, path: shared, code: UNSAFE_CODE, message: directoryMessage(lockPath, shared) });
+    expect(fs.readdirSync(parent)).toEqual([]);
+    fs.chmodSync(shared, mode | 0o1000);
+    const lock = await acquireInstallLock(lockPath, 1000);
+    expect(lock.directory.path).toBe(parent);
+    lock.release();
+    expect(fs.readdirSync(parent)).toEqual([]);
+  });
+
+  it("refuse one that another user owns, and accept one that root owns", async () => {
+    const above = privateTemp("il-");
+    const parent = path.join(above, "manifests");
+    fs.mkdirSync(parent);
+    fs.chmodSync(parent, 0o755);
+    const lockPath = path.join(parent, "x.lock");
+    const ownedBy = (uid: number) => (file: string) => (file === above ? Object.assign(fs.lstatSync(file), { uid }) : fs.lstatSync(file));
+    const error = await acquireInstallLock(lockPath, 200, { lstat: ownedBy(fs.lstatSync(above).uid + 1) }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(InstallLockUnsafe);
+    expect(error).toMatchObject({ lockPath, path: above, code: UNSAFE_CODE, message: directoryMessage(lockPath, above) });
+    expect(fs.readdirSync(parent)).toEqual([]);
+    const lock = await acquireInstallLock(lockPath, 1000, { lstat: ownedBy(0) });
+    lock.release();
+    expect(fs.readdirSync(parent)).toEqual([]);
+  });
+
+  it("are the ones a symlink resolves to, and the lock stays in them when the symlink is repointed", async () => {
+    const root = privateTemp("il-");
+    const open = path.join(root, "open");
+    const real = path.join(open, "manifests");
+    fs.mkdirSync(real, { recursive: true });
+    fs.chmodSync(real, 0o700);
+    fs.chmodSync(open, 0o777);
+    const link = path.join(root, "link");
+    fs.symlinkSync(real, link);
+    const lockPath = path.join(link, "x.lock");
+    // The symlink sits in a private directory and names a private one, but others could rename the one above it.
+    const error = await acquireInstallLock(lockPath, 200).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ name: "InstallLockUnsafe", lockPath, path: open, message: directoryMessage(lockPath, open) });
+    expect(fs.readdirSync(real)).toEqual([]);
+
+    fs.chmodSync(open, 0o755);
+    const checked: string[] = [];
+    const lstat = (file: string) => {
+      checked.push(file);
+      return fs.lstatSync(file);
+    };
+    const lock = await acquireInstallLock(lockPath, 1000, { lstat });
+    expect(lock.directory.path).toBe(real);
+    expect(checked.slice(0, chain(real).length)).toEqual(chain(real));
+    expect(checked.filter((file) => file === link || file.startsWith(`${link}${path.sep}`))).toEqual([]);
+    expect(fs.readdirSync(real)).toEqual(["x.lock"]);
+
+    // Repointed after the check, the symlink redirects nothing: release removes the lock it made, and only it.
+    const other = path.join(root, "other");
+    const entry = staleEntry();
+    fs.mkdirSync(path.join(other, "x.lock"), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(other, "x.lock", entry), "");
+    fs.unlinkSync(link);
+    fs.symlinkSync(other, link);
+    lock.release();
+    expect(fs.readdirSync(real)).toEqual([]);
+    expect(fs.readdirSync(path.join(other, "x.lock"))).toEqual([entry]);
+  });
+
+  it("include a temporary directory reached through a symlink, as macOS /var is", async () => {
+    const real = privateTemp("il-");
+    const given = path.join(process.env.BROWSER_CONTROL_TEST_TMPDIR || path.join(os.tmpdir(), "opencode"), path.basename(real));
+    const lock = await acquireInstallLock(path.join(given, "x.lock"), 1000);
+    expect(lock.directory.path).toBe(real);
+    expect(fs.readdirSync(real)).toEqual(["x.lock"]);
+    lock.release();
+    expect(fs.readdirSync(real)).toEqual([]);
+  });
+
+  it.runIf(process.platform === "darwin")("include a macOS home directory and Chrome's NativeMessagingHosts in it (read only)", () => {
+    const home = os.userInfo().homedir;
+    for (const directory of [home, path.join(home, "Library/Application Support/Google/Chrome/NativeMessagingHosts")]) {
+      if (fs.existsSync(directory)) expect(checkDirectory(directory), directory).toMatchObject({ path: fs.realpathSync(directory) });
+    }
+  });
+});
+
+describe("the installers' lock staging cleanup", () => {
+  it("deletes nothing through a staging path that the audit's substitution redirected", async () => {
+    // `shared` stands in for /shared, which another uid can write to. No test can be a second uid, so its moves
+    // run from the injected readdir, where the audit puts them: the staging directory exists and the held lock
+    // was met. It renames `manifests` aside, renames the victim's private directory to the staging name, and
+    // makes `manifests` a symlink to `shared`.
+    const shared = path.join(privateTemp("il-"), "shared");
+    const manifests = path.join(shared, "manifests");
+    const victim = path.join(shared, "victim");
+    fs.mkdirSync(manifests, { recursive: true });
+    fs.chmodSync(shared, 0o700);
+    fs.chmodSync(manifests, 0o755);
+    fs.mkdirSync(victim, { mode: 0o700 });
+    fs.writeFileSync(path.join(victim, "private"), "keep");
+    const lockPath = path.join(manifests, "x.lock");
+    const holder = await acquireInstallLock(lockPath);
+    let staging = "";
+    const readdir = (directory: string) => {
+      const names = fs.readdirSync(directory);
+      if (!staging) {
+        staging = stagingIn(manifests);
+        fs.renameSync(manifests, path.join(shared, "manifests-aside"));
+        fs.renameSync(victim, path.join(shared, staging));
+        fs.symlinkSync(".", manifests);
+      }
+      return names;
+    };
+    const error = await acquireInstallLock(lockPath, 0, { readdir }).catch((caught: unknown) => caught);
+    expect(staging).not.toBe("");
+    expect(fs.readdirSync(path.join(shared, staging))).toEqual(["private"]);
+    expect(fs.readFileSync(path.join(shared, staging, "private"), "utf8")).toBe("keep");
+    expect(error).toBeInstanceOf(InstallLockUnsafe);
+    expect(error).toMatchObject({ lockPath, path: manifests, code: UNSAFE_CODE,
+      message: `The directory ${manifests} that holds the installer lock ${lockPath} was replaced while this installer used it, so nothing was removed. Make sure no other installer is running, then try again.` });
+    // Its own staging directory is left where the rename took it, with its entry.
+    expect(fs.readdirSync(path.join(shared, "manifests-aside", staging))).toEqual([expect.stringMatching(new RegExp(`^${process.pid}-`))]);
+    expect(() => holder.release()).toThrow(InstallLockUnsafe);
+    expect(fs.readdirSync(path.join(shared, staging))).toEqual(["private"]);
+  });
+
+  it("deletes nothing at its staging path once another directory was renamed there", async () => {
+    const root = privateTemp("il-");
+    const lockPath = path.join(root, "x.lock");
+    const other = path.join(root, "other");
+    fs.mkdirSync(other, { mode: 0o700 });
+    fs.writeFileSync(path.join(other, "private"), "keep");
+    const holder = await acquireInstallLock(lockPath);
+    let staging = "";
+    const readdir = (directory: string) => {
+      const names = fs.readdirSync(directory);
+      if (!staging) {
+        staging = stagingIn(root);
+        fs.renameSync(path.join(root, staging), path.join(root, "aside"));
+        fs.renameSync(other, path.join(root, staging));
+      }
+      return names;
+    };
+    const error = await acquireInstallLock(lockPath, 0, { readdir }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(InstallLockBusy);
+    expect(fs.readdirSync(path.join(root, staging))).toEqual(["private"]);
+    expect(fs.readdirSync(path.join(root, "aside"))).toEqual([expect.stringMatching(new RegExp(`^${process.pid}-`))]);
+    holder.release();
+    expect(fs.readdirSync(root).sort()).toEqual(["aside", staging].sort());
+  });
+
+  it("removes its own entry but leaves a staging directory that holds anything else", async () => {
+    const root = privateTemp("il-");
+    const lockPath = path.join(root, "x.lock");
+    const holder = await acquireInstallLock(lockPath);
+    let staging = "";
+    const readdir = (directory: string) => {
+      const names = fs.readdirSync(directory);
+      if (!staging) {
+        staging = stagingIn(root);
+        fs.mkdirSync(path.join(root, staging, "another"));
+        fs.writeFileSync(path.join(root, staging, "another", "file"), "keep");
+      }
+      return names;
+    };
+    const error = await acquireInstallLock(lockPath, 0, { readdir }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(InstallLockBusy);
+    expect(fs.readdirSync(path.join(root, staging))).toEqual(["another"]);
+    expect(fs.readFileSync(path.join(root, staging, "another", "file"), "utf8")).toBe("keep");
+    holder.release();
+    expect(fs.readdirSync(root)).toEqual([staging]);
   });
 });
