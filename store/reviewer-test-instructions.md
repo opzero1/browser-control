@@ -33,7 +33,7 @@ Full steps: https://browser-control.pages.dev/support/reviewers/
 1. Install Browser Control.
 2. Click the Browser Control icon in the toolbar.
 
-Expected: the popup shows **Disconnected** and "Install the native host to connect." Nothing else happens. The extension has no network code, so it stays idle until a host exists.
+Expected: the popup shows **Disconnected** and "Install the native host to connect." It may show **Connecting** for a moment first, and it can also show "Error: Specified native messaging host not found." Nothing else happens. The extension has no network code, so it stays idle until a host exists.
 
 ### 2. Download the helper
 

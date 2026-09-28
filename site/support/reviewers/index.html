@@ -48,7 +48,7 @@
       <li>Install Browser Control.</li>
       <li>Click the Browser Control icon in the toolbar.</li>
     </ol>
-    <p>Expected: the popup shows <strong>Disconnected</strong> and "Install the native host to connect." Nothing else happens. The extension has no network code, so it stays idle until a host exists.</p>
+    <p>Expected: the popup shows <strong>Disconnected</strong> and "Install the native host to connect." It may show <strong>Connecting</strong> for a moment first, and it can also show "Error: Specified native messaging host not found." Nothing else happens. The extension has no network code, so it stays idle until a host exists.</p>
     <h3 id="step-2">2. Download the helper</h3>
     <pre><code>mkdir -p ~/browser-control-review
 cd ~/browser-control-review

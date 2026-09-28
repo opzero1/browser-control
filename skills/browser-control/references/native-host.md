@@ -94,14 +94,9 @@ Session-scoped calls require both `session_id` and `turn_id`:
 echo '{"jsonrpc":"2.0","id":1,"method":"createTab","params":{"session_id":"task","turn_id":"turn-1"}}' | node native-host/client.js --stdio
 ```
 
-Attach CDP before executing CDP commands. Send both requests on one `--stdio` stream, with distinct IDs:
+Each `client.js` connection is its own session. A tab must belong to that session before `attach`: create it with `createTab`, or claim it with `claimUserTab`, on the same connection. `client.js` sends every stdin line as soon as it reads it, so requests on one stream run concurrently and can finish in any order.
 
-```sh
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"attach","params":{"session_id":"task","turn_id":"turn-1","tabId":123}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"executeCdp","params":{"session_id":"task","turn_id":"turn-1","target":{"tabId":123},"method":"Runtime.evaluate","commandParams":{"expression":"location.href"}}}' \
-  | node native-host/client.js --stdio
-```
+For a multi-step sequence such as claim, `attach`, `executeCdp` and `finalizeTabs`, use the client library `native-host/transport.js`, which waits for each response. The reviewer demo at <https://browser-control.pages.dev/support/reviewers/> shows the pattern. The MCP server does the same.
 
 ## User Tab Claiming
 
