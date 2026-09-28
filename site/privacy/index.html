@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="How the Browser Control extension and its local native messaging host handle data.">
+  <title>Privacy policy – Browser Control</title>
+  <link rel="icon" type="image/png" href="../icon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="../"><img src="../icon.png" alt="" width="32" height="32">Browser Control</a>
+      <nav class="nav" aria-label="Main">
+        <ul>
+          <li><a href="../">Home</a></li>
+          <li><a href="./" aria-current="page">Privacy</a></li>
+          <li><a href="../support/">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <h1>Browser Control privacy policy</h1>
+    <p class="muted">Effective date: September 28, 2026</p>
+
+    <p>This policy explains how the Browser Control extension for Google Chrome™ (“the extension”) and its local helper program, the native messaging host (“the host”), handle data. The Browser Control maintainers (“we”) publish both as open-source software at <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>.</p>
+
+    <h2 id="summary">Summary</h2>
+    <ul>
+      <li>Browser Control connects your browser tabs to an AI agent that you run on your own computer.</li>
+      <li>It works only after you install the host on the same computer. Without the host, the extension is idle.</li>
+      <li>The extension sends data only to the host. The host sends it only to the local agent software that connects to it.</li>
+      <li>We do not collect any data. The extension and the host send nothing to us or to any server that we run. We do not sell data, show ads, use analytics or load remote code.</li>
+    </ul>
+
+    <h2 id="data-flow">How data moves</h2>
+    <ol>
+      <li><strong>Extension to host.</strong> The extension talks to the host through Chrome native messaging, over the standard input and output of a local process. Chrome starts the host, named <code>com.opzero.chrome</code>, only if you installed it. The host’s manifest allows only the extension ID that you gave the installer. For the Chrome Web Store version, that ID is <code>dcnjjnecbhipdbngkhjppkckpkellmld</code>.</li>
+      <li><strong>Host to your local agent.</strong> The host accepts connections only on a private endpoint on your computer. By default this is a Unix socket at <code>~/.opzero-chrome/default.sock</code>, in a folder that is restricted to your user account. On Windows, or if you configure it, the host listens on the loopback address <code>127.0.0.1</code> and requires a secret token that it reads from a private file. The host does not accept connections from other computers.</li>
+      <li><strong>Separate sessions.</strong> Each connection to the host gets its own session. The answer to a request goes back only to the connection that sent it. Events from a tab go only to the connection whose session owns that tab. A notice that control stopped goes to every connection.</li>
+      <li><strong>Your local agent.</strong> The agent is separate software that you choose and run. We do not make it, and we do not control what it does with data. For example, an AI agent can send page text or screenshots to the provider of its AI model. Check the privacy terms of your agent and of any service that it uses.</li>
+      <li><strong>Websites.</strong> When your agent navigates, clicks, submits a form or attaches a file, Chrome sends the resulting requests to the website, the same as if you did it yourself. A file attached to an upload field goes to that website when the form is submitted.</li>
+    </ol>
+
+    <h2 id="data-handled">Data the extension handles</h2>
+    <p>The extension handles data only when your local agent asks for it. “Agent tabs” are the tabs that the agent opened and the tabs that it claimed from your open tabs. The extension puts agent tabs in a labeled tab group.</p>
+    <div class="table-scroll" role="region" aria-labelledby="data-table-caption" tabindex="0">
+      <table>
+        <caption id="data-table-caption" class="muted">Data categories, when they are handled, and why</caption>
+        <thead>
+          <tr><th scope="col">Data</th><th scope="col">When</th><th scope="col">Why</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Tab details: tab and window IDs, position, URL, title, whether the tab is active, and its tab group</th>
+            <td>The agent lists your open tabs (Chrome’s internal pages are left out), opens a tab or claims a tab.</td>
+            <td>So that the agent can choose a tab and work in it.</td>
+          </tr>
+          <tr>
+            <th scope="row">Page content from agent tabs: URL, title, visible text (up to 12,000 characters) and the labels of up to 100 buttons, links and form fields</th>
+            <td>The agent reads a page.</td>
+            <td>So that the agent can understand the page and choose an action. Page readings never include what is typed in form fields. They leave out password fields, one-time-code fields and the labels of those fields.</td>
+          </tr>
+          <tr>
+            <th scope="row">Screenshots of agent tabs (JPEG images)</th>
+            <td>The agent asks for a screenshot or a short recording.</td>
+            <td>So that the agent can see the page.</td>
+          </tr>
+          <tr>
+            <th scope="row">Clicks and typed text</th>
+            <td>The agent clicks a control or types into a field that it found on the page (up to 2,000 characters for each field).</td>
+            <td>To carry out the task.</td>
+          </tr>
+          <tr>
+            <th scope="row">Chrome DevTools Protocol results and events for agent tabs</th>
+            <td>The agent attaches the debugger to one of its tabs and sends DevTools Protocol commands.</td>
+            <td>For advanced automation. Depending on the commands and the events that the agent turns on, this can include the page structure, the results of scripts that the agent runs in the page, the addresses of pages and resources that the tab loads, other network activity and page events, and the page’s cookies.</td>
+          </tr>
+          <tr>
+            <th scope="row">Sign-in values, such as a user name, password or one-time code</th>
+            <td>A local program on your computer asks the host to fill sign-in fields on a verified HTTPS page.</td>
+            <td>To sign in without putting the values in page readings. See <a href="#private-fill">Private credential fill</a>.</td>
+          </tr>
+          <tr>
+            <th scope="row">Path, name and size of a local PDF file</th>
+            <td>The agent attaches a local PDF to an upload field.</td>
+            <td>To attach the file. The extension gives the file path to Chrome. It does not read the contents of the file.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Pages that you ask the agent to work on can incidentally contain other personal information, such as names, email addresses, messages, financial or health details, or your location. Browser Control does not look for, extract or keep these kinds of data separately. It handles them only as part of the website content described above: page text, screenshots and DevTools Protocol results from agent tabs.</p>
+
+    <h2 id="use">How the data is used</h2>
+    <p>The extension uses data only to carry out the requests of the local agent that you connect, and to show the connection status in its popup. Data is not used for advertising, for profiles, to decide creditworthiness or for lending, or for any purpose unrelated to that single purpose.</p>
+
+    <h2 id="storage">What is stored on your computer</h2>
+    <h3>In the extension’s storage</h3>
+    <p>The extension keeps a small amount of state in <code>chrome.storage.local</code>:</p>
+    <div class="table-scroll" role="region" aria-labelledby="storage-table-caption" tabindex="0">
+      <table>
+        <caption id="storage-table-caption" class="muted">Extension storage keys</caption>
+        <thead>
+          <tr><th scope="col">Key</th><th scope="col">Contents</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row"><code>NATIVE_HOST_STATUS</code></th><td>Connection state, host name, time of the last check, reconnect count and the last connection error message.</td></tr>
+          <tr><th scope="row"><code>NATIVE_HOST_PAUSED</code></th><td>Whether you paused the host.</td></tr>
+          <tr><th scope="row"><code>TAB_GROUPS</code></th><td>Agent session IDs, tab group IDs, tab IDs and group titles.</td></tr>
+          <tr><th scope="row"><code>extensionInstanceId</code></th><td>A random ID created on first use. It is shared only with the local host.</td></tr>
+          <tr><th scope="row"><code>PRIVATE_CAPTURE_QUARANTINE:</code><var>tab ID</var></th><td>After a private fill: the page’s document ID and the CSS selectors of the filled fields. It never contains the filled values.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>In <code>chrome.storage.session</code>, which Chrome clears when the browser closes, the key <code>opChromePendingUpdateVersion</code> holds the version number of an extension update that waits until agent work ends.</p>
+    <p>These entries stay in Chrome until you remove the extension. The extension does not store page content, screenshots, tab URLs or titles, or sign-in values.</p>
+
+    <h3>Files on your computer</h3>
+    <ul>
+      <li><strong>Installer.</strong> The host installer writes a native messaging host manifest named <code>com.opzero.chrome.json</code>:
+        <ul>
+          <li>macOS: <code>~/Library/Application Support/Google/Chrome/NativeMessagingHosts/</code></li>
+          <li>Linux: <code>~/.config/google-chrome/NativeMessagingHosts/</code></li>
+          <li>Windows: <code>%USERPROFILE%\AppData\Local\opzero-chrome\</code>, plus the registry key <code>HKCU\Software\Google\Chrome\NativeMessagingHosts\com.opzero.chrome</code></li>
+        </ul>
+        It also writes a launcher script in the <code>native-host</code> folder and the file <code>scripts/extension-id.json</code> inside the helper folder that you unpacked.</li>
+      <li><strong>Host.</strong> The host creates the private folder <code>~/.opzero-chrome</code> and a socket file in it, which it deletes when it stops. The host keeps no log files. The only messages that it writes to its error output are fixed text with no user data.</li>
+      <li><strong>Screenshots.</strong> The host passes screenshots to the requesting client in memory. It does not save them. The agent decides whether to keep them.</li>
+      <li><strong>Recordings.</strong> When your agent asks for a short recording, the client library in the helper folder (<code>native-host/transport.js</code>) saves JPEG frames, a <code>frames.ffconcat</code> list, a <code>capture.json</code> summary with the time and SHA-256 hash of each frame and, if <code>ffmpeg</code> is installed, a <code>recording.mp4</code> file. It puts them in a new <code>tab-video-</code> folder inside a private folder that your agent tooling chooses, with access restricted to your user account. A recording lasts at most 60 seconds (30 seconds by default) and stops at 100 MB. The files stay until you delete them.</li>
+    </ul>
+
+    <h2 id="private-fill">Private credential fill</h2>
+    <p>Some agents use a separate local program on your computer to sign in to a site without showing the password to the AI agent. Browser Control supports this as follows:</p>
+    <ul>
+      <li>The program sends the values to the host, and the host passes them to the extension. The extension sets the values directly on the fields that it verified. It returns only whether the fill succeeded.</li>
+      <li>The extension and the host do not store, log or repeat the values. The host replaces the extension’s answer with a status of “filled” or “not filled”, and errors use a fixed message. The command-line client accepts values only through standard input, never as command arguments. The values are held in memory only while they pass through.</li>
+      <li>A fill happens only on an HTTPS page, or on a loopback address with explicit opt-in. The page must be on the exact site that the agent bound, in the top frame. Each field must be visible, enabled and match exactly one element. The fill must happen within 30 seconds of that check.</li>
+      <li>After a fill, the extension refuses screenshots, recordings, page readings and actions on that page, except the prepared sign-in submit button. It also refuses raw DevTools Protocol commands for that tab. DevTools Protocol events that the agent turned on before the fill can still report activity in that tab.</li>
+    </ul>
+
+    <h2 id="not-done">What we do not do</h2>
+    <ul>
+      <li>We do not collect data. We run no server for Browser Control, and neither the extension nor the host sends data to us.</li>
+      <li>We do not sell or transfer user data to third parties. Data leaves your computer only if the local agent that you run sends it, or when a website receives what your agent submits to it.</li>
+      <li>We do not show ads, use analytics or track you.</li>
+      <li>The extension does not use remote code. All of its code is in the extension package, and its pages can load scripts only from the extension itself.</li>
+      <li>We do not use or transfer user data to decide creditworthiness or for lending.</li>
+    </ul>
+    <p>The use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy, including the Limited Use requirements.</p>
+
+    <h2 id="control">Your controls</h2>
+    <ul>
+      <li><strong>Pause host</strong> in the popup disconnects the host, stops every agent session and detaches the debugger from agent tabs. It stays paused, also after Chrome restarts, until you click <strong>Resume host</strong>.</li>
+      <li><strong>Reload host</strong> in the popup restarts the connection to the host.</li>
+      <li>Agent tabs are in a labeled tab group. While the extension uses the debugger in a tab, Chrome shows a notice that the extension is debugging the browser.</li>
+    </ul>
+
+    <h2 id="deletion">Deleting data and uninstalling</h2>
+    <p>We hold no data about you, so there is nothing for us to delete. To remove everything that Browser Control stored on your computer:</p>
+    <ol>
+      <li>Remove the extension on the <code>chrome://extensions</code> page. Chrome deletes the extension’s storage.</li>
+      <li>Delete the <code>com.opzero.chrome.json</code> host manifest from the folder listed above for your system. On Windows, also delete the registry key: <code>reg delete "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.opzero.chrome" /f</code></li>
+      <li>Delete the helper folder that you unpacked.</li>
+      <li>Delete the <code>~/.opzero-chrome</code> folder.</li>
+      <li>Delete any <code>tab-video-</code> recording folders in the folder that your agent tooling uses.</li>
+      <li>Remove any data that your agent kept, as described by that agent.</li>
+    </ol>
+
+    <h2 id="children">Children</h2>
+    <p>Browser Control is a tool for developers. It is not directed to children. We do not collect data from anyone, including children.</p>
+
+    <h2 id="changes">Changes to this policy</h2>
+    <p>When this policy changes, we publish the new version on this page and in <code>docs/PRIVACY.md</code> in the repository, and we update the effective date. The repository history keeps every earlier version.</p>
+
+    <h2 id="contact">Contact</h2>
+    <p>For questions about this policy, open an issue at <a href="https://github.com/opzero1/browser-control/issues">github.com/opzero1/browser-control/issues</a>. Do not include personal data, passwords or tokens in an issue. To report a security problem, follow the steps on the <a href="../support/#security">Support</a> page.</p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Footer">
+        <ul class="footer-links">
+          <li><a href="../">Home</a></li>
+          <li><a href="./">Privacy</a></li>
+          <li><a href="../support/">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+      <p>Published by the Browser Control maintainers.</p>
+      <p>Google Chrome is a trademark of Google LLC.</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Book a demo · Northwind Analytics</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23256f5c'/%3E%3Cpath d='M9 22V10l14 12V10' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: #1d2a26; background: #f3f6f4; }
+  header { display: flex; align-items: center; gap: 10px; padding: 16px 40px; background: #fff; border-bottom: 1px solid #dde5e1; }
+  header .logo { width: 28px; height: 28px; border-radius: 7px; background: #256f5c; color: #fff; display: grid; place-items: center; font-weight: 700; }
+  header nav { margin-left: auto; display: flex; gap: 24px; color: #52615c; font-size: 14px; }
+  main { display: grid; grid-template-columns: 1fr 460px; gap: 48px; max-width: 1080px; margin: 36px auto; padding: 0 40px; }
+  h1 { font-size: 34px; line-height: 1.15; margin: 8px 0 12px; }
+  .lede { color: #4a5a55; font-size: 17px; }
+  ul.points { padding: 0; list-style: none; margin: 24px 0; }
+  ul.points li { padding: 8px 0 8px 30px; position: relative; }
+  ul.points li::before { content: ""; position: absolute; left: 0; top: 12px; width: 16px; height: 16px; border-radius: 50%; background: #cfe6dd; border: 4px solid #256f5c; }
+  form, .done { background: #fff; border: 1px solid #dde5e1; border-radius: 14px; padding: 26px 28px; box-shadow: 0 8px 24px rgba(20, 50, 40, .06); }
+  form h2, .done h2 { margin: 0 0 16px; font-size: 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #3b4a45; margin: 12px 0 5px; }
+  input[type=text], textarea { width: 100%; padding: 10px 12px; border: 1px solid #c8d3ce; border-radius: 8px; font: inherit; background: #fbfcfb; }
+  textarea { height: 70px; resize: none; }
+  .sizes { display: flex; gap: 8px; }
+  .sizes label { flex: 1; margin: 0; display: flex; align-items: center; gap: 6px; font-weight: 500; border: 1px solid #c8d3ce; border-radius: 8px; padding: 8px 10px; }
+  button { margin-top: 18px; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: #256f5c; color: #fff; font: 600 15px/1 inherit; font-family: inherit; }
+  .done { display: none; }
+  .done dl { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; margin: 16px 0 0; }
+  .done dt { color: #52615c; }
+  .done dd { margin: 0; font-weight: 600; }
+  .badge { display: inline-block; background: #d8efe6; color: #1e5c4b; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
+  body.sent form { display: none; }
+  body.sent .done { display: block; }
+</style>
+</head>
+<body>
+<header><div class="logo">N</div><strong>Northwind Analytics</strong><nav><span>Product</span><span>Pricing</span><span>Customers</span><span>Docs</span></nav></header>
+<main>
+  <section>
+    <span class="badge">Demo request</span>
+    <h1>See your team's dashboards in 20 minutes</h1>
+    <p class="lede">Pick a time with a product specialist. We'll walk through reporting, alerts and sharing with sample data.</p>
+    <ul class="points">
+      <li>Live walkthrough with sample data</li>
+      <li>Questions answered by a specialist</li>
+      <li>No commitment and no credit card</li>
+    </ul>
+  </section>
+  <section>
+    <form id="demo" autocomplete="off">
+      <h2>Book a demo</h2>
+      <label for="name">Full name</label>
+      <input id="name" type="text" autocomplete="off">
+      <label for="company">Company</label>
+      <input id="company" type="text" autocomplete="off">
+      <label for="role">Role</label>
+      <input id="role" type="text" autocomplete="off">
+      <label>Team size</label>
+      <div class="sizes">
+        <label><input type="radio" name="size" value="1-10"> 1–10</label>
+        <label><input type="radio" name="size" value="11-50"> 11–50</label>
+        <label><input type="radio" name="size" value="51+"> 51+</label>
+      </div>
+      <label for="notes">What would you like to see?</label>
+      <textarea id="notes"></textarea>
+      <button type="submit">Request demo</button>
+    </form>
+    <div class="done">
+      <h2>✓ Demo requested</h2>
+      <p>Thanks! A specialist will follow up with a few time slots.</p>
+      <dl><dt>Name</dt><dd id="o-name"></dd><dt>Company</dt><dd id="o-company"></dd><dt>Role</dt><dd id="o-role"></dd><dt>Team size</dt><dd id="o-size"></dd><dt>Topics</dt><dd id="o-notes"></dd><dt>Reference</dt><dd>DEMO-1042</dd></dl>
+    </div>
+  </section>
+</main>
+<script>
+  document.getElementById("demo").addEventListener("submit", event => {
+    event.preventDefault();
+    for (const id of ["name", "company", "role", "notes"]) document.getElementById("o-" + id).textContent = document.getElementById(id).value;
+    document.getElementById("o-size").textContent = (document.querySelector("input[name=size]:checked") || {}).value || "-";
+    document.body.classList.add("sent");
+    document.title = "Demo requested · Northwind Analytics";
+  });
+</script>
+</body>
+</html>

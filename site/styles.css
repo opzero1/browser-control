@@ -1,0 +1,385 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --text: #111827;
+  --muted: #4b5563;
+  --border: #d1d5db;
+  --accent: #1d4ed8;
+  --accent-text: #ffffff;
+  --note-bg: #fffbeb;
+  --note-border: #b45309;
+  --code-bg: #eef2f7;
+  --focus: #b45309;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 100%;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1120;
+    --surface: #111a2e;
+    --text: #e5e7eb;
+    --muted: #b6bfcc;
+    --border: #334155;
+    --accent: #93c5fd;
+    --accent-text: #0b1120;
+    --note-bg: #2a1f0a;
+    --note-border: #f59e0b;
+    --code-bg: #1e293b;
+    --focus: #fbbf24;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 10;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--focus);
+  border-radius: 0.375rem;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.site-header,
+.site-footer {
+  border-color: var(--border);
+  border-style: solid;
+  border-width: 0;
+}
+
+.site-header {
+  border-bottom-width: 1px;
+  background: var(--surface);
+}
+
+.site-footer {
+  border-top-width: 1px;
+  margin-top: 3rem;
+  background: var(--surface);
+}
+
+.wrap {
+  width: min(100% - 2rem, 48rem);
+  margin-inline: auto;
+}
+
+.site-header .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding-block: 0.875rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 1.125rem;
+  text-decoration: none;
+}
+
+.brand img {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+}
+
+.nav ul,
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+}
+
+main {
+  display: block;
+  padding-block: 2rem 1rem;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: clamp(1.875rem, 1.4rem + 2vw, 2.5rem);
+  margin: 0 0 0.75rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin: 2.5rem 0 0.75rem;
+}
+
+h3 {
+  font-size: 1.125rem;
+  margin: 1.75rem 0 0.5rem;
+}
+
+p,
+ul,
+ol,
+dl,
+table,
+pre {
+  margin: 0 0 1rem;
+}
+
+li + li {
+  margin-top: 0.375rem;
+}
+
+.lead {
+  font-size: 1.1875rem;
+  color: var(--text);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.note {
+  margin: 1.5rem 0;
+  padding: 1rem 1.125rem;
+  background: var(--note-bg);
+  border-left: 0.3125rem solid var(--note-border);
+  border-radius: 0.375rem;
+}
+
+.note > :last-child {
+  margin-bottom: 0;
+}
+
+code,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+code {
+  padding: 0.1em 0.3em;
+  background: var(--code-bg);
+  border-radius: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  padding: 0.875rem 1rem;
+  overflow-x: auto;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  line-height: 1.5;
+}
+
+pre code {
+  padding: 0;
+  background: none;
+  overflow-wrap: normal;
+}
+
+.button {
+  display: inline-block;
+  padding: 0.625rem 1rem;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 0.375rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button:hover {
+  text-decoration: underline;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 0 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+
+table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+th,
+td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+tr:last-child > th,
+tr:last-child > td {
+  border-bottom: 0;
+}
+
+thead th {
+  font-size: 0.9375rem;
+}
+
+/* How-it-works diagram: boxes and connectors are plain list items so the
+   reading order matches the visual order for assistive technology. */
+.diagram {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 2px dashed var(--border);
+  border-radius: 0.75rem;
+}
+
+.diagram figcaption {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.diagram-label {
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+}
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow li {
+  margin: 0;
+}
+
+.flow .node {
+  padding: 0.875rem 1rem;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 0.5rem;
+}
+
+.flow .node strong {
+  display: block;
+  font-size: 1.0625rem;
+}
+
+.flow .node span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.flow .link {
+  position: relative;
+  padding: 0.75rem 0 0.75rem 2.25rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.flow .link::before {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  bottom: 0;
+  border-left: 3px solid var(--accent);
+}
+
+@media (min-width: 46rem) {
+  .flow {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .flow .node {
+    flex: 1 1 0;
+    align-self: stretch;
+  }
+
+  .flow .link {
+    flex: 0 0 8.5rem;
+    padding: 1.5rem 0.5rem 0;
+    text-align: center;
+  }
+
+  .flow .link::before {
+    left: 0.5rem;
+    right: 0.5rem;
+    top: 0.75rem;
+    bottom: auto;
+    border-left: 0;
+    border-top: 3px solid var(--accent);
+  }
+}
+
+.site-footer .wrap {
+  padding-block: 1.5rem;
+  font-size: 0.9375rem;
+}
+
+.site-footer p {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+}
+
+@media print {
+  .skip-link,
+  .nav {
+    display: none;
+  }
+}

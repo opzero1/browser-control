@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="google-site-verification" content="B0EY9b_4TKqsv464WDIILdUmnQGU8diYoDjKgtrys0g">
+  <meta name="description" content="Browser Control connects your browser tabs to an AI agent that runs on your own computer, through a helper program that you install.">
+  <title>Browser Control</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="icon.png" alt="" width="32" height="32">Browser Control</a>
+      <nav class="nav" aria-label="Main">
+        <ul>
+          <li><a href="./" aria-current="page">Home</a></li>
+          <li><a href="privacy/">Privacy</a></li>
+          <li><a href="support/">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <h1>Browser Control</h1>
+    <p class="lead">Browser Control lets an AI agent that you run on your own computer work in your browser tabs. It is an extension for Google Chrome™ plus a small helper program, called a native messaging host, that you install on the same computer.</p>
+
+    <div class="note">
+      <p><strong>The extension does nothing on its own.</strong> Until you install the local native messaging host, it stays idle and its toolbar popup shows <strong>Disconnected</strong>. The extension has no server and makes no network requests of its own.</p>
+    </div>
+
+    <h2>Who it is for</h2>
+    <p>Browser Control is for developers and other people who use an AI coding agent, or their own scripts, and want that software to use a real browser window that they can watch. You choose the agent. Browser Control only gives it a local way to reach your tabs.</p>
+
+    <h2>What your agent can do</h2>
+    <p>When your local agent asks, the extension can:</p>
+    <ul>
+      <li>List your open tabs, claim one, or open new tabs in the background.</li>
+      <li>Keep the agent’s tabs in a labeled tab group, apart from your own tabs.</li>
+      <li>Read the visible text of a page and the buttons, links and form fields on it.</li>
+      <li>Click controls, type into form fields, and attach a local PDF file to an upload field.</li>
+      <li>Take screenshots and short recordings of the agent’s tabs.</li>
+      <li>Send Chrome DevTools Protocol commands to the agent’s own tabs for advanced automation.</li>
+    </ul>
+
+    <h2 id="how-it-works">How it works</h2>
+    <figure class="diagram" aria-labelledby="diagram-caption">
+      <p class="diagram-label">Your computer</p>
+      <ol class="flow">
+        <li class="node">
+          <strong>Browser Control extension</strong>
+          <span>Runs in Google Chrome™. Carries out requests in the agent’s tabs.</span>
+        </li>
+        <li class="link">Chrome native messaging (standard input and output)</li>
+        <li class="node">
+          <strong>Native messaging host</strong>
+          <span>A small Node.js program named <code>com.opzero.chrome</code>. Chrome starts it for this extension only.</span>
+        </li>
+        <li class="link">Private local socket that only your user account can open</li>
+        <li class="node">
+          <strong>Your local AI agent</strong>
+          <span>Software you run, such as an AI coding tool. Sends requests and receives results.</span>
+        </li>
+      </ol>
+      <figcaption id="diagram-caption">All three parts run on your computer. The extension sends data only to the host, and the host sends it only to the local agent that connects to it. Nothing goes to the Browser Control maintainers.</figcaption>
+    </figure>
+
+    <h2 id="install">Install</h2>
+    <ol>
+      <li>Install Browser Control from the <a href="https://chromewebstore.google.com/detail/dcnjjnecbhipdbngkhjppkckpkellmld">Chrome Web Store</a>.</li>
+      <li>Install the local native messaging host and the agent tooling from <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>. Both come in the <code>chrome-control-skill.zip</code> file of the latest release. The host needs Node.js 18 or later, and its default setup is for macOS and Linux. For example:
+        <pre><code>curl -fsSL -o chrome-control-skill.zip https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip
+unzip chrome-control-skill.zip -d browser-control-helper
+cd browser-control-helper
+node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld</code></pre>
+        <p>Keep the unpacked folder. Chrome starts the host from it.</p>
+      </li>
+      <li>Open the Browser Control popup from the toolbar and click <strong>Reload host</strong>. The popup shows <strong>Connected</strong> when the extension and the host can talk.</li>
+      <li>Set up your agent to use the same folder. It contains a <code>SKILL.md</code> file for agent tools and a client that talks to the host. The repository README describes the agent setup.</li>
+    </ol>
+
+    <h2>You stay in control</h2>
+    <ul>
+      <li>The agent works only in tabs it opened or claimed. Browser Control puts those tabs in a tab group so you can see them.</li>
+      <li>While the extension uses the debugger in a tab, Google Chrome™ shows a notice that the extension is debugging the browser.</li>
+      <li>Click <strong>Pause host</strong> in the popup at any time. Pausing disconnects the host, stops every agent session, and stays in effect until you click <strong>Resume host</strong>.</li>
+      <li>When the agent finishes and cleans up, the extension closes only the tabs the agent opened and releases the tabs it claimed.</li>
+    </ul>
+
+    <h2>Privacy</h2>
+    <p>Browser Control has no servers, no analytics, no ads and no remote code. Data stays on your computer unless the local agent you connect sends it somewhere. Read the <a href="privacy/">privacy policy</a> for details.</p>
+
+    <h2>Help</h2>
+    <p>For setup problems, troubleshooting and security reports, see <a href="support/">Support</a>. For a full walkthrough that shows the extension working, see the <a href="support/reviewers/">reviewer test steps</a>.</p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Footer">
+        <ul class="footer-links">
+          <li><a href="./">Home</a></li>
+          <li><a href="privacy/">Privacy</a></li>
+          <li><a href="support/">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+      <p>Published by the Browser Control maintainers.</p>
+      <p>Google Chrome is a trademark of Google LLC.</p>
+    </div>
+  </footer>
+</body>
+</html>
