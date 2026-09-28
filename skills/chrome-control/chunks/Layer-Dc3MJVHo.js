@@ -20,7 +20,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 	enumerable: true
 }) : target, mod));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Function.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Function.js
 /**
 * Tests if a value is a `function`.
 *
@@ -251,7 +251,7 @@ function pipe(a, ab, bc, cd, de, ef, fg, gh, hi) {
 	}
 }
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Equivalence.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Equivalence.js
 /**
 * This module provides an implementation of the `Equivalence` type class, which defines a binary relation
 * that is reflexive, symmetric, and transitive. In other words, it defines a notion of equivalence between values of a certain type.
@@ -299,7 +299,7 @@ var array$1 = (item) => make$24((self, that) => {
 	return true;
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/GlobalValue.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/GlobalValue.js
 /**
 * The `GlobalValue` module ensures that a single instance of a value is created globally,
 * even when modules are imported multiple times (e.g., due to mixing CommonJS and ESM builds)
@@ -348,7 +348,7 @@ var globalValue = (id, compute) => {
 	return globalStore.get(id);
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Predicate.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Predicate.js
 /**
 * This module provides a collection of functions for working with predicates and refinements.
 *
@@ -758,14 +758,14 @@ var isRecord = (input) => isRecordOrArray(input) && !Array.isArray(input);
 */
 var isPromiseLike = (input) => hasProperty(input, "then") && isFunction(input.then);
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/errors.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/errors.js
 /**
 * @since 2.0.0
 */
 /** @internal */
 var getBugErrorMessage = (message) => `BUG: ${message} - please report an issue at https://github.com/Effect-TS/effect/issues`;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Utils.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Utils.js
 /**
 * @category constructors
 * @since 2.0.0
@@ -993,7 +993,7 @@ var internalCall = /* @__PURE__ */ standard.effect_internal_function(() => (/* @
 } }.effect_internal_function;
 (function* () {}).constructor;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Hash.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Hash.js
 /**
 * @since 2.0.0
 */
@@ -1122,7 +1122,7 @@ var cached = function() {
 	return hash;
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Equal.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Equal.js
 /**
 * @since 2.0.0
 * @category symbols
@@ -1173,7 +1173,7 @@ var isEqual = (u) => hasProperty(u, symbol);
 */
 var equivalence = () => equals$1;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Inspectable.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Inspectable.js
 /**
 * @since 2.0.0
 * @category symbols
@@ -1319,7 +1319,7 @@ var redact = (u) => {
 	return u;
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Pipeable.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Pipeable.js
 /**
 * @since 2.0.0
 */
@@ -1346,7 +1346,7 @@ var pipeArguments = (self, args) => {
 	}
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/effect.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/effect.js
 /** @internal */
 var OP_ASYNC = "Async";
 /** @internal */
@@ -1376,11 +1376,11 @@ var OP_YIELD = "Yield";
 /** @internal */
 var OP_REVERT_FLAGS = "RevertFlags";
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/version.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/version.js
 var moduleVersion = "3.21.2";
 var getCurrentVersion = () => moduleVersion;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/effectable.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/effectable.js
 /** @internal */
 var EffectTypeId$1 = /* @__PURE__ */ Symbol.for("effect/Effect");
 /** @internal */
@@ -1476,7 +1476,7 @@ var Base$1 = /* @__PURE__ */ function() {
 	return Base;
 }();
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/option.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/option.js
 /**
 * @since 2.0.0
 */
@@ -1540,7 +1540,7 @@ var some$1 = (value) => {
 	return a;
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/either.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/either.js
 /**
 * @since 2.0.0
 */
@@ -1613,7 +1613,7 @@ var right$1 = (right) => {
 /** @internal */
 var fromOption$1 = /* @__PURE__ */ dual(2, (self, onNone) => isNone$1(self) ? left$1(onNone()) : right$1(self.value));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Either.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Either.js
 /**
 * Constructs a new `Either` holding a `Right` value. This usually represents a successful value due to the right bias
 * of this structure.
@@ -1801,14 +1801,14 @@ var getOrThrowWith$1 = /* @__PURE__ */ dual(2, (self, onLeft) => {
 */
 var getOrThrow = /* @__PURE__ */ getOrThrowWith$1(() => /* @__PURE__ */ new Error("getOrThrow called on a Left"));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/array.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/array.js
 /**
 * @since 2.0.0
 */
 /** @internal */
 var isNonEmptyArray$1 = (self) => self.length > 0;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Order.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Order.js
 /**
 * This module provides an implementation of the `Order` type class which is used to define a total ordering on some type `A`.
 * An order is defined by a relation `<=`, which obeys the following laws:
@@ -1849,7 +1849,7 @@ var mapInput = /* @__PURE__ */ dual(2, (self, f) => make$23((b1, b2) => self(f(b
 */
 var greaterThan$1 = (O) => dual(2, (self, that) => O(self, that) === 1);
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Option.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Option.js
 /**
 * Represents the absence of a value by creating an empty `Option`.
 *
@@ -2564,7 +2564,7 @@ var contains = /* @__PURE__ */ containsWith(/* @__PURE__ */ equivalence());
 */
 var exists = /* @__PURE__ */ dual(2, (self, refinement) => isNone(self) ? false : refinement(self.value));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Tuple.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Tuple.js
 /**
 * Constructs a new tuple from the provided values.
 *
@@ -2581,7 +2581,7 @@ var exists = /* @__PURE__ */ dual(2, (self, refinement) => isNone(self) ? false 
 */
 var make$22 = (...elements) => elements;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Array.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Array.js
 /**
 * Creates a new `Array` of the specified length.
 *
@@ -3270,7 +3270,7 @@ var dedupe = (self) => dedupeWith(self, equivalence());
 */
 var join$1 = /* @__PURE__ */ dual(2, (self, sep) => fromIterable$6(self).join(sep));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Number.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Number.js
 /**
 * @memberof Number
 * @since 2.0.0
@@ -3295,7 +3295,7 @@ var parse = (s) => {
 	return Number.isNaN(n) ? none$5 : some$1(n);
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/RegExp.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/RegExp.js
 /**
 * Escapes special characters in a regular expression pattern.
 *
@@ -3311,7 +3311,7 @@ var parse = (s) => {
 */
 var escape = (string) => string.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&");
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Boolean.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Boolean.js
 /**
 * Negates the given boolean: `!self`
 *
@@ -3329,7 +3329,7 @@ var escape = (string) => string.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&");
 */
 var not = (self) => !self;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/context.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/context.js
 /** @internal */
 var TagTypeId = /* @__PURE__ */ Symbol.for("effect/Context/Tag");
 /** @internal */
@@ -3524,7 +3524,7 @@ var mergeAll$2 = (...ctxs) => {
 	return makeContext(map);
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Context.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Context.js
 /**
 * Creates a new `Tag` instance with an optional key parameter.
 *
@@ -3823,7 +3823,7 @@ var Tag = Tag$1;
 */
 var Reference = Reference$1;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Chunk.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Chunk.js
 /**
 * @since 2.0.0
 */
@@ -4235,7 +4235,7 @@ var headNonEmpty = unsafeHead;
 */
 var tailNonEmpty = (self) => drop(self, 1);
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Duration.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Duration.js
 /**
 * @since 2.0.0
 */
@@ -4591,7 +4591,7 @@ var MAX_INDEX_NODE = BUCKET_SIZE / 2;
 /** @internal */
 var MIN_ARRAY_NODE = BUCKET_SIZE / 4;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap/bitwise.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap/bitwise.js
 /**
 * Hamming weight.
 *
@@ -4620,13 +4620,13 @@ function fromBitmap(bitmap, bit) {
 	return popcount(bitmap & bit - 1);
 }
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/stack.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/stack.js
 var make$17 = (value, previous) => ({
 	value,
 	previous
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap/array.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap/array.js
 /** @internal */
 function arrayUpdate(mutate, at, v, arr) {
 	let out = arr;
@@ -4671,7 +4671,7 @@ function arraySpliceIn(mutate, at, v, arr) {
 	return out;
 }
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap/node.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap/node.js
 /** @internal */
 var EmptyNode = class EmptyNode {
 	_tag = "EmptyNode";
@@ -4903,7 +4903,7 @@ function mergeLeaves(edit, shift, h1, n1, h2, n2) {
 	}
 }
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashMap.js
 var HashMapSymbolKey = "effect/HashMap";
 /** @internal */
 var HashMapTypeId = /* @__PURE__ */ Symbol.for(HashMapSymbolKey);
@@ -5116,7 +5116,7 @@ var reduce$5 = /* @__PURE__ */ dual(3, (self, zero, f) => {
 	return zero;
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashSet.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/hashSet.js
 var HashSetSymbolKey = "effect/HashSet";
 /** @internal */
 var HashSetTypeId = /* @__PURE__ */ Symbol.for(HashSetSymbolKey);
@@ -5206,7 +5206,7 @@ var forEach$2 = /* @__PURE__ */ dual(2, (self, f) => forEach$3(self._keyMap, (_,
 /** @internal */
 var reduce$4 = /* @__PURE__ */ dual(3, (self, zero, f) => reduce$5(self._keyMap, zero, (z, _, a) => f(z, a)));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/HashSet.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/HashSet.js
 /**
 * # HashSet
 *
@@ -5872,7 +5872,7 @@ var union = union$1;
 */
 var reduce$3 = reduce$4;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/MutableRef.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/MutableRef.js
 var TypeId$6 = /* @__PURE__ */ Symbol.for("effect/MutableRef");
 var MutableRefProto = {
 	[TypeId$6]: TypeId$6,
@@ -5915,7 +5915,7 @@ var set$3 = /* @__PURE__ */ dual(2, (self, value) => {
 	return self;
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberId.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberId.js
 /** @internal */
 var FiberIdSymbolKey = "effect/FiberId";
 /** @internal */
@@ -6047,7 +6047,7 @@ var unsafeMake$5 = () => {
 	return new Runtime(id, Date.now());
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberId.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberId.js
 /**
 * @since 2.0.0
 * @category constructors
@@ -6087,7 +6087,7 @@ var threadName = threadName$1;
 */
 var unsafeMake$4 = unsafeMake$5;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/HashMap.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/HashMap.js
 /**
 * @since 2.0.0
 */
@@ -6167,7 +6167,7 @@ var map$2 = map$3;
 */
 var reduce$2 = reduce$5;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/List.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/List.js
 /**
 * A data type for immutable linked lists representing ordered collections of elements of type `A`.
 *
@@ -6452,7 +6452,7 @@ var Structural = /* @__PURE__ */ function() {
 	return Structural;
 }();
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/differ/contextPatch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/differ/contextPatch.js
 /** @internal */
 var ContextPatchTypeId = /* @__PURE__ */ Symbol.for("effect/DifferContextPatch");
 function variance$3(a) {
@@ -6556,7 +6556,7 @@ var patch$7 = /* @__PURE__ */ dual(2, (self, context) => {
 	return makeContext(map);
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/differ/hashSetPatch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/differ/hashSetPatch.js
 /** @internal */
 var HashSetPatchTypeId = /* @__PURE__ */ Symbol.for("effect/DifferHashSetPatch");
 function variance$2(a) {
@@ -6633,7 +6633,7 @@ var patch$6 = /* @__PURE__ */ dual(2, (self, oldValue) => {
 	return set;
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/differ/readonlyArrayPatch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/differ/readonlyArrayPatch.js
 /** @internal */
 var ReadonlyArrayPatchTypeId = /* @__PURE__ */ Symbol.for("effect/DifferReadonlyArrayPatch");
 function variance$1(a) {
@@ -6788,7 +6788,7 @@ var updateWith = (f) => make$13({
 	patch: (patch, oldValue) => f(oldValue, patch(oldValue))
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/runtimeFlagsPatch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/runtimeFlagsPatch.js
 /** @internal */
 var BIT_MASK = 255;
 /** @internal */
@@ -6840,7 +6840,7 @@ var differ$1 = /* @__PURE__ */ make$13({
 	patch: (_patch, oldValue) => patch$4(oldValue, _patch)
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/RuntimeFlagsPatch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/RuntimeFlagsPatch.js
 /**
 * Creates a `RuntimeFlagsPatch` describing enabling the provided `RuntimeFlag`.
 *
@@ -6864,7 +6864,7 @@ var disable = disable$1;
 */
 var exclude = exclude$1;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/blockedRequests.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/blockedRequests.js
 /**
 * Combines this collection of blocked requests with the specified collection
 * of blocked requests, in parallel.
@@ -7038,7 +7038,7 @@ var OP_PARALLEL$1 = "Parallel";
 /** @internal */
 var OP_SEQUENTIAL$1 = "Sequential";
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/cause.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/cause.js
 /** @internal */
 var CauseSymbolKey = "effect/Cause";
 /** @internal */
@@ -7533,7 +7533,7 @@ var prettyErrors = (cause) => reduceWithContext(cause, void 0, {
 	sequentialCase: (_, l, r) => [...l, ...r]
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/deferred.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/deferred.js
 /** @internal */
 var OP_STATE_PENDING = "Pending";
 /** @internal */
@@ -7562,7 +7562,7 @@ var done$2 = (effect) => {
 	};
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/singleShotGen.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/singleShotGen.js
 /** @internal */
 var SingleShotGen = class SingleShotGen {
 	self;
@@ -7593,7 +7593,7 @@ var SingleShotGen = class SingleShotGen {
 	}
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/core.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/core.js
 /**
 * @internal
 */
@@ -8432,7 +8432,7 @@ var currentSpanFromFiber = (fiber) => {
 	return span !== void 0 && span._tag === "Span" ? some(span) : none$4();
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Exit.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Exit.js
 /**
 * Returns `true` if the specified `Exit` is a `Failure`, `false` otherwise.
 *
@@ -8448,7 +8448,7 @@ var isFailure = exitIsFailure;
 */
 var isSuccess = exitIsSuccess;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/MutableHashMap.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/MutableHashMap.js
 var TypeId$4 = /* @__PURE__ */ Symbol.for("effect/MutableHashMap");
 var MutableHashMapProto = {
 	[TypeId$4]: TypeId$4,
@@ -8758,7 +8758,7 @@ var prefixed = /* @__PURE__ */ dual(2, (self, prefix) => {
 	}
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/configProvider/pathPatch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/configProvider/pathPatch.js
 /** @internal */
 var empty$4 = { _tag: "Empty" };
 /** @internal */
@@ -8793,7 +8793,7 @@ var patch$3 = /* @__PURE__ */ dual(2, (path, patch) => {
 	return right(output);
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/config.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/config.js
 /** @internal */
 var OP_CONSTANT = "Constant";
 /** @internal */
@@ -8817,7 +8817,7 @@ var OP_HASHMAP = "HashMap";
 /** @internal */
 var OP_ZIP_WITH = "ZipWith";
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/configProvider.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/configProvider.js
 var concat = (l, r) => [...l, ...r];
 /** @internal */
 var ConfigProviderTypeId = /* @__PURE__ */ Symbol.for("effect/ConfigProvider");
@@ -8975,7 +8975,7 @@ var parseInteger = (str) => {
 	return Number.isNaN(parsedIndex) ? none$4() : some(parsedIndex);
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/defaultServices/console.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/defaultServices/console.js
 /** @internal */
 var TypeId$3 = /* @__PURE__ */ Symbol.for("effect/Console");
 /** @internal */
@@ -9112,7 +9112,7 @@ var swap = (buffer, index1, index2) => {
 };
 var make$8 = (seed) => new RandomImpl(hash(seed));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/tracer.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/tracer.js
 /**
 * @since 2.0.0
 */
@@ -9196,7 +9196,7 @@ var nativeTracer = /* @__PURE__ */ make$7({
 /** @internal */
 var DisablePropagation = /* @__PURE__ */ Reference()("effect/Tracer/DisablePropagation", { defaultValue: constFalse });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/defaultServices.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/defaultServices.js
 /** @internal */
 var liveServices = /* @__PURE__ */ pipe(/* @__PURE__ */ empty$17(), /* @__PURE__ */ add$2(clockTag, /* @__PURE__ */ make$10()), /* @__PURE__ */ add$2(consoleTag, defaultConsole), /* @__PURE__ */ add$2(randomTag, /* @__PURE__ */ make$8(/* @__PURE__ */ Math.random())), /* @__PURE__ */ add$2(configProviderTag, /* @__PURE__ */ fromEnv()), /* @__PURE__ */ add$2(tracerTag, nativeTracer));
 /**
@@ -9207,7 +9207,7 @@ var liveServices = /* @__PURE__ */ pipe(/* @__PURE__ */ empty$17(), /* @__PURE__
 */
 var currentServices = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/DefaultServices/currentServices"), () => fiberRefUnsafeMakeContext(liveServices));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberRefs.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberRefs.js
 /** @internal */
 function unsafeMake$3(fiberRefLocals) {
 	return new FiberRefsImpl(fiberRefLocals);
@@ -9342,7 +9342,7 @@ var updateManyAs$1 = /* @__PURE__ */ dual(2, (self, { entries, forkAs }) => {
 	return new FiberRefsImpl(locals);
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberRefs.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberRefs.js
 /**
 * Gets the value of the specified `FiberRef` in this collection of `FiberRef`
 * values if it exists or the `initial` value of the `FiberRef` otherwise.
@@ -9373,7 +9373,7 @@ var updateManyAs = updateManyAs$1;
 */
 var empty$2 = empty$3;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/LogLevel.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/LogLevel.js
 /**
 * @since 2.0.0
 * @category constructors
@@ -9436,7 +9436,7 @@ var fromLiteral = (literal) => {
 	}
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/logSpan.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/logSpan.js
 /**
 * Sanitize a given string by replacing spaces, equal signs, and double quotes with underscores.
 *
@@ -9448,7 +9448,7 @@ var render = (now) => (self) => {
 	return `${formatLabel(self.label)}=${now - self.startTime}ms`;
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Effectable.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Effectable.js
 /**
 * @since 2.0.0
 * @category prototypes
@@ -9461,14 +9461,14 @@ var Base = Base$1;
 */
 var Class = class extends Base {};
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Readable.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Readable.js
 /**
 * @since 2.0.0
 * @category type ids
 */
 var TypeId$2 = /* @__PURE__ */ Symbol.for("effect/Readable");
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/ref.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/ref.js
 /** @internal */
 var RefTypeId = /* @__PURE__ */ Symbol.for("effect/Ref");
 /** @internal */
@@ -9510,7 +9510,7 @@ var modify = /* @__PURE__ */ dual(2, (self, f) => self.modify(f));
 /** @internal */
 var update$1 = /* @__PURE__ */ dual(2, (self, f) => self.modify((a) => [void 0, f(a)]));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberRefs/patch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberRefs/patch.js
 /** @internal */
 var OP_EMPTY$1 = "Empty";
 /** @internal */
@@ -9595,7 +9595,7 @@ var patch$2 = /* @__PURE__ */ dual(3, (self, fiberId, oldValue) => {
 	return fiberRefs;
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/metric/label.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/metric/label.js
 /** @internal */
 var MetricLabelSymbolKey = "effect/MetricLabel";
 /** @internal */
@@ -9628,7 +9628,7 @@ var make$5 = (key, value) => {
 /** @internal */
 var isMetricLabel = (u) => hasProperty(u, MetricLabelTypeId);
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/core-effect.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/core-effect.js
 var asSome = (self) => map$1(self, some);
 var try_$1 = (arg) => {
 	let evaluate;
@@ -9683,7 +9683,7 @@ var updateFiberRefs = (f) => withFiberRuntime((state) => {
 });
 var filterDisablePropagation = /* @__PURE__ */ flatMap$4((span) => get$6(span.context, DisablePropagation) ? span._tag === "Span" ? filterDisablePropagation(span.parent) : none$4() : some(span));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/executionStrategy.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/executionStrategy.js
 /** @internal */
 var OP_SEQUENTIAL = "Sequential";
 /** @internal */
@@ -9704,7 +9704,7 @@ var isSequential = (self) => self._tag === OP_SEQUENTIAL;
 /** @internal */
 var isParallel = (self) => self._tag === OP_PARALLEL;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/ExecutionStrategy.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/ExecutionStrategy.js
 /**
 * Execute effects sequentially.
 *
@@ -9727,7 +9727,7 @@ var parallel = parallel$1;
 */
 var parallelN = parallelN$1;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberRefsPatch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberRefsPatch.js
 /**
 * Constructs a patch that describes the changes between the specified
 * collections of `FiberRef`
@@ -9745,7 +9745,7 @@ var diff$1 = diff$2;
 */
 var patch$1 = patch$2;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberStatus.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberStatus.js
 var FiberStatusSymbolKey = "effect/FiberStatus";
 /** @internal */
 var FiberStatusTypeId = /* @__PURE__ */ Symbol.for(FiberStatusSymbolKey);
@@ -9810,7 +9810,7 @@ var isFiberStatus = (u) => hasProperty(u, FiberStatusTypeId);
 /** @internal */
 var isDone$1 = (self) => self._tag === OP_DONE;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberStatus.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberStatus.js
 /**
 * @since 2.0.0
 * @category constructors
@@ -9834,7 +9834,7 @@ var suspended = suspended$1;
 */
 var isDone = isDone$1;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Micro.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Micro.js
 /**
 * @since 3.4.0
 * @experimental
@@ -10511,7 +10511,7 @@ var TaggedError = (tag) => {
 TaggedError("NoSuchElementException");
 TaggedError("TimeoutException");
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Scheduler.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Scheduler.js
 /**
 * @since 3.20.0
 * @category models
@@ -10653,11 +10653,11 @@ var SyncScheduler = class {
 /** @internal */
 var currentScheduler = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/FiberRef/currentScheduler"), () => fiberRefUnsafeMake(defaultScheduler));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/completedRequestMap.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/completedRequestMap.js
 /** @internal */
 var currentRequestMap = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/FiberRef/currentRequestMap"), () => fiberRefUnsafeMake(/* @__PURE__ */ new Map()));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/concurrency.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/concurrency.js
 /** @internal */
 var match = (concurrency, sequential, unbounded, bounded) => {
 	switch (concurrency) {
@@ -10668,7 +10668,7 @@ var match = (concurrency, sequential, unbounded, bounded) => {
 	}
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberMessage.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberMessage.js
 /** @internal */
 var OP_INTERRUPT_SIGNAL = "InterruptSignal";
 /** @internal */
@@ -10934,7 +10934,7 @@ var prettyLoggerBrowser = (options) => {
 /** @internal */
 var prettyLoggerDefault = /* @__PURE__ */ globalValue("effect/Logger/prettyLoggerDefault", () => prettyLogger());
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/metric/boundaries.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/metric/boundaries.js
 /** @internal */
 var MetricBoundariesSymbolKey = "effect/MetricBoundaries";
 /** @internal */
@@ -11794,7 +11794,7 @@ var fromEffect = (effect) => {
 /** @internal */
 var none = /* @__PURE__ */ globalValue("effect/Supervisor/none", () => fromEffect(void_$1));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Differ.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Differ.js
 /**
 * Constructs a new `Differ`.
 *
@@ -11803,7 +11803,7 @@ var none = /* @__PURE__ */ globalValue("effect/Supervisor/none", () => fromEffec
 */
 var make$1 = make$13;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/supervisor/patch.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/supervisor/patch.js
 /** @internal */
 var OP_EMPTY = "Empty";
 /** @internal */
@@ -11897,7 +11897,7 @@ var differ = /* @__PURE__ */ make$1({
 	diff
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberRuntime.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/fiberRuntime.js
 /** @internal */
 var fiberStarted = /* @__PURE__ */ counter("effect_fiber_started", { incremental: true });
 /** @internal */
@@ -13240,7 +13240,7 @@ var invokeWithInterrupt = (self, entries, onInterrupt) => fiberIdWith((id) => en
 	}), (entry) => complete(entry.request, exitInterrupt$1(id)));
 })));
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Cause.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Cause.js
 /**
 * Checks if a `Cause` is a `Fail` type.
 *
@@ -13296,7 +13296,7 @@ var IllegalArgumentException = IllegalArgumentException$1;
 */
 var pretty = pretty$1;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Scope.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Scope.js
 /**
 * @since 2.0.0
 */
@@ -13317,7 +13317,7 @@ var close = scopeClose;
 */
 var fork = scopeFork;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/effect/circular.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/effect/circular.js
 /** @internal */
 var Semaphore = class {
 	permits;
@@ -13419,11 +13419,11 @@ var unsafeMakeSynchronized = (value) => {
 	return new SynchronizedImpl(unsafeMake$2(value), unsafeMakeSemaphore(1).withPermits(1));
 };
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/managedRuntime/circular.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/managedRuntime/circular.js
 /** @internal */
 var TypeId = /* @__PURE__ */ Symbol.for("effect/ManagedRuntime");
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/layer.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/opCodes/layer.js
 /** @internal */
 var OP_FRESH = "Fresh";
 /** @internal */
@@ -13431,7 +13431,7 @@ var OP_FROM_EFFECT = "FromEffect";
 /** @internal */
 var OP_MERGE_ALL = "MergeAll";
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/runtime.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/runtime.js
 var makeDual = (f) => function() {
 	if (arguments.length === 1) {
 		const runtime = arguments[0];
@@ -13570,7 +13570,7 @@ var unsafeForkEffect = /* @__PURE__ */ unsafeFork(defaultRuntime);
 /** @internal */
 var unsafeRunSyncEffect = /* @__PURE__ */ unsafeRunSync(defaultRuntime);
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/synchronizedRef.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/synchronizedRef.js
 /** @internal */
 var modifyEffect = /* @__PURE__ */ dual(2, (self, f) => self.modifyEffect(f));
 /** @internal */
@@ -13729,7 +13729,7 @@ var effect_provide = /* @__PURE__ */ dual(2, (self, source) => {
 	else return provideSomeRuntime(self, source);
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Effect.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Effect.js
 /**
 * Checks if a given value is an `Effect` value.
 *
@@ -14590,7 +14590,7 @@ var runFork = unsafeForkEffect;
 */
 var runSync = unsafeRunSyncEffect;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Layer.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Layer.js
 /**
 * Constructs a layer from the specified value.
 *

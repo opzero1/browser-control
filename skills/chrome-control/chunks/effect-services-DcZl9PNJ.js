@@ -1,16 +1,16 @@
-const require_Layer = require("./Layer-nAKmzBoW.js");
+const require_Layer = require("./Layer-Dc3MJVHo.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_child_process = require("node:child_process");
 node_child_process = require_Layer.__toESM(node_child_process);
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberRef.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberRef.js
 /**
 * @since 2.0.0
 * @category fiberRefs
 */
 var currentLoggers = require_Layer.currentLoggers;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Logger.js
+//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Logger.js
 /**
 * @since 2.0.0
 * @category constructors
@@ -24,7 +24,7 @@ var defaultLogger = require_Layer.defaultLogger;
 */
 var prettyLoggerDefault = require_Layer.prettyLoggerDefault;
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/@effect+platform@0.96.1_effect@3.21.2/node_modules/@effect/platform/dist/esm/Runtime.js
+//#region node_modules/.pnpm/@effect+platform@0.96.1_effect@3.21.2/node_modules/@effect/platform/dist/esm/Runtime.js
 /**
 * @since 1.0.0
 */
@@ -58,7 +58,7 @@ var makeRunMain = (f) => require_Layer.dual((args) => require_Layer.isEffect(arg
 	});
 });
 //#endregion
-//#region ../../../browser-platform-personal-capture-20260920/op-chrome/node_modules/.pnpm/@effect+platform-node@0.106.0_@effect+cluster@0.58.2_@effect+platform@0.96.1_effect@3.2_a80e93d5c9b0cafd3a2a57951ab69ada/node_modules/@effect/platform-node/dist/esm/NodeRuntime.js
+//#region node_modules/.pnpm/@effect+platform-node@0.106.0_@effect+cluster@0.58.2_@effect+platform@0.96.1_effect@3.2_a80e93d5c9b0cafd3a2a57951ab69ada/node_modules/@effect/platform-node/dist/esm/NodeRuntime.js
 /**
 * @since 1.0.0
 */
