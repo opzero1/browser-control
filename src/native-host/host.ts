@@ -243,17 +243,23 @@ function lstatIfExists(file: string) {
 // A bind never replaces an existing file, so a racing host fails with
 // EADDRINUSE instead of taking over this endpoint.
 function listenUnix() {
-  server.listen(socketPath, () => {
-    try {
-      const bound = fs.lstatSync(socketPath);
-      boundSocket = { dev: bound.dev, ino: bound.ino };
-      ownsSocket = true;
-      fs.chmodSync(socketPath, 0o600);
-      releaseStartupLock();
-    } catch {
-      refuseEndpoint();
-    }
-  });
+  // The bind inside listen is synchronous, so this umask makes the socket
+  // 0600 from the moment it exists instead of after the chmod below.
+  const previousUmask = process.umask(0o177);
+  try { server.listen(socketPath, onUnixListening); }
+  finally { process.umask(previousUmask); }
+}
+
+function onUnixListening() {
+  try {
+    const bound = fs.lstatSync(socketPath);
+    boundSocket = { dev: bound.dev, ino: bound.ino };
+    ownsSocket = true;
+    fs.chmodSync(socketPath, 0o600);
+    releaseStartupLock();
+  } catch {
+    refuseEndpoint();
+  }
 }
 
 // Another host may have replaced this endpoint after a stale-socket recovery,
