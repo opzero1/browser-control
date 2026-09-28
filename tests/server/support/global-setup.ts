@@ -16,7 +16,7 @@ const support = __dirname;
 const repository = path.resolve(support, "../../..");
 
 export default async function setup(project: TestProject): Promise<() => void> {
-  const base = process.env.OPZERO_TEST_TMPDIR || path.join(os.tmpdir(), "opencode");
+  const base = process.env.BROWSER_CONTROL_TEST_TMPDIR || path.join(os.tmpdir(), "opencode");
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
   const directory = fs.mkdtempSync(path.join(fs.realpathSync(base), "fc-children-"));
   fs.chmodSync(directory, 0o700);

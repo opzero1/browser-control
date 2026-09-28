@@ -22,6 +22,7 @@ export function code(python: string): string {
 export const TEXT_RENAMES: ReadonlyArray<readonly [string, string]> = [
   ["Control Chrome through op-chrome observed DOM actions.", "Control Chrome through Browser Control observed DOM actions."],
   ["its op-chrome endpoint", "its Browser Control endpoint"],
+  ["Load chrome-control", "Load browser-control"],
   ["\"backend\": \"op-chrome\"", "\"backend\": \"browser-control\""]
 ];
 

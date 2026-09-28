@@ -12,7 +12,7 @@ const created: string[] = [];
  * Removed by removeTempRoots(), which the suites call in afterEach.
  */
 export function privateTemp(prefix = "fc-"): string {
-  const base = process.env.OPZERO_TEST_TMPDIR || path.join(os.tmpdir(), "opencode");
+  const base = process.env.BROWSER_CONTROL_TEST_TMPDIR || path.join(os.tmpdir(), "opencode");
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
   const root = fs.mkdtempSync(path.join(fs.realpathSync(base), prefix));
   fs.chmodSync(root, 0o700);
