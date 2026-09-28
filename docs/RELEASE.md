@@ -68,6 +68,22 @@ What changed with it:
 - Create the repository variable `BROWSER_CONTROL_EXTENSION_ID` if the old `OPZERO_CHROME_EXTENSION_ID` variable was set. The `Release` workflow no longer reads the old name.
 - Existing installs keep working until they are reinstalled. A reinstall from the new zip goes to `~/.config/opencode/skills/browser-control`, so remove the old `skills/chrome-control` folder.
 
+### Installer changed after 0.2.2
+
+The release zip's installer, `scripts/install-native-host.js`, changed on `afif/ts-server` after 0.2.2 was submitted. `store/`, `site/` and `docs/PRIVACY.md` still describe the 0.2.2 installer, which is deployed and under review, so they stay as they are until the next release. The installer now:
+
+- Publishes the host and its chunks as a stable copy, `hosts/skill-<digest>/`, under the state root (`BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`). It writes the wrapper `hosts/skill/browser-control-host` there, and the manifest names that wrapper instead of `native-host/browser-control-host` in the unzipped folder.
+- Runs the host with `process.execPath`, the Node that ran the installer, instead of searching `PATH` and fixed locations.
+- Refuses to replace a `com.opzero.chrome` manifest that names another host unless `--force` is given. That includes a manifest from the 0.2.2 helper and one from `npx -y @op1/browser-control install`.
+- Prints a new `Host copy:` line, and writes nothing into the unzipped folder, including `scripts/extension-id.json`.
+- Keeps the default socket `~/.opzero-chrome/default.sock`.
+
+Before the next release:
+
+1. Refresh the expected output of "3. Install the native messaging host" in `store/reviewer-test-instructions.md` and `site/support/reviewers/index.html`: `Host executable:` is `~/.local/state/browser-control/hosts/skill/browser-control-host`, and a `Host copy:` line follows it. Say that a reviewer who installed an earlier helper must pass `--force`. Add the state root's `hosts/skill` and `hosts/skill-*` directories to "9. Clean up".
+2. Update "Files on your computer" in `docs/PRIVACY.md` and `site/privacy/index.html` together, and check the matching text in `store/listing.md`.
+3. Re-run the whole reviewer flow from a fresh download of the built zip, with the lowest Node version the steps name, and compare every "Expected" line with the real output.
+
 ## 4. Upload to the Chrome Web Store
 
 Run the `Chrome Web Store` workflow from GitHub Actions:
