@@ -7,6 +7,7 @@ import { chromium, type BrowserContext } from "playwright-core";
 import { expect, it } from "vitest";
 import { packageAssets } from "../../../src/server/assets";
 import { HOST_WRAPPER_NAME, ISOLATED_EXTENSION_ID } from "../../../src/server/config";
+import { Gate } from "../../../src/server/gate";
 import { Connection } from "../../../src/server/host-connection";
 import { provision } from "../../../src/server/pool/provision";
 import { ensureStableExtension, ensureStableHost } from "../../../src/server/stable-copy";
@@ -59,7 +60,18 @@ it.skipIf(!executablePath || process.platform !== "darwin")("connects the real M
     await expect.poll(() => browser!.serviceWorkers().map((worker) => new URL(worker.url()).hostname), { timeout: 15000 })
       .toContain(ISOLATED_EXTENSION_ID);
     await expect.poll(() => fs.existsSync(socket), { timeout: 15000 }).toBe(true);
-    const connection = await Connection.open(socket, 5);
+    // The host binds its socket before the extension finishes the protocol handshake.
+    let ready: Connection | undefined;
+    await expect.poll(async () => {
+      try {
+        ready = await Connection.open(socket, 5);
+        return true;
+      } catch (error) {
+        if (error instanceof Gate && ["browser-control-unavailable", "browser-control-protocol-mismatch"].includes(error.code)) return false;
+        throw error;
+      }
+    }, { timeout: 30000, interval: 250 }).toBe(true);
+    const connection = ready!;
     try {
       expect(await connection.call("host.info")).toMatchObject({ protocolVersion: 2, extensionProtocol: "ready" });
       expect(await connection.call("getInfo")).toMatchObject({ protocolVersion: 2, pageProtocolVersion: 2, version: assets.version });
