@@ -51,7 +51,8 @@ describe("act_steps", () => {
     expect(conn.methods()).toEqual(["observePage", "actPage", "observePage", "actPage", "observePage", "observePage"]);
   });
 
-  it.each([["No such control", "no_match"], ["Continue", "ambiguous"]])(
+  const UNRESOLVED_LABELS = [["No such control", "no_match"], ["Continue", "ambiguous"]];
+  it.each(UNRESOLVED_LABELS)(
     "stops before dispatch on an unresolved label %j with a usable snapshot", async (label, reason) => {
       const { f, tab, conn } = setup();
       serve(conn, stepsPage([["fill", "Email"], ["click", "Continue"], ["click", "Continue"]]));
@@ -67,7 +68,7 @@ describe("act_steps", () => {
       expect((await f.server.act({ tab_id: "1", snapshot_id: (result.final as any).snapshot_id, action_id: "1" }, meta())).outcome).toBe("executed");
     });
 
-  it.each([
+  const REFUSES_AN_UNSUPPORTED_CONTROL_CASES = [
     [{ label: "Upload PDF" }, "upload_excluded"],
     [{ label: "Amount" }, "text_required"],
     [{ label: "Continue", text: "public" }, "invalid_public_input"],
@@ -75,7 +76,8 @@ describe("act_steps", () => {
     [{ label: "Continue", role: "link" }, "no_match"],
     [{ label: "Disabled", kind: "fill", text: "public" }, "no_match"],
     [{ label: "Disabled", role: "link" }, "no_match"]
-  ])("refuses an unsupported control %j before dispatch", async (fields, reason) => {
+  ];
+  it.each(REFUSES_AN_UNSUPPORTED_CONTROL_CASES)("refuses an unsupported control %j before dispatch", async (fields, reason) => {
     const { f, conn } = setup();
     const raw = stepsPage([["upload", "Upload PDF"], ["fill", "Amount"], ["click", "Continue"], ["click", "Disabled"]]);
     raw.actions[3].disabled = true;
@@ -89,7 +91,8 @@ describe("act_steps", () => {
     expect(conn.methods()).toEqual(["observePage"]);
   });
 
-  it.each([1, 2])("stops before dispatch on %d disabled matches with a usable snapshot", async (copies) => {
+  const DISABLED_COPIES = [1, 2];
+  it.each(DISABLED_COPIES)("stops before dispatch on %d disabled matches with a usable snapshot", async (copies) => {
     const { f, tab, conn } = setup();
     const raw = stepsPage([...Array.from({ length: copies }, () => ["click", "Skip for now"] as [string, string]), ["click", "Continue"]]);
     for (const action of raw.actions.slice(0, copies)) action.disabled = true;
@@ -116,12 +119,13 @@ describe("act_steps", () => {
     expect(conn.calls.filter(([method]) => method === "actPage").map(([, params]) => params.actionId)).toEqual(["1"]);
   });
 
-  it.each([
+  const STOPS_WITHOUT_REPLAY_AFTER_CASES = [
     [{ status: "not-executed" }, "not_executed", null],
     [{ status: "unknown" }, "unknown", null],
     [gate("opchrome-outcome-unknown"), "unknown", "browser-control-outcome-unknown"],
     [{ status: "PRIVATE_SENTINEL" }, "unknown", "fast-chrome-invalid-action-result"]
-  ])("stops without replay after an unconfirmed dispatch %#", async (response, reason, error) => {
+  ];
+  it.each(STOPS_WITHOUT_REPLAY_AFTER_CASES)("stops without replay after an unconfirmed dispatch %#", async (response, reason, error) => {
     const { f, tab, conn } = setup();
     conn.returnValue = stepsPage([["click", "Continue"], ["click", "Next"]]);
     const observed = await f.server.observe({ tab_id: "1" }, meta());
@@ -138,11 +142,12 @@ describe("act_steps", () => {
     expect(conn.methods()).toEqual(["observePage", "actPage"]);
   });
 
-  it.each([
+  const STOPS_AFTER_DISPATCH_WITHOUT_CASES = [
     [{ text: "fast-chrome-never-present" }, stepsPage([["click", "Continue"]]), "wait_timeout", null],
     [{ action_label: "Continue" }, stepsPage([["click", "Continue"], ["click", "Continue"]]), "wait_ambiguous", null],
     [{ text: "Ready" }, gate("opchrome-private-page"), "wait_read_failed", "browser-control-private-page"]
-  ])("stops after dispatch without a token on a failed wait %#", async (expectation, after, reason, error) => {
+  ];
+  it.each(STOPS_AFTER_DISPATCH_WITHOUT_CASES)("stops after dispatch without a token on a failed wait %#", async (expectation, after, reason, error) => {
     const { f, tab, conn } = setup();
     conn.returnValue = stepsPage([["click", "Continue"], ["click", "Next"]]);
     const observed = await f.server.observe({ tab_id: "1" }, meta());
@@ -215,7 +220,7 @@ describe("act_steps", () => {
     expect(monotonic() - started).toBeLessThan(2);
   });
 
-  it.each([
+  const REFUSES_BAD_INPUT_BEFORE_CASES = [
     [[], 30000, "fast-chrome-steps-bounds"],
     [Array.from({ length: 11 }, () => ({ label: "Continue" })), 30000, "fast-chrome-steps-bounds"],
     [[{ label: "Continue" }], 0, "fast-chrome-steps-bounds"],
@@ -224,7 +229,8 @@ describe("act_steps", () => {
     ["plain", 30000, "fast-chrome-steps-bounds"],
     [[{ label: "Continue" }, { label: "Continue", kind: "click", text: "public" }], 30000, "fast-chrome-invalid-public-input"],
     [[{ label: "Amount", kind: "fill" }], 30000, "fast-chrome-invalid-public-input"]
-  ])("refuses bad input before any socket call %#", async (fields, timeout, expected) => {
+  ];
+  it.each(REFUSES_BAD_INPUT_BEFORE_CASES)("refuses bad input before any socket call %#", async (fields, timeout, expected) => {
     const { f, conn } = setup();
     // "plain" is a dict instead of a Step, as Python passed [{"label": "Continue"}].
     const steps = fields === "plain" ? [{ label: "Continue" }] : (fields as Array<Record<string, unknown>>).map(step);
@@ -232,11 +238,12 @@ describe("act_steps", () => {
     expect(conn.calls).toEqual([]);
   });
 
-  it.each([
+  const KEEPS_THE_STEP_MODEL_CASES = [
     { label: "" }, { label: "x".repeat(161) }, { label: "Continue", role: "" }, { label: "Continue", text: "x".repeat(2001) },
     { label: "Continue", timeout_ms: 0 }, { label: "Continue", timeout_ms: 15001 }, { label: "Continue", timeout_ms: "10" },
     { label: "Continue", kind: "upload" }, { label: "Continue", value: "secret" }
-  ])("keeps the Step model strict and bounded: %j", (fields) => {
+  ];
+  it.each(KEEPS_THE_STEP_MODEL_CASES)("keeps the Step model strict and bounded: %j", (fields) => {
     expect(() => new Step(fields)).toThrow(ValidationError);
   });
 

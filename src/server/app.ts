@@ -573,7 +573,7 @@ export class BrowserControl implements App {
   async claimBrowser(args: ClaimBrowserArgs, meta: unknown): Promise<Dict> {
     const session = sessionFromMeta(meta);
     return ensure(null, session, {
-      timeout: args.timeout_seconds ?? 30, site: args.site ?? null, exclusive: (args.exclusive ?? false) as boolean,
+      timeout: args.timeout_seconds, site: args.site ?? null, exclusive: (args.exclusive === undefined ? false : args.exclusive) as boolean,
       ctx: this.pool(), runtime: this.startRuntime?.()
     });
   }
@@ -701,7 +701,7 @@ export class BrowserControl implements App {
   /** Read scoped text and actions. Controls-only omits body text, not sensitive labels. */
   observe(args: TabArgs & { controls_only?: unknown }, meta: unknown): Promise<Dict> {
     return this.tabOperation(args.tab_id, meta, async (tab) => {
-      const controlsOnly = args.controls_only ?? false;
+      const controlsOnly = args.controls_only === undefined ? false : args.controls_only;
       if (typeof controlsOnly === "boolean") tab.controlsOnly = controlsOnly;
       return this.snapshot(tab, controlsOnly);
     });
@@ -738,7 +738,7 @@ export class BrowserControl implements App {
   /** Poll public expectations without input. URL, text and a unique enabled action must match in one observation. */
   waitFor(args: TabArgs & { expect: PageExpectation; timeout_ms?: unknown }, meta: unknown): Promise<Dict> {
     return this.tabOperation(args.tab_id, meta, async (tab) => {
-      const timeout = args.timeout_ms ?? 10000;
+      const timeout = args.timeout_ms === undefined ? 10000 : args.timeout_ms;
       if (!isInt(timeout) || timeout < 1 || timeout > 15000) throw new Gate("fast-chrome-wait-bounds");
       return this.waitForTab(tab, boundExpectation(tab, args.expect), timeout);
     });
@@ -777,7 +777,7 @@ export class BrowserControl implements App {
   /** Execute one observed action. Optionally wait for a public postcondition; never supply credentials. */
   act(args: ActArgs, meta: unknown): Promise<Dict> {
     return this.tabOperation(args.tab_id, meta, async (tab) => {
-      const timeout = args.timeout_ms ?? 10000;
+      const timeout = args.timeout_ms === undefined ? 10000 : args.timeout_ms;
       const text = args.text ?? null;
       if (!isInt(timeout) || timeout < 1 || timeout > 15000) throw new Gate("fast-chrome-wait-bounds");
       const expect = args.expect ? boundExpectation(tab, args.expect) : null;
@@ -810,9 +810,9 @@ export class BrowserControl implements App {
    */
   actSteps(args: ActStepsArgs, meta: unknown): Promise<Dict> {
     return this.tabOperation(args.tab_id, meta, async (tab) => {
-      const timeout = args.timeout_ms ?? 30000;
+      const timeout = args.timeout_ms === undefined ? 30000 : args.timeout_ms;
       const snapshotId = args.snapshot_id ?? null;
-      const includeText = args.include_text ?? false;
+      const includeText = args.include_text === undefined ? false : args.include_text;
       const steps = args.steps as Step[];
       if (!isInt(timeout) || timeout < 1 || timeout > 60000 || !Array.isArray(steps) || steps.length < 1 || steps.length > 10
         || !steps.every((item) => item instanceof Step)) {
@@ -936,8 +936,8 @@ export class BrowserControl implements App {
   /** Start authorized timestamped JPEG sampling, not continuous video. Stop before any private input. */
   startRecording(args: TabArgs & { fps?: unknown; max_seconds?: unknown }, meta: unknown): Promise<Dict> {
     return this.tabOperation(args.tab_id, meta, async (tab) => {
-      const fps = args.fps ?? 5;
-      const maxSeconds = args.max_seconds ?? 30;
+      const fps = args.fps === undefined ? 5 : args.fps;
+      const maxSeconds = args.max_seconds === undefined ? 30 : args.max_seconds;
       if (tab.recording) throw new Gate("fast-chrome-recording-already-exists");
       tab.recording = await Recording.start(tab, fps, maxSeconds, this.artifactRoot(tab), this.recordingDeps);
       return { directory: tab.recording.directory, fps, max_seconds: maxSeconds, kind: "timestamped-jpeg-sampled-video" };

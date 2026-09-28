@@ -179,7 +179,8 @@ class Signin {
 }
 
 describe("stdio server", () => {
-  it.each(["eof", "sigterm"] as const)("finalizes managed tabs on %s the same way", async (how) => {
+  const FINALIZES_MANAGED_TABS_ON_CASES = ["eof", "sigterm"] as const;
+  it.each(FINALIZES_MANAGED_TABS_ON_CASES)("finalizes managed tabs on %s the same way", async (how) => {
     const s = await stdio();
     const server = await s.start();
     const opened = bodyOf(await server.call("open_tab", { url: "https://example.test/" }));
@@ -208,7 +209,8 @@ describe("stdio server", () => {
     expect(server.child.stderr()).toBe("");
   });
 
-  it.each(["eof", "sigterm"] as const)("stops a long act_steps wait on %s without replay", async (how) => {
+  const STOPS_A_LONG_ACT_CASES = ["eof", "sigterm"] as const;
+  it.each(STOPS_A_LONG_ACT_CASES)("stops a long act_steps wait on %s without replay", async (how) => {
     const s = await stdio();
     const server = await s.start();
     await server.call("open_tab", { url: "https://example.test/" });
@@ -226,7 +228,8 @@ describe("stdio server", () => {
     expect(server.child.stderr()).toBe("");
   });
 
-  it.each([[null, "eof"], ["finalizeTabs", "eof"], ["finalizeTabs", "sigterm"], ["actPage", "sigterm"]] as const)(
+  const ENDS_CLEANUP_BEFORE_THE_CASES = [[null, "eof"], ["finalizeTabs", "eof"], ["finalizeTabs", "sigterm"], ["actPage", "sigterm"]] as const;
+  it.each(ENDS_CLEANUP_BEFORE_THE_CASES)(
     "ends cleanup before the parent's kill and keeps unconfirmed markers (hang %s, %s)", async (hang, how) => {
       const s = await stdio();
       const host = await s.lease({ hang: hang ?? undefined });
@@ -256,7 +259,8 @@ describe("stdio server", () => {
       expect(server.child.stderr()).toBe("");
     }, 15000);
 
-  it.each([["vault", "sigterm"], ["vault", "eof"], ["fill", "sigterm"], ["hung-fill", "eof"]] as const)(
+  const SENDS_NO_FURTHER_PRIVATE_CASES = [["vault", "sigterm"], ["vault", "eof"], ["fill", "sigterm"], ["hung-fill", "eof"]] as const;
+  it.each(SENDS_NO_FURTHER_PRIVATE_CASES)(
     "sends no further private input when shutdown begins during the %s step (%s)", async (stage, how) => {
       const fill = deferred();
       const signin = new Signin(stage === "hung-fill" ? null : fill.promise);
@@ -310,7 +314,8 @@ describe("stdio server", () => {
       }
     }, 15000);
 
-  it.each(["sigterm", "eof"] as const)("ends an OTP field wait on %s so cleanup finalizes its tab", async (how) => {
+  const ENDS_AN_OTP_FIELD_CASES = ["sigterm", "eof"] as const;
+  it.each(ENDS_AN_OTP_FIELD_CASES)("ends an OTP field wait on %s so cleanup finalizes its tab", async (how) => {
     const otp = deferred();
     const signin = new Signin(null, otp.promise);
     const s = await stdio();

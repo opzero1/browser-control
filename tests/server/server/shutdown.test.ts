@@ -55,7 +55,8 @@ function watchCleanup(tab: Tab): Promise<void> {
 }
 
 describe("shutdown", () => {
-  it.each([true, false])("stops act_steps before further input (expect %s)", async (withExpect) => {
+  const STOPS_ACT_STEPS_BEFORE_CASES = [true, false];
+  it.each(STOPS_ACT_STEPS_BEFORE_CASES)("stops act_steps before further input (expect %s)", async (withExpect) => {
     const f = fixture();
     const tab = tabFixture(f);
     const conn = connectionOf(tab);
@@ -102,7 +103,8 @@ describe("shutdown", () => {
     expect(conn.methods()).toEqual(["observePage"]);
   });
 
-  it.each(["open_tab", "claim_tab"])("sends no create or claim when shutdown begins during a new tab's pin and marker write (%s)", async (tool) => {
+  const SENDS_NO_CREATE_OR_CASES = ["open_tab", "claim_tab"];
+  it.each(SENDS_NO_CREATE_OR_CASES)("sends no create or claim when shutdown begins during a new tab's pin and marker write (%s)", async (tool) => {
     const s = await shared();
     const directory = path.join(s.ctx.registry, "isolated-1");
     const written: boolean[] = [];
@@ -215,7 +217,8 @@ describe("shutdown", () => {
     expect(conn.methods()).toEqual(["observePage"]);
   });
 
-  it.each([["vault", "grace"], ["vault", "deadline"], ["fill", "grace"], ["fill", "deadline"]])(
+  const SENDS_NO_FURTHER_PRIVATE_CASES = [["vault", "grace"], ["vault", "deadline"], ["fill", "grace"], ["fill", "deadline"]];
+  it.each(SENDS_NO_FURTHER_PRIVATE_CASES)(
     "sends no further private input when shutdown begins during the %s step (%s)", async (stage, settle) => {
       const shutdown = new Shutdown(settle === "grace" ? 2.5 : 0.3);
       const s = await shared(shutdown);
@@ -309,7 +312,8 @@ describe("shutdown", () => {
       }
     });
 
-  it.each(["one-time password", "password"])("stops a transfer before its next step when shutdown begins during a %s field read", async (field) => {
+  const STOPS_A_TRANSFER_BEFORE_CASES = ["one-time password", "password"];
+  it.each(STOPS_A_TRANSFER_BEFORE_CASES)("stops a transfer before its next step when shutdown begins during a %s field read", async (field) => {
     const s = await shared();
     const handle = (await s.server.openTab({ url: P1 }, meta("ses_one"))).tab_id as string;
     const tab = s.server.registry.get(handle) as Tab;

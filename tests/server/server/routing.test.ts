@@ -4,10 +4,10 @@
 // route is not ported (C8); its cleanup-marker tests run on a lease route instead.
 import fs from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BrowserControl } from "../../../src/server/app";
 import { Step } from "../../../src/server/args";
-import { claim, leaseFor, operate, release } from "../../../src/server/pool/registry";
+import { claim, leaseFor, operate, Pin, release } from "../../../src/server/pool/registry";
 import { leaseArtifacts, type StartRuntime, type Window } from "../../../src/server/pool/start";
 import { processSessionId } from "../../../src/server/session";
 import { monotonic } from "../../../src/server/time";
@@ -17,7 +17,10 @@ import {
   Chrome, connectionOf, deferred, FakeConnection, fixture, gate, meta, page, refusal, running, setConnect, type Fixture
 } from "./helpers";
 
-afterEach(() => removeTempRoots());
+afterEach(() => {
+  vi.restoreAllMocks();
+  removeTempRoots();
+});
 
 const P1 = "https://deploy-preview-1--reapdirect.netlify.app/login";
 const P2 = "https://deploy-preview-2--reapdirect.netlify.app/login";
@@ -342,6 +345,28 @@ describe("routes", () => {
 });
 
 describe("lease cleanup markers (ported from the numbered-entry tests, C8)", () => {
+  it("refuses a lease holder's unknown tab before any pin", async () => {
+    const s = await shared();
+    const opened = vi.spyOn(Pin, "open");
+    const calls: Array<(server: BrowserControl) => Promise<unknown>> = [
+      (server) => server.nameGroup({ tab_id: "1", title: "Fixture" }, meta("ses_one")),
+      (server) => server.observe({ tab_id: "1" }, meta("ses_one")),
+      (server) => server.waitFor({ tab_id: "1", expect: null as never }, meta("ses_one")),
+      (server) => server.navigate({ tab_id: "1", url: "https://example.test/" }, meta("ses_one")),
+      (server) => server.act({ tab_id: "1", snapshot_id: "snapshot", action_id: "action" }, meta("ses_one")),
+      (server) => server.actSteps({ tab_id: "1", steps: [new Step({ label: "Continue" })] }, meta("ses_one")),
+      (server) => server.uploadFile({ tab_id: "1", snapshot_id: "snapshot", action_id: "action", path: "/public.pdf" }, meta("ses_one")),
+      (server) => server.paste1PasswordField({ tab_id: "1", expected_url: "https://example.test/", expected_email: "synthetic@example.test", field: "password", selector: "#password" }, meta("ses_one")),
+      (server) => server.screenshot({ tab_id: "1" }, meta("ses_one")),
+      (server) => server.startRecording({ tab_id: "1" }, meta("ses_one")),
+      (server) => server.stopRecording({ tab_id: "1" }, meta("ses_one")),
+      (server) => server.release({ tab_id: "1" }, meta("ses_one"))
+    ];
+    for (const call of calls) expect(await refusal(call(s.server))).toBe("fast-chrome-tab-not-owned");
+    expect(opened).not.toHaveBeenCalled();
+    expect(s.paths).toEqual([]);
+  });
+
   it("pins a lease tab between calls and releases the lease after confirmed cleanup", async () => {
     const s = await shared();
     try {

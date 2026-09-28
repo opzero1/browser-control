@@ -48,7 +48,8 @@ describe("paste_1password_field", () => {
     expect(paste).not.toHaveBeenCalled();
   });
 
-  it.each([[new VaultError("vault-locked"), "blocked"], [new Error("synthetic-secret"), "unknown"]])(
+  const LETS_ONLY_FIXED_ERRORS_CASES = [[new VaultError("vault-locked"), "blocked"], [new Error("synthetic-secret"), "unknown"]];
+  it.each(LETS_ONLY_FIXED_ERRORS_CASES)(
     "lets only fixed errors escape (%s)", async (failure, expected) => {
       const { f, tab } = setup();
       f.server.paste = async () => { throw failure; };
@@ -62,7 +63,8 @@ describe("paste_1password_field", () => {
       tab.operation.release();
     });
 
-  it.each([false, true])("passes the foreground permission to the private source only when enabled (%s)", async (allowed) => {
+  const PASSES_THE_FOREGROUND_PERMISSION_CASES = [false, true];
+  it.each(PASSES_THE_FOREGROUND_PERMISSION_CASES)("passes the foreground permission to the private source only when enabled (%s)", async (allowed) => {
     const { f } = setup();
     const source = vi.fn(async () => "synthetic-private-value");
     f.server.readField = source;

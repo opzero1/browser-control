@@ -22,7 +22,8 @@ function setup(): { f: Fixture; tab: Tab; conn: FakeConnection } {
 }
 
 describe("session identity", () => {
-  it.each(["sessionID", "ai.opencode/sessionID"])("reads the session from _meta[%s]", (key) => {
+  const READS_THE_SESSION_FROM_CASES = ["sessionID", "ai.opencode/sessionID"];
+  it.each(READS_THE_SESSION_FROM_CASES)("reads the session from _meta[%s]", (key) => {
     expect(sessionFromMeta(meta("ses_test", key))).toBe("ses_test");
   });
 
@@ -55,7 +56,8 @@ describe("group titles", () => {
     expect(conn.methods()).toEqual(["nameSession", "observePage"]);
   });
 
-  it.each([[{ name: "Wrong title", confirmed: true }], [{ name: "agent2 · Preview 1704", confirmed: false }]])(
+  const REQUIRES_THE_EXACT_EXTENSION_CASES = [[{ name: "Wrong title", confirmed: true }], [{ name: "agent2 · Preview 1704", confirmed: false }]];
+  it.each(REQUIRES_THE_EXACT_EXTENSION_CASES)(
     "requires the exact extension readback for name_group: %j", async (result) => {
       const { f, conn } = setup();
       conn.returnValue = result;
@@ -90,8 +92,9 @@ describe("group titles", () => {
 });
 
 describe("origin policy", () => {
-  it.each(["file:///tmp/a", "about:blank", "http://example.test/", "https://u:p@example.test", "https://example.test\\@other.test",
-    "https://example.test/\n", "https://"])("refuses %j", (url) => {
+  const REFUSED_URLS = ["file:///tmp/a", "about:blank", "http://example.test/", "https://u:p@example.test", "https://example.test\\@other.test",
+    "https://example.test/\n", "https://"];
+  it.each(REFUSED_URLS)("refuses %j", (url) => {
     expect(() => origin(url, {})).toThrow("fast-chrome-approved-web-url-required");
   });
 
@@ -103,13 +106,14 @@ describe("origin policy", () => {
 });
 
 describe("ownership", () => {
-  it.each([
+  const FOREIGN_TAB_CALLS = [
     ["observe", (f: Fixture) => f.server.observe({ tab_id: "1" }, meta("other"))],
     ["act_steps", (f: Fixture) => f.server.actSteps({ tab_id: "1", steps: [] }, meta("other"))],
     ["claim_tab", (f: Fixture) => f.server.claimTab({ tab_id: "1" }, meta("other"))],
     ["release", (f: Fixture) => f.server.release({ tab_id: "1" }, meta("other"))],
     ["screenshot", (f: Fixture) => f.server.screenshot({ tab_id: "1" }, meta("other"))]
-  ])("refuses another session's %s before any call", async (_name, call) => {
+  ];
+  it.each(FOREIGN_TAB_CALLS)("refuses another session's %s before any call", async (_name, call) => {
     const { f, conn } = setup();
     expect(await refusal(call(f))).toBe("fast-chrome-tab-not-owned");
     expect(conn.calls).toEqual([]);
@@ -173,7 +177,8 @@ describe("actions", () => {
     expect(result).toEqual({ outcome: "read_failed", error: "fast-chrome-origin-changed" });
   });
 
-  it.each(["//other.test/path", "/path\\bad", "/path\nother"])("refuses the ambiguous path expectation %j", (url) => {
+  const REFUSES_THE_AMBIGUOUS_PATH_CASES = ["//other.test/path", "/path\\bad", "/path\nother"];
+  it.each(REFUSES_THE_AMBIGUOUS_PATH_CASES)("refuses the ambiguous path expectation %j", (url) => {
     expect(() => new PageExpectation({ url })).toThrow("fast-chrome-approved-web-url-required");
   });
 
@@ -226,7 +231,8 @@ describe("actions", () => {
 });
 
 describe("uploads", () => {
-  it.each([0, 64 * 1024 * 1024])("validates the PDF and returns only safe metadata (padding %d)", async (padding) => {
+  const VALIDATES_THE_PDF_AND_CASES = [0, 64 * 1024 * 1024];
+  it.each(VALIDATES_THE_PDF_AND_CASES)("validates the PDF and returns only safe metadata (padding %d)", async (padding) => {
     const { f, conn } = setup();
     const pdf = path.join(f.root, "invoice.pdf");
     fs.writeFileSync(pdf, "%PDF-1.7\nfixture");
@@ -241,7 +247,8 @@ describe("uploads", () => {
     expect(params.path).toBe(pdf);
   });
 
-  it.each(["relative", "extension", "magic", "empty", "symlink", "nul"])("refuses an invalid %s file and consumes the adapter token", async (kind) => {
+  const INVALID_PDF_CASES = ["relative", "extension", "magic", "empty", "symlink", "nul"];
+  it.each(INVALID_PDF_CASES)("refuses an invalid %s file and consumes the adapter token", async (kind) => {
     const { f, conn } = setup();
     const good = path.join(f.root, "good.pdf");
     fs.writeFileSync(good, "%PDF-x");
@@ -305,7 +312,8 @@ describe("observation", () => {
     expect(tab.snapshot).toBeNull();
   });
 
-  it.each(["version", "partial", "kind", "extra", "flags", "mode", "disabled", "label", "missing"])(
+  const INVALIDATES_THE_TOKEN_WHEN_CASES = ["version", "partial", "kind", "extra", "flags", "mode", "disabled", "label", "missing"];
+  it.each(INVALIDATES_THE_TOKEN_WHEN_CASES)(
     "invalidates the token when the page metadata fails validation: %s", async (change) => {
       const { f, tab, conn } = setup();
       await f.server.observe({ tab_id: "1" }, meta());
@@ -337,7 +345,8 @@ describe("waits", () => {
     expect(new Set(conn.methods())).toEqual(new Set(["observePage"]));
   });
 
-  it.each(["timeout", "ambiguous", "read_failed"])("returns no token from a failed wait: %s", async (mode) => {
+  const RETURNS_NO_TOKEN_FROM_CASES = ["timeout", "ambiguous", "read_failed"];
+  it.each(RETURNS_NO_TOKEN_FROM_CASES)("returns no token from a failed wait: %s", async (mode) => {
     const { f, tab, conn } = setup();
     conn.returnValue = page("Loading", mode === "ambiguous" ? ["Continue", "Continue"] : []);
     if (mode === "read_failed") conn.sideEffect = gate("opchrome-private-page");
@@ -433,7 +442,8 @@ describe("tab independence", () => {
 });
 
 describe("release", () => {
-  it.each([[true, false, true], [true, true, false], [false, false, false]])(
+  const REQUIRES_A_SEMANTIC_READBACK_CASES = [[true, false, true], [true, true, false], [false, false, false]];
+  it.each(REQUIRES_A_SEMANTIC_READBACK_CASES)(
     "requires a semantic readback (created %s, keep_open %s)", async (created, keep, closed) => {
       const { f, tab, conn } = setup();
       tab.created = created;
@@ -552,7 +562,8 @@ describe("setup", () => {
     expect(f.server.registry.get("1")).toBe(original);
   });
 
-  it.each([false, true])("publishes a new tab only while it is busy (claim %s)", async (claim) => {
+  const PUBLISHES_A_NEW_TAB_CASES = [false, true];
+  it.each(PUBLISHES_A_NEW_TAB_CASES)("publishes a new tab only while it is busy (claim %s)", async (claim) => {
     const f = fixture();
     const conn = new FakeConnection();
     const first = claim ? [[{ id: 1, url: "https://example.test/", title: "User" }], { id: 1, url: "https://example.test/", title: "User" }]
@@ -601,7 +612,8 @@ describe("controls-only preference", () => {
     expect(conn.calls[conn.calls.length - 1][1].controlsOnly).toBe(true);
   });
 
-  it.each([true, false])("survives an action wait (matched %s)", async (matched) => {
+  const SURVIVES_AN_ACTION_WAIT_CASES = [true, false];
+  it.each(SURVIVES_AN_ACTION_WAIT_CASES)("survives an action wait (matched %s)", async (matched) => {
     const { f, tab, conn } = setup();
     const raw = { ...page("", matched ? ["Continue", "Recipient"] : ["Continue"]), mode: "controls-only" };
     conn.returnValue = raw;
@@ -699,5 +711,67 @@ describe("controls-only preference", () => {
     expect(await refusal(f.server.observe({ tab_id: "1", controls_only: "yes" }, meta()))).toBe("fast-chrome-invalid-observation-mode");
     expect(tab.controlsOnly).toBe(false);
     expect(tab.snapshot).toBeNull();
+  });
+});
+
+describe("recording (added: the server's wiring of native_captures)", () => {
+  function recorder(f: Fixture) {
+    const artifacts = path.join(f.root, "recordings");
+    fs.mkdirSync(artifacts, { mode: 0o700 });
+    const conn = new FakeConnection();
+    conn.sideEffect = (method: string, params: any) => {
+      if (method === "recordingState") return { recording: params.active };
+      if (method === "capturePage") return { data: JPEG_4X4 };
+      if (method === "finalizeTabs") return { closedOrReleased: true };
+      if (method === "getTabs" || method === "getUserTabs") return [];
+      return page();
+    };
+    const tab = f.server.newTab("ses_test", conn, 1, "https://example.test", true, { artifactRoot: artifacts });
+    f.server.registry.tabs.set("1", tab);
+    return { tab, conn, artifacts };
+  }
+
+  const deps = {
+    ffmpeg: () => "/synthetic/ffmpeg",
+    run: async (_file: string, args: string[], cwd: string) => {
+      if (args.includes("recording.mp4")) fs.writeFileSync(path.join(cwd, "recording.mp4"), "synthetic video");
+    }
+  };
+
+  it("starts one recording per tab, refuses release while it runs, and stops it with a receipt", async () => {
+    const f = fixture({ recordingDeps: deps });
+    const { tab, artifacts } = recorder(f);
+    const started = await f.server.startRecording({ tab_id: "1", fps: 15, max_seconds: 1 }, meta());
+    expect(started).toEqual({ directory: tab.recording?.directory, fps: 15, max_seconds: 1, kind: "timestamped-jpeg-sampled-video" });
+    expect(path.dirname(started.directory as string)).toBe(artifacts);
+    expect(await refusal(f.server.startRecording({ tab_id: "1" }, meta()))).toBe("fast-chrome-recording-already-exists");
+    expect(await refusal(f.server.release({ tab_id: "1" }, meta()))).toBe("fast-chrome-stop-recording-first");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const receipt = await f.server.stopRecording({ tab_id: "1" }, meta());
+    expect(receipt.kind).toBe("timestamped-jpeg-sampled-video");
+    expect((receipt.frames as unknown[]).length).toBeGreaterThan(0);
+    expect(receipt.path).toBe(path.join(started.directory as string, "recording.mp4"));
+    expect(receipt.decode_verified).toBe(true);
+    expect(tab.recording).toBeNull();
+    expect(await refusal(f.server.stopRecording({ tab_id: "1" }, meta()))).toBe("fast-chrome-no-recording");
+    expect((await f.server.release({ tab_id: "1" }, meta())).release_confirmed).toBe(true);
+  });
+
+  it("refuses a recording outside the bounds or without ffmpeg", async () => {
+    const f = fixture({ recordingDeps: { ...deps, ffmpeg: () => null } });
+    recorder(f);
+    expect(await refusal(f.server.startRecording({ tab_id: "1", fps: 0 }, meta()))).toBe("fast-chrome-recording-bounds");
+    expect(await refusal(f.server.startRecording({ tab_id: "1" }, meta()))).toBe("fast-chrome-ffmpeg-required");
+  });
+
+  it("stops a running recording without encoding during cleanup", async () => {
+    const f = fixture({ recordingDeps: deps });
+    const { conn } = recorder(f);
+    const started = await f.server.startRecording({ tab_id: "1" }, meta());
+    await f.server.cleanup(performance.now() / 1000 + 2.5);
+    expect(conn.calls.filter(([method]) => method === "recordingState").map(([, params]) => params.active)).toEqual([true, false]);
+    expect(conn.methods().slice(-3)).toEqual(["finalizeTabs", "getTabs", "getUserTabs"]);
+    expect(fs.existsSync(path.join(started.directory as string, "recording.mp4"))).toBe(false);
+    expect(fs.existsSync(path.join(started.directory as string, "capture.json"))).toBe(true);
   });
 });
