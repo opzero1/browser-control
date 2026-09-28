@@ -21,6 +21,10 @@ const clients = new Map<net.Socket, { session: string; authenticated: boolean; i
 const pending = new Map<number, { socket: net.Socket; id: number | string; private: boolean; timer: NodeJS.Timeout }>();
 let nextId = 1;
 let ownsSocket = false;
+let boundSocket: { dev: number; ino: number } | undefined;
+let holdsRecoveryLock = false;
+const recoveryLockPath = `${socketPath}.lock`;
+const staleRecoveryLockMs = 10000;
 let tcpToken: Buffer | undefined;
 
 function native(message: unknown) {
@@ -186,7 +190,8 @@ const server = net.createServer(socket => {
 
 function shutdown(code: number) {
   for (const socket of clients.keys()) socket.destroy();
-  if (ownsSocket) { try { fs.unlinkSync(socketPath); } catch {} }
+  if (ownsSocket) removeOwnSocket();
+  releaseRecoveryLock();
   process.exit(code);
 }
 
@@ -226,18 +231,80 @@ function refuseEndpoint() {
   shutdown(1);
 }
 
+// A bind never replaces an existing file, so a racing host fails with
+// EADDRINUSE instead of taking over this endpoint.
 function listenUnix() {
-  server.listen(socketPath, () => { ownsSocket = true; fs.chmodSync(socketPath, 0o600); });
+  server.listen(socketPath, () => {
+    try {
+      const bound = fs.lstatSync(socketPath);
+      boundSocket = { dev: bound.dev, ino: bound.ino };
+      ownsSocket = true;
+      fs.chmodSync(socketPath, 0o600);
+      releaseRecoveryLock();
+    } catch {
+      refuseEndpoint();
+    }
+  });
 }
 
-// A host killed without cleanup leaves its socket file behind. Only a
-// refused connection proves no live host owns it; anything else is left alone.
+// Another host may have replaced this endpoint after a stale-socket recovery,
+// so only the socket this host bound is removed.
+function removeOwnSocket() {
+  try {
+    const current = fs.lstatSync(socketPath);
+    if (boundSocket && current.dev === boundSocket.dev && current.ino === boundSocket.ino) fs.unlinkSync(socketPath);
+  } catch {}
+}
+
+function acquireRecoveryLock(retry = true): boolean {
+  try {
+    fs.closeSync(fs.openSync(recoveryLockPath, "wx", 0o600));
+    holdsRecoveryLock = true;
+    return true;
+  } catch (lockError) {
+    if ((lockError as NodeJS.ErrnoException).code !== "EEXIST" || !retry) return false;
+    try {
+      const lock = fs.lstatSync(recoveryLockPath);
+      if (!lock.isFile() || lock.uid !== process.getuid?.() || Date.now() - lock.mtimeMs < staleRecoveryLockMs) return false;
+      fs.unlinkSync(recoveryLockPath);
+    } catch {
+      return false;
+    }
+    return acquireRecoveryLock(false);
+  }
+}
+
+function releaseRecoveryLock() {
+  if (!holdsRecoveryLock) return;
+  holdsRecoveryLock = false;
+  try { fs.unlinkSync(recoveryLockPath); } catch {}
+}
+
+// A host killed without cleanup leaves its socket file behind. Recovery runs
+// under an exclusive lock so two hosts cannot both unlink the endpoint, and
+// only a refused connection proves that no live host owns the socket.
 function reclaimStaleSocket() {
+  if (!acquireRecoveryLock()) { refuseEndpoint(); return; }
+  let stale: fs.Stats;
+  try {
+    stale = fs.lstatSync(socketPath);
+    if (!stale.isSocket() || stale.uid !== process.getuid?.()) throw new Error("endpoint exists");
+  } catch {
+    refuseEndpoint();
+    return;
+  }
   const probe = net.connect(socketPath);
   probe.once("connect", () => { probe.destroy(); refuseEndpoint(); });
   probe.once("error", (probeError: NodeJS.ErrnoException) => {
     if (probeError.code !== "ECONNREFUSED") { refuseEndpoint(); return; }
-    try { fs.unlinkSync(socketPath); } catch { refuseEndpoint(); return; }
+    try {
+      const current = fs.lstatSync(socketPath);
+      if (current.dev !== stale.dev || current.ino !== stale.ino) throw new Error("endpoint changed");
+      fs.unlinkSync(socketPath);
+    } catch {
+      refuseEndpoint();
+      return;
+    }
     listenUnix();
   });
 }

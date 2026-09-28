@@ -29,6 +29,10 @@ var clients = /* @__PURE__ */ new Map();
 var pending = /* @__PURE__ */ new Map();
 var nextId = 1;
 var ownsSocket = false;
+var boundSocket;
+var holdsRecoveryLock = false;
+var recoveryLockPath = `${socketPath}.lock`;
+var staleRecoveryLockMs = 1e4;
 var tcpToken;
 function native(message) {
 	const body = Buffer.from(JSON.stringify(message));
@@ -247,9 +251,8 @@ var server = node_net.default.createServer((socket) => {
 });
 function shutdown(code) {
 	for (const socket of clients.keys()) socket.destroy();
-	if (ownsSocket) try {
-		node_fs.default.unlinkSync(socketPath);
-	} catch {}
+	if (ownsSocket) removeOwnSocket();
+	releaseRecoveryLock();
 	node_process.default.exit(code);
 }
 server.on("error", () => {
@@ -290,11 +293,63 @@ function refuseEndpoint() {
 }
 function listenUnix() {
 	server.listen(socketPath, () => {
-		ownsSocket = true;
-		node_fs.default.chmodSync(socketPath, 384);
+		try {
+			const bound = node_fs.default.lstatSync(socketPath);
+			boundSocket = {
+				dev: bound.dev,
+				ino: bound.ino
+			};
+			ownsSocket = true;
+			node_fs.default.chmodSync(socketPath, 384);
+			releaseRecoveryLock();
+		} catch {
+			refuseEndpoint();
+		}
 	});
 }
+function removeOwnSocket() {
+	try {
+		const current = node_fs.default.lstatSync(socketPath);
+		if (boundSocket && current.dev === boundSocket.dev && current.ino === boundSocket.ino) node_fs.default.unlinkSync(socketPath);
+	} catch {}
+}
+function acquireRecoveryLock(retry = true) {
+	try {
+		node_fs.default.closeSync(node_fs.default.openSync(recoveryLockPath, "wx", 384));
+		holdsRecoveryLock = true;
+		return true;
+	} catch (lockError) {
+		if (lockError.code !== "EEXIST" || !retry) return false;
+		try {
+			const lock = node_fs.default.lstatSync(recoveryLockPath);
+			if (!lock.isFile() || lock.uid !== node_process.default.getuid?.() || Date.now() - lock.mtimeMs < staleRecoveryLockMs) return false;
+			node_fs.default.unlinkSync(recoveryLockPath);
+		} catch {
+			return false;
+		}
+		return acquireRecoveryLock(false);
+	}
+}
+function releaseRecoveryLock() {
+	if (!holdsRecoveryLock) return;
+	holdsRecoveryLock = false;
+	try {
+		node_fs.default.unlinkSync(recoveryLockPath);
+	} catch {}
+}
 function reclaimStaleSocket() {
+	if (!acquireRecoveryLock()) {
+		refuseEndpoint();
+		return;
+	}
+	let stale;
+	try {
+		stale = node_fs.default.lstatSync(socketPath);
+		if (!stale.isSocket() || stale.uid !== node_process.default.getuid?.()) throw new Error("endpoint exists");
+	} catch {
+		refuseEndpoint();
+		return;
+	}
 	const probe = node_net.default.connect(socketPath);
 	probe.once("connect", () => {
 		probe.destroy();
@@ -306,6 +361,8 @@ function reclaimStaleSocket() {
 			return;
 		}
 		try {
+			const current = node_fs.default.lstatSync(socketPath);
+			if (current.dev !== stale.dev || current.ino !== stale.ino) throw new Error("endpoint changed");
 			node_fs.default.unlinkSync(socketPath);
 		} catch {
 			refuseEndpoint();

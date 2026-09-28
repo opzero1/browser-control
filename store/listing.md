@@ -176,10 +176,10 @@ Keeps the agent's work visible and separate from the user's own tabs. Every tab 
 
 #### `tabs`
 
-692 / 1,000 characters.
+765 / 1,000 characters.
 
 ```text
-Lets the user's local agent see and use tabs. getUserTabs calls chrome.tabs.query and returns the ID, URL, title, window, position and group of the user's open tabs, leaving out Chrome internal pages, so the agent can pick one to claim. createTab opens an inactive blank tab in a normal window, and claimUserTab adds a tab the agent picked to its session. The extension also groups and ungroups agent tabs, messages its cursor overlay (chrome.tabs.sendMessage), and, when the agent finishes (finalizeTabs), closes only tabs the agent opened. It listens to chrome.tabs.onUpdated, onRemoved and onReplaced to cancel stale actions after a navigation or when a tab closes. Tab data is not stored.
+Lets the user's local agent see and use tabs. getUserTabs calls chrome.tabs.query and returns the ID, URL, title, window, position and group of the user's open tabs, leaving out Chrome internal pages, so the agent can pick one to claim. createTab opens an inactive blank tab in a normal window, and claimUserTab adds a tab the agent picked to its session. The extension also groups and ungroups agent tabs, messages its cursor overlay (chrome.tabs.sendMessage), and, when the agent finishes (finalizeTabs), closes only tabs the agent opened. It listens to chrome.tabs.onUpdated, onRemoved and onReplaced to cancel stale actions after a navigation or when a tab closes. Tab URLs and titles are not stored; only tab, group and session IDs are kept for the tab groups.
 ```
 
 ### Host permission justification
@@ -194,10 +194,10 @@ The user decides which websites their local agent works on, so the sites cannot 
 
 Answer: **No, I am not using remote code.**
 
-Justification, 856 / 1,000 characters:
+Justification, 865 / 1,000 characters:
 
 ```text
-No. Every script the extension runs is in the package: background.js, popup.js, content-scripts/opzero-chrome.js, and page functions bundled in background.js and injected with chrome.scripting.executeScript({ func }). The extension loads no script from any URL, has no script tag that points outside the package, and never passes strings to eval() or new Function(). Its extension pages use the CSP script-src 'self'. The minified Effect library in the bundles has object methods named eval; they are ordinary methods, not the global eval. For completeness: the executeCdp request can relay a DevTools Protocol command, such as Runtime.evaluate, from the user's own local agent to a page in that agent's tab. That input comes from software on the user's device over native messaging, not from a remote server, and it runs in the page, not in the extension.
+No. All extension code is in the package: background.js, popup.js, content-scripts/opzero-chrome.js, and page functions bundled in background.js and injected with chrome.scripting.executeScript({ func }). The extension loads no script from any URL, has no script tag that points outside the package, and never passes strings to eval() or new Function(). Its extension pages use the CSP script-src 'self'. The minified Effect library in the bundles has object methods named eval; they are ordinary methods, not the global eval. Separately, through the chrome.debugger API, the executeCdp request relays DevTools Protocol commands, such as Runtime.evaluate, from the user's own local agent to a page in that agent's tab. Those commands come from software on the user's device over native messaging, not from a server, and they run in the page, never in the extension.
 ```
 
 ### Data usage
@@ -206,7 +206,7 @@ Google: "Extensions are required to disclose how they handle user data, even whe
 
 | Category | Mark | Reason (from the audit) |
 | --- | --- | --- |
-| Personally identifiable information | Unchecked | No code collects or extracts names, addresses, email addresses or ID numbers. Such details can appear by chance on a page that the agent reads. They are then handled only as Website content, and the privacy policy says so. |
+| Personally identifiable information | **Checked** | Private fill passes a user name or email address from a local program into a verified sign-in field, without storing or logging it (`private-input.ts` accepts text and email fields). The agent can also type names, addresses and similar details into form fields (`actPage`). Details that only appear on a page are handled as Website content. |
 | Health information | Unchecked | No code reads health data. Health details that appear on a page are handled only as Website content. |
 | Financial and payment information | Unchecked | No code reads payment, card or transaction data. Financial details that appear on a page are handled only as Website content. |
 | Authentication information | **Checked** | Private fill passes passwords and one-time codes from a local program into verified sign-in fields, without storing or logging them (`privateFill`, `background.ts:972-998`; `private-input.ts:25-56`). The `executeCdp` relay (`background.ts:906-926`) can return the cookies of agent tabs. |
@@ -238,7 +238,8 @@ They are true because the extension sends data only to the host on the user's de
 | Web history (checked) | Table row "Tab details". Page addresses: table row "Chrome DevTools Protocol results and events". |
 | User activity (checked) | Table row "Chrome DevTools Protocol results and events" ("other network activity and page events") |
 | Website content (checked) | Table rows "Page content", "Screenshots" and "Chrome DevTools Protocol results and events", and the paragraph after the table |
-| Personally identifiable, health, financial, personal communications and location (unchecked) | The paragraph after the table: such details are handled "only as part of the website content described above" |
+| Personally identifiable information (checked) | Table rows "Sign-in values" and "Clicks and typed text", and the paragraph after the table |
+| Health, financial, personal communications and location (unchecked) | The paragraph after the table: such details are handled "only as part of the website content described above" |
 | Storage justification keys | "In the extension's storage": the same five `chrome.storage.local` keys and one `chrome.storage.session` key |
 | Remote code: No | "What we do not do", the remote code bullet |
 | Certifications | "What we do not do", and the Limited Use sentence |

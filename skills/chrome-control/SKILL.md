@@ -96,7 +96,6 @@ Use:
 ```sh
 node native-host/client.js getInfo
 node native-host/client.js getUserTabs
-node native-host/client.js getUserHistory '{"limit":10}'
 ```
 
 Session-scoped calls require both `session_id` and `turn_id`:
@@ -198,7 +197,6 @@ The background service worker exposes:
 - `getInfo`
 - `getTabs`
 - `getUserTabs`
-- `getUserHistory`
 - `createTab`
 - `claimUserTab`
 - `finalizeTabs`
@@ -214,5 +212,4 @@ The extension forwards these notifications when active:
 
 - `onCDPEvent`
 - `onCDPDetach`
-- `onDownloadChange`
 - `onControlStopped`

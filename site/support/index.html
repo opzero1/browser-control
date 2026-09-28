@@ -66,18 +66,16 @@ node native-host/client.js ping</code></pre>
       <li><strong>Check Node.js.</strong> The host needs Node.js 18 or later. The host launcher looks for <code>node</code> on the <code>PATH</code>, then in <code>/opt/homebrew/bin</code> and <code>/usr/local/bin</code>, and then uses the Node.js that ran the installer. If you use a Node.js version manager, run the installer with the version that you want Chrome to use.</li>
       <li><strong>Keep the helper folder in place.</strong> The manifest points to the host by its full path. If you moved or renamed the folder, run the installer again.</li>
       <li><strong>Reload.</strong> Open the popup and click <strong>Reload host</strong>. While the host is not paused, the extension also retries the connection every 30 seconds.</li>
-      <li><strong>Remove a stale socket.</strong> The host refuses to start if the file <code>~/.opzero-chrome/default.sock</code> already exists, or if the <code>~/.opzero-chrome</code> folder is not private to your user account. This can happen after a crash. Quit Chrome, make sure that no host is still running, and then fix the folder:
-        <pre><code>pgrep -fl native-host/host.js
-rm ~/.opzero-chrome/default.sock
-chmod 700 ~/.opzero-chrome</code></pre>
-        If <code>pgrep</code> lists a process, quit it before you delete the file. Then start Chrome again.</li>
+      <li><strong>Check the socket folder.</strong> After a crash, the host removes a leftover <code>~/.opzero-chrome/default.sock</code> by itself when no running host answers on it. It still refuses to start if that path is not a socket, belongs to another user, or if the <code>~/.opzero-chrome</code> folder is not private to your user account. To make the folder private:
+        <pre><code>chmod 700 ~/.opzero-chrome</code></pre>
+        Then click <strong>Reload host</strong>.</li>
       <li><strong>Use one Chrome profile at a time.</strong> All Chrome profiles share the same host manifest and socket. If Browser Control is turned on in more than one profile, only the first profile to start the host connects. Pause the host in the other profiles.</li>
       <li><strong>Wait for the version check.</strong> If <code>node native-host/client.js ping</code> reports <code>Extension protocol v2 is not ready</code>, the host is still checking the extension. This takes up to 10 seconds after the host starts. If the message stays, update the extension and the helper to matching versions, and then click <strong>Reload host</strong>.</li>
       <li><strong>Other browsers.</strong> The installer registers the host for Google Chrome™ only. For another browser, pass <code>--manifest-path</code> with the full path of the <code>com.opzero.chrome.json</code> file in that browser’s native messaging hosts folder.</li>
     </ol>
 
     <h2 id="popup-controls">Pause, resume and reload the host</h2>
-    <p>Open the Browser Control popup from the Chrome toolbar. The status shows <strong>Connected</strong>, <strong>Paused</strong> or <strong>Disconnected</strong>. When the host is not connected, or when there is an error, the popup also shows the host name, the time of the last check and the last error.</p>
+    <p>Open the Browser Control popup from the Chrome toolbar. The status shows <strong>Connected</strong>, <strong>Connecting</strong>, <strong>Paused</strong> or <strong>Disconnected</strong>. <strong>Connecting</strong> means that Chrome started the host and the extension is waiting for its first reply. If the host does not reply within 15 seconds, or later stops answering, the extension drops it and starts a new one. When the host is not connected, or when there is an error, the popup also shows the host name, the time of the last check and the last error.</p>
     <dl>
       <dt><strong>Reload host</strong></dt>
       <dd>Turns off pause, closes the connection and opens it again, so Chrome starts a new host process. Use it after you install or update the helper. If the popup still shows Disconnected, wait 30 seconds or click the button again.</dd>

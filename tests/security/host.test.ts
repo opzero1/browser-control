@@ -181,6 +181,76 @@ it("reclaims the stale endpoint of a host that was killed without cleanup", asyn
   expect(fs.statSync(h.endpoint).mode & 0o777).toBe(0o600);
 });
 
+function spawnHost(endpoint: string) {
+  const child = spawn(process.execPath, ["dist/native-host/host.js"], {
+    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
+  });
+  cleanup.push(() => child.kill());
+  const exited = new Promise<number | null>(resolve => child.once("exit", resolve));
+  return { child, exited };
+}
+
+function hostInfo(endpoint: string) {
+  return new Promise<any>((resolve, reject) => {
+    const socket = net.connect(endpoint);
+    socket.setEncoding("utf8");
+    socket.once("error", reject);
+    socket.once("connect", () => socket.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "host.info" })}\n`));
+    socket.once("data", chunk => { socket.destroy(); resolve(JSON.parse(String(chunk)).result); });
+  });
+}
+
+async function staleEndpoint() {
+  const h = await host();
+  const exited = new Promise(resolve => h.child.once("exit", resolve));
+  h.child.kill("SIGKILL");
+  await exited;
+  return h.endpoint;
+}
+
+it("leaves exactly one live host when several recover the same stale endpoint at once", async () => {
+  for (let round = 0; round < 5; round++) {
+    const endpoint = await staleEndpoint();
+    const hosts = Array.from({ length: 4 }, () => spawnHost(endpoint));
+    await vi.waitFor(async () => expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string"));
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const alive = hosts.filter(h => h.child.exitCode === null);
+    expect(alive).toHaveLength(1);
+    expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string");
+    expect(fs.existsSync(`${endpoint}.lock`)).toBe(false);
+    alive[0].child.kill("SIGTERM");
+    await alive[0].exited;
+    expect(fs.existsSync(endpoint)).toBe(false);
+  }
+});
+
+it("fails closed while another host holds a fresh recovery lock and clears a stale one", async () => {
+  const endpoint = await staleEndpoint();
+  const lock = `${endpoint}.lock`;
+  fs.writeFileSync(lock, "");
+  expect(await spawnHost(endpoint).exited).toBe(1);
+  expect(fs.lstatSync(endpoint).isSocket()).toBe(true);
+  expect(fs.existsSync(lock)).toBe(true);
+  const past = new Date(Date.now() - 60000);
+  fs.utimesSync(lock, past, past);
+  const recovered = spawnHost(endpoint);
+  await vi.waitFor(async () => expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string"));
+  expect(recovered.child.exitCode).toBeNull();
+  expect(fs.existsSync(lock)).toBe(false);
+});
+
+it("does not remove a socket that replaced its own before it shuts down", async () => {
+  const h = await host();
+  const exited = new Promise(resolve => h.child.once("exit", resolve));
+  fs.unlinkSync(h.endpoint);
+  const replacement = net.createServer(socket => socket.end());
+  cleanup.push(() => replacement.close());
+  await new Promise<void>((resolve, reject) => { replacement.once("error", reject); replacement.listen(h.endpoint, resolve); });
+  h.child.kill("SIGTERM");
+  await exited;
+  expect(fs.lstatSync(h.endpoint).isSocket()).toBe(true);
+});
+
 it("refuses an endpoint path that holds something other than a socket", async () => {
   const directory = testTemp();
   cleanup.push(() => fs.rmSync(directory, { recursive: true, force: true }));

@@ -34,7 +34,9 @@ The popup has three controls:
 - **Pause host** disconnects the host, stops the reconnect and heartbeat alarms, and ends every session. The paused state is stored and survives service worker and browser restarts.
 - **Resume host** clears the paused state and reconnects.
 
-When the host exits, the extension shows **Disconnected** and its reconnect alarm reconnects within 30 seconds.
+The popup shows **Connecting** until the host sends its first message, because `connectNative` returns a port even when no host is installed. A host that does not answer within 15 seconds, or that fails the 30-second heartbeat, is dropped. When the host exits or is dropped, the extension shows **Disconnected** and its reconnect alarm reconnects within 30 seconds.
+
+The host removes a stale socket left by a crashed host only when a connection to it is refused. It does this under the exclusive lock file `<socket>.lock`, so two hosts cannot both replace the endpoint. At shutdown it removes the socket only if the socket is still the one it bound.
 
 ## Verify
 

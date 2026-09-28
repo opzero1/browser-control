@@ -32,10 +32,10 @@ The extension handles data only when your local agent asks for it. "Agent tabs" 
 | Screenshots of agent tabs (JPEG images) | The agent asks for a screenshot or a short recording. | So that the agent can see the page. |
 | Clicks and typed text | The agent clicks a control or types into a field that it found on the page (up to 2,000 characters for each field). | To carry out the task. |
 | Chrome DevTools Protocol results and events for agent tabs | The agent attaches the debugger to one of its tabs and sends DevTools Protocol commands. | For advanced automation. Depending on the commands and the events that the agent turns on, this can include the page structure, the results of scripts that the agent runs in the page, the addresses of pages and resources that the tab loads, other network activity and page events, and the page's cookies. |
-| Sign-in values, such as a user name, password or one-time code | A local program on your computer asks the host to fill sign-in fields on a verified HTTPS page. | To sign in without putting the values in page readings. See [Private credential fill](#private-credential-fill). |
+| Sign-in values, such as a user name or email address, a password or a one-time code | A local program on your computer asks the host to fill sign-in fields on a verified HTTPS page. | To sign in without putting the values in page readings. See [Private credential fill](#private-credential-fill). |
 | Path, name and size of a local PDF file | The agent attaches a local PDF to an upload field. | To attach the file. The extension gives the file path to Chrome. It does not read the contents of the file. |
 
-Pages that you ask the agent to work on can incidentally contain other personal information, such as names, email addresses, messages, financial or health details, or your location. Browser Control does not look for, extract or keep these kinds of data separately. It handles them only as part of the website content described above: page text, screenshots and DevTools Protocol results from agent tabs.
+Browser Control handles personally identifiable information in two ways: the user name or email address that a local program fills through private credential fill, and the names, addresses and other details that your agent types into forms for you. Pages that you ask the agent to work on can also contain other personal information, such as messages, financial or health details, or your location. Browser Control does not look for, extract or keep these kinds of data separately. It handles them only as part of the website content described above: page text, screenshots and DevTools Protocol results from agent tabs.
 
 ## How the data is used
 
@@ -52,7 +52,7 @@ The extension keeps a small amount of state in `chrome.storage.local`:
 | `NATIVE_HOST_STATUS` | Connection state, host name, time of the last check, reconnect count and the last connection error message. |
 | `NATIVE_HOST_PAUSED` | Whether you paused the host. |
 | `TAB_GROUPS` | Agent session IDs, tab group IDs, tab IDs and group titles. |
-| `extensionInstanceId` | A random ID created on first use. It is shared only with the local host. |
+| `extensionInstanceId` | A random ID created on first use. It is shared only with the local host and with local programs that ask the host for the extension's details. |
 | `PRIVATE_CAPTURE_QUARANTINE:<tab ID>` | After a private fill: the page's document ID and the CSS selectors of the filled fields. It never contains the filled values. |
 
 In `chrome.storage.session`, which Chrome clears when the browser closes, the key `opChromePendingUpdateVersion` holds the version number of an extension update that waits until agent work ends.
