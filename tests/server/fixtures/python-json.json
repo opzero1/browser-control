@@ -1,0 +1,737 @@
+{
+  "cases": [
+    {
+      "input": "null",
+      "default": "null",
+      "compact": "null",
+      "indent2": "null",
+      "unicode": "null",
+      "pydantic_indent2": {
+        "ok": "null"
+      }
+    },
+    {
+      "input": "true",
+      "default": "true",
+      "compact": "true",
+      "indent2": "true",
+      "unicode": "true",
+      "pydantic_indent2": {
+        "ok": "true"
+      }
+    },
+    {
+      "input": "false",
+      "default": "false",
+      "compact": "false",
+      "indent2": "false",
+      "unicode": "false",
+      "pydantic_indent2": {
+        "ok": "false"
+      }
+    },
+    {
+      "input": "0",
+      "default": "0",
+      "compact": "0",
+      "indent2": "0",
+      "unicode": "0",
+      "pydantic_indent2": {
+        "ok": "0"
+      }
+    },
+    {
+      "input": "1",
+      "default": "1",
+      "compact": "1",
+      "indent2": "1",
+      "unicode": "1",
+      "pydantic_indent2": {
+        "ok": "1"
+      }
+    },
+    {
+      "input": "-1",
+      "default": "-1",
+      "compact": "-1",
+      "indent2": "-1",
+      "unicode": "-1",
+      "pydantic_indent2": {
+        "ok": "-1"
+      }
+    },
+    {
+      "input": "42",
+      "default": "42",
+      "compact": "42",
+      "indent2": "42",
+      "unicode": "42",
+      "pydantic_indent2": {
+        "ok": "42"
+      }
+    },
+    {
+      "input": "2147483648",
+      "default": "2147483648",
+      "compact": "2147483648",
+      "indent2": "2147483648",
+      "unicode": "2147483648",
+      "pydantic_indent2": {
+        "ok": "2147483648"
+      }
+    },
+    {
+      "input": "9007199254740992",
+      "default": "9007199254740992",
+      "compact": "9007199254740992",
+      "indent2": "9007199254740992",
+      "unicode": "9007199254740992",
+      "pydantic_indent2": {
+        "ok": "9007199254740992"
+      }
+    },
+    {
+      "input": "9007199254740993",
+      "default": "9007199254740993",
+      "compact": "9007199254740993",
+      "indent2": "9007199254740993",
+      "unicode": "9007199254740993",
+      "pydantic_indent2": {
+        "ok": "9007199254740993"
+      }
+    },
+    {
+      "input": "-9223372036854775808",
+      "default": "-9223372036854775808",
+      "compact": "-9223372036854775808",
+      "indent2": "-9223372036854775808",
+      "unicode": "-9223372036854775808",
+      "pydantic_indent2": {
+        "ok": "-9223372036854775808"
+      }
+    },
+    {
+      "input": "1000000000000000000000000000000",
+      "default": "1000000000000000000000000000000",
+      "compact": "1000000000000000000000000000000",
+      "indent2": "1000000000000000000000000000000",
+      "unicode": "1000000000000000000000000000000",
+      "pydantic_indent2": {
+        "ok": "1000000000000000000000000000000"
+      }
+    },
+    {
+      "input": "0.1",
+      "default": "0.1",
+      "compact": "0.1",
+      "indent2": "0.1",
+      "unicode": "0.1",
+      "pydantic_indent2": {
+        "ok": "0.1"
+      }
+    },
+    {
+      "input": "-0.5",
+      "default": "-0.5",
+      "compact": "-0.5",
+      "indent2": "-0.5",
+      "unicode": "-0.5",
+      "pydantic_indent2": {
+        "ok": "-0.5"
+      }
+    },
+    {
+      "input": "1.5",
+      "default": "1.5",
+      "compact": "1.5",
+      "indent2": "1.5",
+      "unicode": "1.5",
+      "pydantic_indent2": {
+        "ok": "1.5"
+      }
+    },
+    {
+      "input": "3.14159",
+      "default": "3.14159",
+      "compact": "3.14159",
+      "indent2": "3.14159",
+      "unicode": "3.14159",
+      "pydantic_indent2": {
+        "ok": "3.14159"
+      }
+    },
+    {
+      "input": "123456789.123",
+      "default": "123456789.123",
+      "compact": "123456789.123",
+      "indent2": "123456789.123",
+      "unicode": "123456789.123",
+      "pydantic_indent2": {
+        "ok": "123456789.123"
+      }
+    },
+    {
+      "input": "1e+16",
+      "default": "1e+16",
+      "compact": "1e+16",
+      "indent2": "1e+16",
+      "unicode": "1e+16",
+      "pydantic_indent2": {
+        "ok": "1e+16"
+      }
+    },
+    {
+      "input": "1.5e+16",
+      "default": "1.5e+16",
+      "compact": "1.5e+16",
+      "indent2": "1.5e+16",
+      "unicode": "1.5e+16",
+      "pydantic_indent2": {
+        "ok": "1.5e+16"
+      }
+    },
+    {
+      "input": "1000000000000000.0",
+      "default": "1000000000000000.0",
+      "compact": "1000000000000000.0",
+      "indent2": "1000000000000000.0",
+      "unicode": "1000000000000000.0",
+      "pydantic_indent2": {
+        "ok": "1000000000000000.0"
+      }
+    },
+    {
+      "input": "123456789012345.6",
+      "default": "123456789012345.6",
+      "compact": "123456789012345.6",
+      "indent2": "123456789012345.6",
+      "unicode": "123456789012345.6",
+      "pydantic_indent2": {
+        "ok": "123456789012345.6"
+      }
+    },
+    {
+      "input": "0.0001",
+      "default": "0.0001",
+      "compact": "0.0001",
+      "indent2": "0.0001",
+      "unicode": "0.0001",
+      "pydantic_indent2": {
+        "ok": "0.0001"
+      }
+    },
+    {
+      "input": "1e-05",
+      "default": "1e-05",
+      "compact": "1e-05",
+      "indent2": "1e-05",
+      "unicode": "1e-05",
+      "pydantic_indent2": {
+        "ok": "0.00001"
+      }
+    },
+    {
+      "input": "1.5e-05",
+      "default": "1.5e-05",
+      "compact": "1.5e-05",
+      "indent2": "1.5e-05",
+      "unicode": "1.5e-05",
+      "pydantic_indent2": {
+        "ok": "0.000015"
+      }
+    },
+    {
+      "input": "1e-07",
+      "default": "1e-07",
+      "compact": "1e-07",
+      "indent2": "1e-07",
+      "unicode": "1e-07",
+      "pydantic_indent2": {
+        "ok": "1e-7"
+      }
+    },
+    {
+      "input": "5e-324",
+      "default": "5e-324",
+      "compact": "5e-324",
+      "indent2": "5e-324",
+      "unicode": "5e-324",
+      "pydantic_indent2": {
+        "ok": "5e-324"
+      }
+    },
+    {
+      "input": "1.7976931348623157e+308",
+      "default": "1.7976931348623157e+308",
+      "compact": "1.7976931348623157e+308",
+      "indent2": "1.7976931348623157e+308",
+      "unicode": "1.7976931348623157e+308",
+      "pydantic_indent2": {
+        "ok": "1.7976931348623157e+308"
+      }
+    },
+    {
+      "input": "2.5e-10",
+      "default": "2.5e-10",
+      "compact": "2.5e-10",
+      "indent2": "2.5e-10",
+      "unicode": "2.5e-10",
+      "pydantic_indent2": {
+        "ok": "2.5e-10"
+      }
+    },
+    {
+      "input": "1e+21",
+      "default": "1e+21",
+      "compact": "1e+21",
+      "indent2": "1e+21",
+      "unicode": "1e+21",
+      "pydantic_indent2": {
+        "ok": "1e+21"
+      }
+    },
+    {
+      "input": "1e+22",
+      "default": "1e+22",
+      "compact": "1e+22",
+      "indent2": "1e+22",
+      "unicode": "1e+22",
+      "pydantic_indent2": {
+        "ok": "1e+22"
+      }
+    },
+    {
+      "input": "0.30000000000000004",
+      "default": "0.30000000000000004",
+      "compact": "0.30000000000000004",
+      "indent2": "0.30000000000000004",
+      "unicode": "0.30000000000000004",
+      "pydantic_indent2": {
+        "ok": "0.30000000000000004"
+      }
+    },
+    {
+      "input": "100.25",
+      "default": "100.25",
+      "compact": "100.25",
+      "indent2": "100.25",
+      "unicode": "100.25",
+      "pydantic_indent2": {
+        "ok": "100.25"
+      }
+    },
+    {
+      "input": "-0.0001",
+      "default": "-0.0001",
+      "compact": "-0.0001",
+      "indent2": "-0.0001",
+      "unicode": "-0.0001",
+      "pydantic_indent2": {
+        "ok": "-0.0001"
+      }
+    },
+    {
+      "input": "0.001234",
+      "default": "0.001234",
+      "compact": "0.001234",
+      "indent2": "0.001234",
+      "unicode": "0.001234",
+      "pydantic_indent2": {
+        "ok": "0.001234"
+      }
+    },
+    {
+      "input": "12.34",
+      "default": "12.34",
+      "compact": "12.34",
+      "indent2": "12.34",
+      "unicode": "12.34",
+      "pydantic_indent2": {
+        "ok": "12.34"
+      }
+    },
+    {
+      "input": "\"\"",
+      "default": "\"\"",
+      "compact": "\"\"",
+      "indent2": "\"\"",
+      "unicode": "\"\"",
+      "pydantic_indent2": {
+        "ok": "\"\""
+      }
+    },
+    {
+      "input": "\"plain\"",
+      "default": "\"plain\"",
+      "compact": "\"plain\"",
+      "indent2": "\"plain\"",
+      "unicode": "\"plain\"",
+      "pydantic_indent2": {
+        "ok": "\"plain\""
+      }
+    },
+    {
+      "input": "\"quote\\\"back\\\\slash\"",
+      "default": "\"quote\\\"back\\\\slash\"",
+      "compact": "\"quote\\\"back\\\\slash\"",
+      "indent2": "\"quote\\\"back\\\\slash\"",
+      "unicode": "\"quote\\\"back\\\\slash\"",
+      "pydantic_indent2": {
+        "ok": "\"quote\\\"back\\\\slash\""
+      }
+    },
+    {
+      "input": "\"\\n\\r\\t\\b\\f\\u0000\\u0001\\u001f\\u007f\"",
+      "default": "\"\\n\\r\\t\\b\\f\\u0000\\u0001\\u001f\\u007f\"",
+      "compact": "\"\\n\\r\\t\\b\\f\\u0000\\u0001\\u001f\\u007f\"",
+      "indent2": "\"\\n\\r\\t\\b\\f\\u0000\\u0001\\u001f\\u007f\"",
+      "unicode": "\"\\n\\r\\t\\b\\f\\u0000\\u0001\\u001f\u007f\"",
+      "pydantic_indent2": {
+        "ok": "\"\\n\\r\\t\\b\\f\\u0000\\u0001\\u001f\u007f\""
+      }
+    },
+    {
+      "input": "\"\\u00e9\"",
+      "default": "\"\\u00e9\"",
+      "compact": "\"\\u00e9\"",
+      "indent2": "\"\\u00e9\"",
+      "unicode": "\"\u00e9\"",
+      "pydantic_indent2": {
+        "ok": "\"\u00e9\""
+      }
+    },
+    {
+      "input": "\"caf\\u00e9\"",
+      "default": "\"caf\\u00e9\"",
+      "compact": "\"caf\\u00e9\"",
+      "indent2": "\"caf\\u00e9\"",
+      "unicode": "\"caf\u00e9\"",
+      "pydantic_indent2": {
+        "ok": "\"caf\u00e9\""
+      }
+    },
+    {
+      "input": "\"\\u20ac\"",
+      "default": "\"\\u20ac\"",
+      "compact": "\"\\u20ac\"",
+      "indent2": "\"\\u20ac\"",
+      "unicode": "\"\u20ac\"",
+      "pydantic_indent2": {
+        "ok": "\"\u20ac\""
+      }
+    },
+    {
+      "input": "\"\\ud83d\\ude00\"",
+      "default": "\"\\ud83d\\ude00\"",
+      "compact": "\"\\ud83d\\ude00\"",
+      "indent2": "\"\\ud83d\\ude00\"",
+      "unicode": "\"\ud83d\ude00\"",
+      "pydantic_indent2": {
+        "ok": "\"\ud83d\ude00\""
+      }
+    },
+    {
+      "input": "\"\\u2028\\u2029\"",
+      "default": "\"\\u2028\\u2029\"",
+      "compact": "\"\\u2028\\u2029\"",
+      "indent2": "\"\\u2028\\u2029\"",
+      "unicode": "\"\u2028\u2029\"",
+      "pydantic_indent2": {
+        "ok": "\"\u2028\u2029\""
+      }
+    },
+    {
+      "input": "\"\\ud800\"",
+      "default": "\"\\ud800\"",
+      "compact": "\"\\ud800\"",
+      "indent2": "\"\\ud800\"",
+      "unicode": "\"\ud800\"",
+      "pydantic_indent2": {
+        "error": "PydanticSerializationError"
+      }
+    },
+    {
+      "input": "\"\\udfff\"",
+      "default": "\"\\udfff\"",
+      "compact": "\"\\udfff\"",
+      "indent2": "\"\\udfff\"",
+      "unicode": "\"\udfff\"",
+      "pydantic_indent2": {
+        "error": "PydanticSerializationError"
+      }
+    },
+    {
+      "input": "\"a\\ud83d\"",
+      "default": "\"a\\ud83d\"",
+      "compact": "\"a\\ud83d\"",
+      "indent2": "\"a\\ud83d\"",
+      "unicode": "\"a\ud83d\"",
+      "pydantic_indent2": {
+        "error": "PydanticSerializationError"
+      }
+    },
+    {
+      "input": "\"</script>\"",
+      "default": "\"</script>\"",
+      "compact": "\"</script>\"",
+      "indent2": "\"</script>\"",
+      "unicode": "\"</script>\"",
+      "pydantic_indent2": {
+        "ok": "\"</script>\""
+      }
+    },
+    {
+      "input": "[]",
+      "default": "[]",
+      "compact": "[]",
+      "indent2": "[]",
+      "unicode": "[]",
+      "pydantic_indent2": {
+        "ok": "[]"
+      }
+    },
+    {
+      "input": "{}",
+      "default": "{}",
+      "compact": "{}",
+      "indent2": "{}",
+      "unicode": "{}",
+      "pydantic_indent2": {
+        "ok": "{}"
+      }
+    },
+    {
+      "input": "[1, [2, [3]]]",
+      "default": "[1, [2, [3]]]",
+      "compact": "[1,[2,[3]]]",
+      "indent2": "[\n  1,\n  [\n    2,\n    [\n      3\n    ]\n  ]\n]",
+      "unicode": "[1, [2, [3]]]",
+      "pydantic_indent2": {
+        "ok": "[\n  1,\n  [\n    2,\n    [\n      3\n    ]\n  ]\n]"
+      }
+    },
+    {
+      "input": "{\"b\": 1, \"a\": 2}",
+      "default": "{\"b\": 1, \"a\": 2}",
+      "compact": "{\"b\":1,\"a\":2}",
+      "indent2": "{\n  \"b\": 1,\n  \"a\": 2\n}",
+      "unicode": "{\"b\": 1, \"a\": 2}",
+      "pydantic_indent2": {
+        "ok": "{\n  \"b\": 1,\n  \"a\": 2\n}"
+      }
+    },
+    {
+      "input": "{\"10\": 1, \"2\": 2, \"a\": 3}",
+      "default": "{\"10\": 1, \"2\": 2, \"a\": 3}",
+      "compact": "{\"10\":1,\"2\":2,\"a\":3}",
+      "indent2": "{\n  \"10\": 1,\n  \"2\": 2,\n  \"a\": 3\n}",
+      "unicode": "{\"10\": 1, \"2\": 2, \"a\": 3}",
+      "pydantic_indent2": {
+        "ok": "{\n  \"10\": 1,\n  \"2\": 2,\n  \"a\": 3\n}"
+      }
+    },
+    {
+      "input": "{\"nested\": {\"list\": [1, \"x\", null], \"e\": {}}}",
+      "default": "{\"nested\": {\"list\": [1, \"x\", null], \"e\": {}}}",
+      "compact": "{\"nested\":{\"list\":[1,\"x\",null],\"e\":{}}}",
+      "indent2": "{\n  \"nested\": {\n    \"list\": [\n      1,\n      \"x\",\n      null\n    ],\n    \"e\": {}\n  }\n}",
+      "unicode": "{\"nested\": {\"list\": [1, \"x\", null], \"e\": {}}}",
+      "pydantic_indent2": {
+        "ok": "{\n  \"nested\": {\n    \"list\": [\n      1,\n      \"x\",\n      null\n    ],\n    \"e\": {}\n  }\n}"
+      }
+    },
+    {
+      "input": "[{}, []]",
+      "default": "[{}, []]",
+      "compact": "[{},[]]",
+      "indent2": "[\n  {},\n  []\n]",
+      "unicode": "[{}, []]",
+      "pydantic_indent2": {
+        "ok": "[\n  {},\n  []\n]"
+      }
+    },
+    {
+      "input": "{\"\\u00e9\": \"\\u00fc\"}",
+      "default": "{\"\\u00e9\": \"\\u00fc\"}",
+      "compact": "{\"\\u00e9\":\"\\u00fc\"}",
+      "indent2": "{\n  \"\\u00e9\": \"\\u00fc\"\n}",
+      "unicode": "{\"\u00e9\": \"\u00fc\"}",
+      "pydantic_indent2": {
+        "ok": "{\n  \"\u00e9\": \"\u00fc\"\n}"
+      }
+    }
+  ],
+  "integral_floats": [
+    {
+      "python_float": "1.0",
+      "default": "1.0",
+      "pydantic": "1.0"
+    },
+    {
+      "python_float": "-1.0",
+      "default": "-1.0",
+      "pydantic": "-1.0"
+    },
+    {
+      "python_float": "0.0",
+      "default": "0.0",
+      "pydantic": "0.0"
+    },
+    {
+      "python_float": "-0.0",
+      "default": "-0.0",
+      "pydantic": "-0.0"
+    },
+    {
+      "python_float": "100.0",
+      "default": "100.0",
+      "pydantic": "100.0"
+    },
+    {
+      "python_float": "1000000000000000.0",
+      "default": "1000000000000000.0",
+      "pydantic": "1000000000000000.0"
+    },
+    {
+      "python_float": "9007199254740992.0",
+      "default": "9007199254740992.0",
+      "pydantic": "9007199254740992.0"
+    }
+  ],
+  "specials": {
+    "nan": "NaN",
+    "inf": "Infinity",
+    "-inf": "-Infinity"
+  },
+  "max_parse_depth": 9998,
+  "parse": [
+    {
+      "input": "{\"a\":1,\"a\":2}",
+      "ok": "{\"a\": 2}"
+    },
+    {
+      "input": "{\"a\":NaN}",
+      "ok": "{\"a\": NaN}"
+    },
+    {
+      "input": "[Infinity]",
+      "ok": "[Infinity]"
+    },
+    {
+      "input": "[-Infinity]",
+      "ok": "[-Infinity]"
+    },
+    {
+      "input": "1e400",
+      "ok": "Infinity"
+    },
+    {
+      "input": "-1e400",
+      "ok": "-Infinity"
+    },
+    {
+      "input": "[1e-400]",
+      "ok": "[0.0]"
+    },
+    {
+      "input": "\"\\ud800\"",
+      "ok": "\"\\ud800\""
+    },
+    {
+      "input": "\"\\u00e9\"",
+      "ok": "\"\\u00e9\""
+    },
+    {
+      "input": "{\"__proto__\":1}",
+      "ok": "{\"__proto__\": 1}"
+    },
+    {
+      "input": " 1 ",
+      "ok": "1"
+    },
+    {
+      "input": "[1,]",
+      "error": "ValueError"
+    },
+    {
+      "input": "{\"a\":1,}",
+      "error": "ValueError"
+    },
+    {
+      "input": "'x'",
+      "error": "ValueError"
+    },
+    {
+      "input": "01",
+      "error": "ValueError"
+    },
+    {
+      "input": "-",
+      "error": "ValueError"
+    },
+    {
+      "input": "1.",
+      "error": "ValueError"
+    },
+    {
+      "input": ".5",
+      "error": "ValueError"
+    },
+    {
+      "input": "1e",
+      "error": "ValueError"
+    },
+    {
+      "input": "\"\u0001\"",
+      "error": "ValueError"
+    },
+    {
+      "input": "\"\\x\"",
+      "error": "ValueError"
+    },
+    {
+      "input": "true false",
+      "error": "ValueError"
+    },
+    {
+      "input": "\ufeff1",
+      "error": "ValueError"
+    },
+    {
+      "input": "[1]x",
+      "error": "ValueError"
+    },
+    {
+      "input": "{\"a\" 1}",
+      "error": "ValueError"
+    },
+    {
+      "input": "nul",
+      "error": "ValueError"
+    },
+    {
+      "input": "\"a\u2028b\"",
+      "ok": "\"a\\u2028b\""
+    },
+    {
+      "input": "12345678901234567890",
+      "ok": "12345678901234567890"
+    },
+    {
+      "input": "-0",
+      "ok": "0"
+    },
+    {
+      "input": "0e0",
+      "ok": "0.0"
+    },
+    {
+      "input": "1E+2",
+      "ok": "100.0"
+    },
+    {
+      "input": "[1.0, 1e2, 1.5e-7]",
+      "ok": "[1.0, 100.0, 1.5e-07]"
+    }
+  ]
+}

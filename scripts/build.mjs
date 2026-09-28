@@ -61,6 +61,14 @@ copyFile("src/extension/popup.css", "dist/extension/popup.css");
 copyDir("src/extension/images", "dist/extension/images");
 
 run("pnpm", ["exec", "vite", "build", "--config", "vite.node.config.ts"]);
+for (const entry of ["cli", "native-host"]) {
+  childProcess.execFileSync("pnpm", ["exec", "vite", "build", "--config", "vite.server.config.ts"], {
+    cwd: root,
+    stdio: "inherit",
+    env: { ...process.env, BROWSER_CONTROL_SERVER_ENTRY: entry }
+  });
+}
+if (process.platform !== "win32") fs.chmodSync("dist/server/cli.js", 0o755);
 writeExecutable("dist/native-host/opzero-chrome-host", `#!/usr/bin/env sh
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if command -v node >/dev/null 2>&1; then

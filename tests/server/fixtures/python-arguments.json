@@ -1,0 +1,2170 @@
+{
+  "status": [
+    {
+      "arguments": {},
+      "accepted": {}
+    },
+    {
+      "arguments": {
+        "extra": 1
+      },
+      "accepted": {}
+    }
+  ],
+  "tabs": [
+    {
+      "arguments": {},
+      "accepted": {}
+    }
+  ],
+  "claim_browser": [
+    {
+      "arguments": {},
+      "accepted": {
+        "site": null,
+        "exclusive": false,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "site": "https://example.com/"
+      },
+      "accepted": {
+        "site": "https://example.com/",
+        "exclusive": false,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "site": null
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": false,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "site": 5
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "site"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "exclusive": true
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": true,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "exclusive": "true"
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": true,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "exclusive": "false"
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": false,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "exclusive": "yes"
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": true,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "exclusive": 1
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": true,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "exclusive": 0
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": false,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "exclusive": 2
+      },
+      "rejected": [
+        {
+          "type": "bool_parsing",
+          "loc": [
+            "exclusive"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "exclusive": "1"
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": true,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "exclusive": "on"
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": true,
+        "timeout_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "timeout_seconds": 30
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": false,
+        "timeout_seconds": 30.0
+      }
+    },
+    {
+      "arguments": {
+        "timeout_seconds": 0.5
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": false,
+        "timeout_seconds": 0.5
+      }
+    },
+    {
+      "arguments": {
+        "timeout_seconds": "30"
+      },
+      "rejected": [
+        {
+          "type": "float_type",
+          "loc": [
+            "timeout_seconds"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "timeout_seconds": 0
+      },
+      "rejected": [
+        {
+          "type": "greater_than",
+          "loc": [
+            "timeout_seconds"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "timeout_seconds": 120
+      },
+      "accepted": {
+        "site": null,
+        "exclusive": false,
+        "timeout_seconds": 120.0
+      }
+    },
+    {
+      "arguments": {
+        "timeout_seconds": 120.5
+      },
+      "rejected": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "timeout_seconds"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "timeout_seconds": true
+      },
+      "rejected": [
+        {
+          "type": "float_type",
+          "loc": [
+            "timeout_seconds"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "timeout_seconds": -1
+      },
+      "rejected": [
+        {
+          "type": "greater_than",
+          "loc": [
+            "timeout_seconds"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "timeout_seconds": null
+      },
+      "rejected": [
+        {
+          "type": "float_type",
+          "loc": [
+            "timeout_seconds"
+          ]
+        }
+      ]
+    }
+  ],
+  "release_browser": [
+    {
+      "arguments": {
+        "lease_id": "00000000-0000-4000-8000-000000000000"
+      },
+      "accepted": {
+        "lease_id": "00000000-0000-4000-8000-000000000000"
+      }
+    },
+    {
+      "arguments": {},
+      "rejected": [
+        {
+          "type": "missing",
+          "loc": [
+            "lease_id"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "lease_id": 5
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "lease_id"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "lease_id": null
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "lease_id"
+          ]
+        }
+      ]
+    }
+  ],
+  "open_tab": [
+    {
+      "arguments": {
+        "url": "https://example.com/"
+      },
+      "accepted": {
+        "url": "https://example.com/",
+        "group_title": null
+      }
+    },
+    {
+      "arguments": {
+        "url": "https://example.com/",
+        "group_title": "Task"
+      },
+      "accepted": {
+        "url": "https://example.com/",
+        "group_title": "Task"
+      }
+    },
+    {
+      "arguments": {
+        "url": "https://example.com/",
+        "group_title": null
+      },
+      "accepted": {
+        "url": "https://example.com/",
+        "group_title": null
+      }
+    },
+    {
+      "arguments": {
+        "url": 5
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "url"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {},
+      "rejected": [
+        {
+          "type": "missing",
+          "loc": [
+            "url"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "url": "https://example.com/",
+        "group_title": 5
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "group_title"
+          ]
+        }
+      ]
+    }
+  ],
+  "claim_tab": [
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "group_title": null
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": 1
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "tab_id"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "group_title": "x"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "group_title": "x"
+      }
+    }
+  ],
+  "name_group": [
+    {
+      "arguments": {
+        "tab_id": "1",
+        "title": "Task"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "title": "Task"
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "rejected": [
+        {
+          "type": "missing",
+          "loc": [
+            "title"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "title": null
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "title"
+          ]
+        }
+      ]
+    }
+  ],
+  "observe": [
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": false
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": true
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": "true"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": "True"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": "t"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": "no"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": false
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": 1
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": 1.0
+      },
+      "accepted": {
+        "tab_id": "1",
+        "controls_only": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": 0.5
+      },
+      "rejected": [
+        {
+          "type": "bool_type",
+          "loc": [
+            "controls_only"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "controls_only": null
+      },
+      "rejected": [
+        {
+          "type": "bool_type",
+          "loc": [
+            "controls_only"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": 1.5
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "tab_id"
+          ]
+        }
+      ]
+    }
+  ],
+  "wait_for": [
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "Ready"
+        }
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expect": {
+          "url": null,
+          "text": "Ready",
+          "action_label": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": "{\"text\": \"Ready\"}"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expect": {
+          "url": null,
+          "text": "Ready",
+          "action_label": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "url": "/next"
+        }
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expect": {
+          "url": "/next",
+          "text": null,
+          "action_label": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "url": "//evil"
+        }
+      },
+      "gate": "fast-chrome-approved-web-url-required"
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "url": "https://example.com/x"
+        }
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expect": {
+          "url": "https://example.com/x",
+          "text": null,
+          "action_label": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "url": "http://example.com/x"
+        }
+      },
+      "gate": "fast-chrome-approved-web-url-required"
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "url": "/a b"
+        }
+      },
+      "gate": "fast-chrome-approved-web-url-required"
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": ""
+        }
+      },
+      "rejected": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "expect",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "rejected": [
+        {
+          "type": "string_too_long",
+          "loc": [
+            "expect",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "url": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "rejected": [
+        {
+          "type": "string_too_long",
+          "loc": [
+            "expect",
+            "url"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "action_label": "Go"
+        }
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expect": {
+          "url": null,
+          "text": null,
+          "action_label": "Go"
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "other": 1
+        }
+      },
+      "rejected": [
+        {
+          "type": "extra_forbidden",
+          "loc": [
+            "expect",
+            "other"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": 5
+        }
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "expect",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {}
+      },
+      "rejected": [
+        {
+          "type": "value_error",
+          "loc": [
+            "expect"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "a"
+        },
+        "timeout_ms": 1
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expect": {
+          "url": null,
+          "text": "a",
+          "action_label": null
+        },
+        "timeout_ms": 1
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "a"
+        },
+        "timeout_ms": 15000
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expect": {
+          "url": null,
+          "text": "a",
+          "action_label": null
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "a"
+        },
+        "timeout_ms": 15001
+      },
+      "rejected": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "a"
+        },
+        "timeout_ms": 0
+      },
+      "rejected": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "a"
+        },
+        "timeout_ms": "100"
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "a"
+        },
+        "timeout_ms": 100.0
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": {
+          "text": "a"
+        },
+        "timeout_ms": true
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": null
+      },
+      "rejected": [
+        {
+          "type": "model_type",
+          "loc": [
+            "expect"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": "not json"
+      },
+      "rejected": [
+        {
+          "type": "model_type",
+          "loc": [
+            "expect"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expect": "[1]"
+      },
+      "rejected": [
+        {
+          "type": "model_type",
+          "loc": [
+            "expect"
+          ]
+        }
+      ]
+    }
+  ],
+  "navigate": [
+    {
+      "arguments": {
+        "tab_id": "1",
+        "url": "https://example.com/"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "url": "https://example.com/"
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "rejected": [
+        {
+          "type": "missing",
+          "loc": [
+            "url"
+          ]
+        }
+      ]
+    }
+  ],
+  "act": [
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "text": null,
+        "expect": null,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "text": "x"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "text": "x",
+        "expect": null,
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "text": 5
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "expect": {
+          "text": "x"
+        }
+      },
+      "accepted": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "text": null,
+        "expect": {
+          "url": null,
+          "text": "x",
+          "action_label": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "expect": "{\"text\":\"x\"}"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "text": null,
+        "expect": {
+          "url": null,
+          "text": "x",
+          "action_label": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "timeout_ms": "5"
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "timeout_ms": 5.0
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s"
+      },
+      "rejected": [
+        {
+          "type": "missing",
+          "loc": [
+            "action_id"
+          ]
+        }
+      ]
+    }
+  ],
+  "act_steps": [
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go"
+          }
+        ]
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": "[{\"label\": \"Go\"}]"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": "click"
+          }
+        ]
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": "click",
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": "upload"
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "steps",
+            "0",
+            "kind"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": ""
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "steps",
+            "0",
+            "label"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "string_too_long",
+          "loc": [
+            "steps",
+            "0",
+            "label"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "role": ""
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "string_too_short",
+          "loc": [
+            "steps",
+            "0",
+            "role"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "text": ""
+          }
+        ]
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": "",
+            "expect": null,
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "string_too_long",
+          "loc": [
+            "steps",
+            "0",
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "timeout_ms": 0
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "greater_than_equal",
+          "loc": [
+            "steps",
+            "0",
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "timeout_ms": 15000
+          }
+        ]
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": 15000
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "timeout_ms": "5"
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "steps",
+            "0",
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "timeout_ms": 5.0
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "steps",
+            "0",
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "expect": {
+              "text": "x"
+            }
+          }
+        ]
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": {
+              "url": null,
+              "text": "x",
+              "action_label": null
+            },
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "expect": {
+              "url": "/n"
+            }
+          }
+        ]
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": {
+              "url": "/n",
+              "text": null,
+              "action_label": null
+            },
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "expect": {
+              "url": "http://x/"
+            }
+          }
+        ]
+      },
+      "gate": "fast-chrome-approved-web-url-required"
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "expect": {}
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "value_error",
+          "loc": [
+            "steps",
+            "0",
+            "expect"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "extra": 1
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "extra_forbidden",
+          "loc": [
+            "steps",
+            "0",
+            "extra"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": 5
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "string_type",
+          "loc": [
+            "steps",
+            "0",
+            "label"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          "Go"
+        ]
+      },
+      "rejected": [
+        {
+          "type": "model_type",
+          "loc": [
+            "steps",
+            "0"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          }
+        ]
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          },
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": false,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          },
+          {
+            "label": "Go"
+          }
+        ]
+      },
+      "rejected": [
+        {
+          "type": "too_long",
+          "loc": [
+            "steps"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": []
+      },
+      "rejected": [
+        {
+          "type": "too_short",
+          "loc": [
+            "steps"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": {
+          "label": "Go"
+        }
+      },
+      "rejected": [
+        {
+          "type": "list_type",
+          "loc": [
+            "steps"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go"
+          }
+        ],
+        "snapshot_id": "s",
+        "include_text": true,
+        "timeout_ms": 60000
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": "s",
+        "include_text": true,
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go"
+          }
+        ],
+        "timeout_ms": 60001
+      },
+      "rejected": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go"
+          }
+        ],
+        "timeout_ms": "100"
+      },
+      "rejected": [
+        {
+          "type": "int_type",
+          "loc": [
+            "timeout_ms"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go"
+          }
+        ],
+        "include_text": "true"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "steps": [
+          {
+            "label": "Go",
+            "kind": null,
+            "role": null,
+            "text": null,
+            "expect": null,
+            "timeout_ms": null
+          }
+        ],
+        "snapshot_id": null,
+        "include_text": true,
+        "timeout_ms": 30000
+      }
+    }
+  ],
+  "upload_file": [
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "path": "/tmp/x.pdf"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a",
+        "path": "/tmp/x.pdf"
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "snapshot_id": "s",
+        "action_id": "a"
+      },
+      "rejected": [
+        {
+          "type": "missing",
+          "loc": [
+            "path"
+          ]
+        }
+      ]
+    }
+  ],
+  "screenshot": [
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "accepted": {
+        "tab_id": "1"
+      }
+    }
+  ],
+  "start_recording": [
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 5,
+        "max_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "fps": 15,
+        "max_seconds": 60
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 15,
+        "max_seconds": 60
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "fps": "5"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 5,
+        "max_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "fps": 5.0
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 5,
+        "max_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "fps": 5.5
+      },
+      "rejected": [
+        {
+          "type": "int_from_float",
+          "loc": [
+            "fps"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "fps": true
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 1,
+        "max_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "fps": 0
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 0,
+        "max_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "fps": 99
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 99,
+        "max_seconds": 30
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "max_seconds": "7"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "fps": 5,
+        "max_seconds": 7
+      }
+    }
+  ],
+  "stop_recording": [
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "accepted": {
+        "tab_id": "1"
+      }
+    }
+  ],
+  "release": [
+    {
+      "arguments": {
+        "tab_id": "1"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "keep_open": false
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "keep_open": true
+      },
+      "accepted": {
+        "tab_id": "1",
+        "keep_open": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "keep_open": "false"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "keep_open": false
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "keep_open": null
+      },
+      "rejected": [
+        {
+          "type": "bool_type",
+          "loc": [
+            "keep_open"
+          ]
+        }
+      ]
+    }
+  ],
+  "paste_1password_field": [
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "password",
+        "selector": "#p"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "password",
+        "selector": "#p",
+        "username_selector": null,
+        "snapshot_id": null,
+        "submit_action_id": null,
+        "lease_id": null,
+        "allow_foreground_search": false
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "one-time password",
+        "selector": "#otp",
+        "allow_foreground_search": true
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "one-time password",
+        "selector": "#otp",
+        "username_selector": null,
+        "snapshot_id": null,
+        "submit_action_id": null,
+        "lease_id": null,
+        "allow_foreground_search": true
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "username",
+        "selector": "#u"
+      },
+      "rejected": [
+        {
+          "type": "literal_error",
+          "loc": [
+            "field"
+          ]
+        }
+      ]
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "password",
+        "selector": "#p",
+        "lease_id": "00000000-0000-4000-8000-000000000000"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "password",
+        "selector": "#p",
+        "username_selector": null,
+        "snapshot_id": null,
+        "submit_action_id": null,
+        "lease_id": "00000000-0000-4000-8000-000000000000",
+        "allow_foreground_search": false
+      }
+    },
+    {
+      "arguments": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "password",
+        "selector": "#p",
+        "allow_foreground_search": "true"
+      },
+      "accepted": {
+        "tab_id": "1",
+        "expected_url": "https://example.com/login",
+        "expected_email": "user@example.test",
+        "field": "password",
+        "selector": "#p",
+        "username_selector": null,
+        "snapshot_id": null,
+        "submit_action_id": null,
+        "lease_id": null,
+        "allow_foreground_search": true
+      }
+    }
+  ]
+}

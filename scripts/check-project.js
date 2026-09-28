@@ -77,6 +77,33 @@ for (const file of ["dist/native-host/host.js"]) {
   new Function(source);
 }
 
+for (const file of ["dist/server/cli.js", "dist/server/native-host.js", "data/public_suffix_list.dat", "data/README.md",
+  "native/clipboard-guard/clipboard_guard.swift", "docs/server/DESIGN.md", "vite.server.config.ts", "scripts/check-parity.mjs"]) {
+  if (!fs.existsSync(path.join(root, file))) failures.push(`Missing ${file}`);
+}
+if (fs.existsSync(path.join(root, "dist/server/cli.js"))) {
+  const cli = path.join(root, "dist/server/cli.js");
+  if (!fs.readFileSync(cli, "utf8").startsWith("#!/usr/bin/env node\n")) failures.push("dist/server/cli.js has no node shebang");
+  if (process.platform !== "win32" && !(fs.statSync(cli).mode & 0o111)) failures.push("dist/server/cli.js is not executable");
+}
+for (const file of ["dist/server/cli.js", "dist/server/native-host.js"]) {
+  if (!fs.existsSync(path.join(root, file))) continue;
+  const source = fs.readFileSync(path.join(root, file), "utf8");
+  // A require right after a backtick is text in ajv's standalone code generator, not a module load.
+  const external = [...source.matchAll(/(?<!`)\brequire\("([^"]+)"\)/g)].map((match) => match[1]).filter((name) => !name.startsWith("node:"));
+  if (external.length) failures.push(`${file} must bundle its dependencies, found require of ${[...new Set(external)].join(", ")}`);
+}
+if (fs.existsSync(path.join(root, "data/public_suffix_list.dat"))) {
+  const digest = require("node:crypto").createHash("sha256").update(fs.readFileSync(path.join(root, "data/public_suffix_list.dat"))).digest("hex");
+  if (digest !== "257b298daca42f6d8ec964e238c2a55518e14f09d3117917ec8acee6f188503e") failures.push("data/public_suffix_list.dat does not match its sha256 pin");
+}
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+if (packageJson.name !== "@op1/browser-control") failures.push("package.json name is not @op1/browser-control");
+if (packageJson.bin?.["browser-control"] !== "dist/server/cli.js") failures.push("package.json bin browser-control must be dist/server/cli.js");
+if (!Array.isArray(packageJson.files) || !packageJson.files.includes("dist/server/")) failures.push("package.json files must include dist/server/");
+if (Object.keys(packageJson.dependencies || {}).length) failures.push("package.json must have no runtime dependencies; bundles include them");
+if (fs.existsSync(path.join(root, "dist/extension/manifest.json")) && "key" in manifest) failures.push("dist/extension/manifest.json must not carry a key");
+
 for (const file of ["dist/extension/background.js", "dist/extension/content-scripts/opzero-chrome.js", "dist/extension/popup.js"]) {
   const source = fs.readFileSync(path.join(root, file), "utf8");
   if (/\bimport\s/.test(source)) failures.push(`Extension bundle must be self-contained, found import in ${file}`);
