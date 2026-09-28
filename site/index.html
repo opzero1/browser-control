@@ -73,8 +73,8 @@
     <h2 id="install">Install</h2>
     <ol>
       <li>Install Browser Control from the <a href="https://chromewebstore.google.com/detail/dcnjjnecbhipdbngkhjppkckpkellmld">Chrome Web Store</a>.</li>
-      <li>Install the local native messaging host and the agent tooling from <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>. Both come in the <code>chrome-control-skill.zip</code> file of the latest release. The host needs Node.js 18 or later, and its default setup is for macOS and Linux. For example:
-        <pre><code>curl -fsSL -o chrome-control-skill.zip https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip
+      <li>Install the local native messaging host and the agent tooling. Both come in <code>chrome-control-skill.zip</code>, which this website hosts and which is built from the source at <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>. The host needs Node.js 18 or later, and its default setup is for macOS and Linux. For example:
+        <pre><code>curl -fsSL -o chrome-control-skill.zip https://browser-control.pages.dev/download/chrome-control-skill.zip
 unzip chrome-control-skill.zip -d browser-control-helper
 cd browser-control-helper
 node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld</code></pre>

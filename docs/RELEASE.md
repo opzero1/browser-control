@@ -35,13 +35,16 @@ The `Release` workflow creates the GitHub Release with `browser-control-extensio
 
 ## 3. Deploy the website
 
-Deploy when anything under `site/` changed:
+Deploy after every release, and whenever anything under `site/` changes. The site also hosts the helper zip that the homepage and the reviewer steps download, so copy the freshly built one in first. `site/download/` is not committed.
 
 ```sh
+pnpm run build
+mkdir -p site/download
+cp dist/release/chrome-control-skill.zip site/download/
 npx wrangler pages deploy site --project-name browser-control --branch main
 ```
 
-Check that `/`, `/privacy/`, `/support/` and `/support/reviewers/` return HTTP 200. Keep the `google-site-verification` meta tag in `site/index.html`. It proves ownership of the site in Google Search Console, which the listing's official URL requires. Cloudflare Pages redirects `.html` URLs to extensionless ones, so the HTML-file verification method does not work on this site.
+Check that `/`, `/privacy/`, `/support/`, `/support/reviewers/` and `/download/chrome-control-skill.zip` return HTTP 200. Keep the `google-site-verification` meta tag in `site/index.html`. It proves ownership of the site in Google Search Console, which the listing's official URL requires. Cloudflare Pages redirects `.html` URLs to extensionless ones, so the HTML-file verification method does not work on this site.
 
 ## 4. Upload to the Chrome Web Store
 

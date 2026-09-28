@@ -38,7 +38,7 @@
       <li>macOS or Linux, with Google Chrome™ 106 or later (<code>minimum_chrome_version</code> in <code>manifest.json</code>). Use one Chrome profile with Browser Control turned on. All profiles share one host socket, so a second profile cannot connect at the same time.</li>
       <li>Node.js 18 or later on the <code>PATH</code>. Check with <code>node --version</code>. The host is a Node.js program.</li>
       <li><code>curl</code> and <code>unzip</code>. Both come with macOS. On Debian or Ubuntu: <code>sudo apt-get install curl unzip</code>.</li>
-      <li>Internet access to <code>github.com</code> (to download the helper) and to <code>https://example.com/</code> (for the demo page).</li>
+      <li>Internet access to <code>browser-control.pages.dev</code> (to download the helper) and to <code>https://example.com/</code> (for the demo page).</li>
       <li>No account, sign-in, API key or server is needed. <code>ffmpeg</code> is not needed.</li>
       <li>Windows is not covered by these steps. A host started by Chrome on Windows needs a private token file that the installer does not create.</li>
     </ul>
@@ -49,15 +49,15 @@
       <li>Click the Browser Control icon in the toolbar.</li>
     </ol>
     <p>Expected: the popup shows <strong>Disconnected</strong> and "Install the native host to connect." Nothing else happens. The extension has no network code, so it stays idle until a host exists.</p>
-    <h3 id="step-2">2. Download the helper from the GitHub release</h3>
+    <h3 id="step-2">2. Download the helper</h3>
     <pre><code>mkdir -p ~/browser-control-review
 cd ~/browser-control-review
-curl -fsSL -o chrome-control-skill.zip https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip
+curl -fsSL -o chrome-control-skill.zip https://browser-control.pages.dev/download/chrome-control-skill.zip
 unzip -o chrome-control-skill.zip -d helper
 cd helper
 ls</code></pre>
     <p>Expected: the folder contains <code>SKILL.md</code>, <code>native-host/</code>, <code>scripts/</code> and <code>chunks/</code>. Run all later commands in this <code>helper</code> folder.</p>
-    <p>The link downloads <code>chrome-control-skill.zip</code> from the latest release, v0.2.1.</p>
+    <p>The link downloads <code>chrome-control-skill.zip</code> for version 0.2.1 from this website. The same file is built from the source at <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>.</p>
     <h3 id="step-3">3. Install the native messaging host</h3>
     <pre><code>node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld
 node scripts/check-native-host-manifest.js --json</code></pre>

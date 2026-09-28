@@ -101,12 +101,12 @@ Google Chrome is a trademark of Google LLC.
 
 ### Additional instructions for reviewers
 
-The dashboard field holds 500 characters at most. This text is 493 characters with LF line breaks, or 498 if each line break counts as CRLF. It is plain ASCII. It is copied from `store/reviewer-test-instructions.md`, and it links to the full steps on <https://browser-control.pages.dev/support/reviewers/>.
+The dashboard field holds 500 characters at most. This text is 468 characters with LF line breaks, or 473 if each line break counts as CRLF. It is plain ASCII. It is copied from `store/reviewer-test-instructions.md`, and it links to the full steps on <https://browser-control.pages.dev/support/reviewers/>.
 
 ```text
 Idle until its local native messaging host is installed (popup: Disconnected). No account or server is needed.
 Test on macOS or Linux with Node.js 18+:
-1. Download and unzip https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip
+1. Download and unzip https://browser-control.pages.dev/download/chrome-control-skill.zip
 2. In that folder run: node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld
 3. Click Reload host in the popup. It shows Connected.
 Full steps: https://browser-control.pages.dev/support/reviewers/

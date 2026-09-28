@@ -4,12 +4,12 @@ Maintainer note: the public copy of the full steps is `site/support/reviewers/in
 
 ## Short form for the dashboard
 
-Paste this into the "Additional instructions" field (500 characters at most). It is 493 characters with LF line breaks, or 498 if each line break counts as CRLF. It is plain ASCII.
+Paste this into the "Additional instructions" field (500 characters at most). It is 468 characters with LF line breaks, or 473 if each line break counts as CRLF. It is plain ASCII.
 
 ```text
 Idle until its local native messaging host is installed (popup: Disconnected). No account or server is needed.
 Test on macOS or Linux with Node.js 18+:
-1. Download and unzip https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip
+1. Download and unzip https://browser-control.pages.dev/download/chrome-control-skill.zip
 2. In that folder run: node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld
 3. Click Reload host in the popup. It shows Connected.
 Full steps: https://browser-control.pages.dev/support/reviewers/
@@ -20,7 +20,7 @@ Full steps: https://browser-control.pages.dev/support/reviewers/
 - macOS or Linux, with Google Chrome™ 106 or later (`minimum_chrome_version` in `manifest.json`). Use one Chrome profile with Browser Control turned on. All profiles share one host socket, so a second profile cannot connect at the same time.
 - Node.js 18 or later on the `PATH`. Check with `node --version`. The host is a Node.js program.
 - `curl` and `unzip`. Both come with macOS. On Debian or Ubuntu: `sudo apt-get install curl unzip`.
-- Internet access to `github.com` (to download the helper) and to `https://example.com/` (for the demo page).
+- Internet access to `browser-control.pages.dev` (to download the helper) and to `https://example.com/` (for the demo page).
 - No account, sign-in, API key or server is needed. `ffmpeg` is not needed.
 - Windows is not covered by these steps. A host started by Chrome on Windows needs a private token file that the installer does not create.
 
@@ -33,12 +33,12 @@ Full steps: https://browser-control.pages.dev/support/reviewers/
 
 Expected: the popup shows **Disconnected** and "Install the native host to connect." Nothing else happens. The extension has no network code, so it stays idle until a host exists.
 
-### 2. Download the helper from the GitHub release
+### 2. Download the helper
 
 ```sh
 mkdir -p ~/browser-control-review
 cd ~/browser-control-review
-curl -fsSL -o chrome-control-skill.zip https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip
+curl -fsSL -o chrome-control-skill.zip https://browser-control.pages.dev/download/chrome-control-skill.zip
 unzip -o chrome-control-skill.zip -d helper
 cd helper
 ls
@@ -46,7 +46,7 @@ ls
 
 Expected: the folder contains `SKILL.md`, `native-host/`, `scripts/` and `chunks/`. Run all later commands in this `helper` folder.
 
-The link downloads `chrome-control-skill.zip` from the latest release, v0.2.1.
+The link downloads `chrome-control-skill.zip` for version 0.2.1 from this website. The same file is built from the source at [github.com/opzero1/browser-control](https://github.com/opzero1/browser-control).
 
 ### 3. Install the native messaging host
 
