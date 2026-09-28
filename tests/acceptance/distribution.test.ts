@@ -23,6 +23,18 @@ function copyDir(from: string, to: string) {
   }
 }
 
+/** Every file under `dir` with its bytes and mode, by relative path. */
+function treeContents(dir: string, prefix = ""): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const entry of fs.readdirSync(path.join(dir, prefix), { withFileTypes: true })) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const file = path.join(dir, relative);
+    if (entry.isDirectory()) Object.assign(result, treeContents(dir, relative));
+    else result[relative] = `${(fs.lstatSync(file).mode & 0o7777).toString(8)} ${fs.readFileSync(file).toString("base64")}`;
+  }
+  return result;
+}
+
 /** Start an installed wrapper as Chrome does, wait for its socket, then close its native port (stdin). */
 async function hostListens(wrapper: string, cwd: string, socket: string) {
   const env: NodeJS.ProcessEnv = {};
@@ -159,6 +171,7 @@ describe("Browser Control distribution", () => {
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
     const socketPath = path.join(tempDir, "browser-control.sock");
     const state = path.join(tempDir, "state");
+    const skillBefore = treeContents(skillDir);
 
     const install = await runNode([
       path.join(skillDir, "scripts/install-native-host.js"),
@@ -189,10 +202,15 @@ describe("Browser Control distribution", () => {
     }
     expect(fs.readFileSync(hostScript).equals(fs.readFileSync(path.join(skillDir, "native-host/host.js")))).toBe(true);
     expect(install.stdout).toContain(`Host copy: ${path.join(state, "hosts", copies[0])}\n`);
-    expect(JSON.parse(fs.readFileSync(path.join(skillDir, "scripts/extension-id.json"), "utf8")).extensionId).toBe("testextensionid");
+    // The skill may be a stable copy under the state root or a package cache, so install writes nothing into it:
+    // scripts/extension-id.json keeps the build's store ID.
+    expect(treeContents(skillDir)).toEqual(skillBefore);
+    expect(JSON.parse(fs.readFileSync(path.join(skillDir, "scripts/extension-id.json"), "utf8")).extensionId).toBe("dcnjjnecbhipdbngkhjppkckpkellmld");
 
     const check = await runNode([
       path.join(skillDir, "scripts/check-native-host-manifest.js"),
+      "--extension-id",
+      "testextensionid",
       "--manifest-path",
       manifestPath,
       "--json"

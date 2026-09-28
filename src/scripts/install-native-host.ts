@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Installs the com.opzero.chrome manifest for this skill's native host. Chrome never depends on this skill's own
-// directory, which may be an extracted zip, a checkout or a package cache: the host is published as a
-// content-addressed copy under the Browser Control state root, and the wrapper there execs this exact Node.
+// directory, which may be an extracted zip, a checkout, a package cache or a stable copy: the host is published as
+// a content-addressed copy under the Browser Control state root, and the wrapper there execs this exact Node.
+// Nothing is written into the skill's directory; scripts/extension-id.json is the build's default ID.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -275,8 +276,4 @@ runScript(Effect.gen(function* () {
   yield* io.stdout(`Allowed extension origin: chrome-extension://${extensionId}/\n`);
   yield* io.stdout(`Host executable: ${installed.right.wrapper}\n`);
   yield* io.stdout(`Host copy: ${installed.right.copyDir}\n`);
-  yield* Effect.catchAll(
-    io.writeText(path.join(__dirname, "extension-id.json"), `${JSON.stringify({ extensionId, extensionHostName: hostName }, null, 2)}\n`),
-    () => Effect.void
-  );
 }));

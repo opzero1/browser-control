@@ -68,6 +68,30 @@ roots never share an endpoint. To use another socket, set `BROWSER_CONTROL_HOST_
 Without `--force`, install never replaces a `com.opzero.chrome.json` manifest that points at another host. It
 reports the path that manifest names and exits with status 1.
 
+### The release zip's installer
+
+The Browser Control helper zip ships its own installer, `scripts/install-native-host.js`. It writes the same
+`com.opzero.chrome.json` manifest, so Chrome starts only one of the two hosts:
+
+| Installer | Manifest names | Its host listens on |
+|---|---|---|
+| `npx -y @op1/browser-control install` | `<state>/hosts/user/browser-control-host` | `<state>/sockets/user.sock`, or `BROWSER_CONTROL_HOST_SOCKET` as set for install |
+| `node scripts/install-native-host.js` (zip) | `<state>/hosts/skill/browser-control-host` | `~/.opzero-chrome/default.sock`, or `--socket-path` or `BROWSER_CONTROL_HOST_SOCKET` as set for it |
+
+- The installer that ran last owns the manifest. Neither replaces a manifest that names another host without
+  `--force`.
+- The server's user route connects to `BROWSER_CONTROL_HOST_SOCKET` when it is set, else to
+  `<state>/sockets/user.sock`. Install writes the same path into its wrapper, so run install, doctor and the
+  server with the same `BROWSER_CONTROL_STATE_DIR` and `BROWSER_CONTROL_HOST_SOCKET`.
+- While the zip's installer owns the manifest, the server cannot reach your Chrome. Doctor reports
+  `FAIL manifest` with status `foreign`, and `previous` names `<state>/hosts/skill/browser-control-host`. Its
+  `endpoint` line shows the socket that the server uses.
+- The zip's `client.js` connects to `~/.opzero-chrome/default.sock`. To use it with this package's host, set
+  `BROWSER_CONTROL_HOST_SOCKET=<state>/sockets/user.sock`.
+
+Run `npx -y @op1/browser-control install --force` to give the manifest back to the server's host, then reload
+the extension in `chrome://extensions`.
+
 ## Configure the MCP client
 
 Print a snippet with `npx -y @op1/browser-control config <opencode|claude|codex|cursor>`.

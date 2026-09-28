@@ -2,7 +2,7 @@
 
 This skill ships the Browser Control native host and its scripts next to `SKILL.md`: `native-host/client.js`, `native-host/host.js`, the `native-host/browser-control-host` wrapper, and `scripts/`. They need Node 18 or later and no repo checkout. Run the commands from the skill directory, the one that contains `SKILL.md`, unless an absolute path is clearer.
 
-Use them to check the extension connection, to install or repair the host from the release zip, and for raw client calls. If you use the MCP server, install with `npx -y @op1/browser-control install` instead; see [setup](setup.md). Both installers write the `com.opzero.chrome` manifest for the user's Chrome, so use one per Chrome profile. Each refuses to replace a manifest that points at another host unless you pass `--force`.
+Use them to check the extension connection, to install or repair the host from the release zip, and for raw client calls. If you use the MCP server, install with `npx -y @op1/browser-control install` instead; see [setup](setup.md). Both installers write the same `com.opzero.chrome` manifest for the user's Chrome, and their hosts listen on different sockets; see [two installers, one manifest](#two-installers-one-manifest).
 
 The safety rules in [SKILL.md](../SKILL.md) apply to every raw client call. If the extension stays unreachable after the checks below, do not fall back to AppleScript, profile-store scraping, cookie inspection, or another browser-control mechanism.
 
@@ -16,7 +16,7 @@ node native-host/client.js ping
 
 If that fails, wait 2 seconds and retry once. Any non-error response means the native host and extension bridge are responding.
 
-`client.js` connects to `~/.opzero-chrome/default.sock` unless `BROWSER_CONTROL_HOST_SOCKET` names another socket. A host installed with `npx -y @op1/browser-control install` listens on `sockets/user.sock` in the state root instead, the path that `doctor` prints for its `endpoint` check. Set `BROWSER_CONTROL_HOST_SOCKET` to that path for `client.js`.
+`client.js` connects to `~/.opzero-chrome/default.sock` unless `BROWSER_CONTROL_HOST_SOCKET` names another socket. A host installed with `npx -y @op1/browser-control install` listens on `sockets/user.sock` in the state root instead, the path that `doctor` prints for its `endpoint` check. Set `BROWSER_CONTROL_HOST_SOCKET` to that path for `client.js`. See [two installers, one manifest](#two-installers-one-manifest).
 
 If communication still fails, run these checks:
 
@@ -33,7 +33,7 @@ The extension ID comes from one of these sources:
 - `BROWSER_CONTROL_EXTENSION_ID`
 - `scripts/extension-id.json`
 
-For Chrome Web Store builds, `scripts/extension-id.json` should already contain the stable published extension ID: `dcnjjnecbhipdbngkhjppkckpkellmld`. For unpacked local builds, read the generated ID from `chrome://extensions` and pass it once to the native-host installer.
+`scripts/extension-id.json` comes with the build and contains the Chrome Web Store extension ID, `dcnjjnecbhipdbngkhjppkckpkellmld`. No script changes it. For an unpacked local build, read the generated ID from `chrome://extensions` and pass it with `--extension-id` to the installer and to each check, or set `BROWSER_CONTROL_EXTENSION_ID`.
 
 ### Chrome Is Not Installed
 
@@ -73,13 +73,31 @@ If `scripts/extension-id.json` is missing, ask the user for the extension ID sho
 node scripts/install-native-host.js --extension-id <id>
 ```
 
-The installer copies the host into `hosts/skill-<digest>/` under the Browser Control state root (`BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`), writes the wrapper `hosts/skill/browser-control-host` there with the Node that ran the installer, and points the manifest at that wrapper. Chrome then keeps working if this skill directory moves or is deleted. The host listens on `~/.opzero-chrome/default.sock`, the default of `client.js`, unless you pass `--socket-path`.
+The installer copies the host into `hosts/skill-<digest>/` under the Browser Control state root (`BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`), writes the wrapper `hosts/skill/browser-control-host` there with the Node that ran the installer, and points the manifest at that wrapper. Chrome then keeps working if this skill directory moves or is deleted. The installer writes nothing into the skill directory. The host listens on `~/.opzero-chrome/default.sock`, the default of `client.js`, unless you pass `--socket-path` or set `BROWSER_CONTROL_HOST_SOCKET` for the installer.
 
-If the installer reports that the manifest already points at another host, check that host first. Pass `--force` only to replace it. The installer also saves the ID into `scripts/extension-id.json` for future checks. Reload the extension in `chrome://extensions` and retry:
+If the installer reports that the manifest already points at another host, check that host first; it can be the MCP server's host. Pass `--force` only to replace it. Reload the extension in `chrome://extensions` and retry:
 
 ```sh
 node native-host/client.js ping
 ```
+
+### Two installers, one manifest
+
+Chrome reads one `com.opzero.chrome.json` manifest for each Chrome user-data directory, shared by all its profiles. Two installers write it:
+
+| Installer | Manifest names | Its host listens on | Allowed extensions |
+| --- | --- | --- | --- |
+| `npx -y @op1/browser-control install` (MCP server) | `<state>/hosts/user/browser-control-host` | `<state>/sockets/user.sock`, or `BROWSER_CONTROL_HOST_SOCKET` as set for install | The Web Store ID and the isolated-profile ID `mpodnojmjjafgogldgieimgbmfhhknbe` |
+| `node scripts/install-native-host.js` (release zip) | `<state>/hosts/skill/browser-control-host` | `~/.opzero-chrome/default.sock`, or `--socket-path` or `BROWSER_CONTROL_HOST_SOCKET` as set for the installer | Only the `--extension-id` given |
+
+`<state>` is `BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`.
+
+- **Owner.** The manifest names one wrapper, so the installer that ran last owns it. Neither installer replaces a manifest that names another host without `--force`. Without it, the second installer exits with status 1 and prints the path the manifest names.
+- **MCP server.** Its user route connects to `BROWSER_CONTROL_HOST_SOCKET` when set, else to `<state>/sockets/user.sock`. `install` writes that same path into its wrapper. Give install, doctor, and the server the same `BROWSER_CONTROL_STATE_DIR` and `BROWSER_CONTROL_HOST_SOCKET`. While the release zip's installer owns the manifest, Chrome starts the zip's host on its own socket, and the server cannot reach Chrome.
+- **Raw clients.** `client.js` connects to `~/.opzero-chrome/default.sock` unless `BROWSER_CONTROL_HOST_SOCKET` names another socket. While the MCP server's installer owns the manifest, set it to `<state>/sockets/user.sock`. Callers of `transport.js` pass the socket to `ChromeTransport.connect` themselves.
+- **Doctor.** `npx -y @op1/browser-control doctor` reports a manifest that the zip's installer owns as `FAIL manifest: The Chrome native messaging manifest points at another host. Run browser-control install --force to replace it.` With `--json`, that step has `status: "foreign"` and `previous`, the wrapper the manifest names; `…/hosts/skill/browser-control-host` is the zip's installer. The `endpoint` step shows the socket the server uses. When the MCP server's wrapper exports a socket other than the one in doctor's environment, the `wrapper` step fails as `stale`. `scripts/check-native-host-manifest.js` checks only that the manifest names an existing host and allows the extension ID, so it passes for either installer.
+
+To switch Chrome to the MCP server's host, run `npx -y @op1/browser-control install --force`. To switch back to the zip's host, run `node scripts/install-native-host.js --extension-id <id> --force`. Reload the extension in `chrome://extensions` after each switch.
 
 ## Runtime Protocol
 

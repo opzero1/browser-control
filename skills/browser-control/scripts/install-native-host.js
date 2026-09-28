@@ -262,9 +262,5 @@ require_effect_services.runScript(require_Layer.gen(function* () {
 	yield* io.stdout(`Allowed extension origin: chrome-extension://${extensionId}/\n`);
 	yield* io.stdout(`Host executable: ${installed.right.wrapper}\n`);
 	yield* io.stdout(`Host copy: ${installed.right.copyDir}\n`);
-	yield* require_Layer.catchAll(io.writeText(node_path.default.join(__dirname, "extension-id.json"), `${JSON.stringify({
-		extensionId,
-		extensionHostName: hostName
-	}, null, 2)}\n`), () => require_Layer._void);
 }));
 //#endregion
