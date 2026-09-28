@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Browser pool verification</title>
+<style>
+  body { font: 18px system-ui; max-width: 42rem; margin: 4rem auto; padding: 2rem; }
+  input, button { font: inherit; padding: .5rem; }
+  output { display: block; padding: 2rem 0; font-weight: bold; }
+</style>
+<h1>Browser pool verification</h1>
+<p>Each controller must retain its own public marker after a reload.</p>
+<form>
+  <label>Session marker <input name="marker" required></label>
+  <button>Save marker</button>
+</form>
+<output aria-live="polite"></output>
+<a href="/download" download>Download marker CSV</a>
+<script>
+  const output = document.querySelector('output');
+  const download = document.querySelector('a');
+  function render() {
+    const value = localStorage.getItem('browser-pool-verification');
+    output.textContent = 'Saved marker: ' + (value || 'empty');
+    download.href = '/download?marker=' + encodeURIComponent(value || 'empty');
+  }
+  document.querySelector('form').addEventListener('submit', event => {
+    event.preventDefault();
+    localStorage.setItem('browser-pool-verification', new FormData(event.target).get('marker'));
+    render();
+  });
+  render();
+</script>
+</html>
