@@ -16,7 +16,8 @@ export async function background(initialStorage: Record<string, unknown> = {}, t
   let nextTab = 1;
   const ports: any[] = [];
   const newPort = () => {
-    const port = { onMessage: event(), onDisconnect: event(), postMessage: (msg: any) => responses.push(msg), disconnect: vi.fn() };
+    const sent: any[] = [];
+    const port = { onMessage: event(), onDisconnect: event(), postMessage: (msg: any) => { responses.push(msg); sent.push(msg); }, disconnect: vi.fn(), sent };
     ports.push(port);
     return port;
   };

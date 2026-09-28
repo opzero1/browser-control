@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -224,19 +224,43 @@ it("leaves exactly one live host when several recover the same stale endpoint at
   }
 });
 
-it("fails closed while another host holds a fresh recovery lock and clears a stale one", async () => {
+function deadPid() {
+  const child = spawnSync(process.execPath, ["-e", ""]);
+  return child.pid as number;
+}
+
+it("fails closed while a live process holds the startup lock, for fresh and recovering starts", async () => {
+  const directory = testTemp();
+  cleanup.push(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const fresh = path.join(directory, "s");
+  fs.writeFileSync(`${fresh}.lock`, String(process.pid));
+  expect(await spawnHost(fresh).exited).toBe(1);
+  expect(fs.existsSync(fresh)).toBe(false);
+  expect(fs.readFileSync(`${fresh}.lock`, "utf8")).toBe(String(process.pid));
+
+  const stale = await staleEndpoint();
+  fs.writeFileSync(`${stale}.lock`, String(process.pid));
+  expect(await spawnHost(stale).exited).toBe(1);
+  expect(fs.lstatSync(stale).isSocket()).toBe(true);
+  expect(fs.readFileSync(`${stale}.lock`, "utf8")).toBe(String(process.pid));
+});
+
+it.each([
+  ["a dead owner", (lock: string) => fs.writeFileSync(lock, String(deadPid()))],
+  ["an orphaned lock whose pid was reused", (lock: string) => {
+    fs.writeFileSync(lock, String(process.pid));
+    const past = new Date(Date.now() - 10 * 60 * 1000);
+    fs.utimesSync(lock, past, past);
+  }]
+])("takes over the startup lock of %s and recovers the endpoint", async (_name, writeLock) => {
   const endpoint = await staleEndpoint();
   const lock = `${endpoint}.lock`;
-  fs.writeFileSync(lock, "");
-  expect(await spawnHost(endpoint).exited).toBe(1);
-  expect(fs.lstatSync(endpoint).isSocket()).toBe(true);
-  expect(fs.existsSync(lock)).toBe(true);
-  const past = new Date(Date.now() - 60000);
-  fs.utimesSync(lock, past, past);
+  writeLock(lock);
   const recovered = spawnHost(endpoint);
   await vi.waitFor(async () => expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string"));
   expect(recovered.child.exitCode).toBeNull();
-  expect(fs.existsSync(lock)).toBe(false);
+  await vi.waitFor(() => expect(fs.existsSync(lock)).toBe(false));
+  expect(fs.statSync(endpoint).mode & 0o777).toBe(0o600);
 });
 
 it("does not remove a socket that replaced its own before it shuts down", async () => {

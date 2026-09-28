@@ -127,3 +127,20 @@ it("replaces a host that stops answering the heartbeat", async () => {
   b.chrome.alarms.onAlarm.emit(reconnectAlarm);
   expect(b.ports).toHaveLength(2);
 });
+
+it("ignores a heartbeat that fails after the host was reloaded", async () => {
+  const b = await background();
+  b.port.onMessage.emit(hostProbe);
+  await vi.waitFor(() => expect(hostState(b)?.state).toBe("connected"));
+
+  b.chrome.alarms.onAlarm.emit(heartbeatAlarm);
+  await vi.waitFor(() => expect(b.ports[0].sent.some((message: any) => message.method === "ping")).toBe(true));
+  await b.popup("RELOAD_NATIVE_HOST");
+  b.port.onMessage.emit(hostProbe);
+  await vi.waitFor(() => expect(hostState(b)?.state).toBe("connected"));
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  expect(b.ports[1].sent.some((message: any) => message.method === "onControlStopped")).toBe(false);
+  expect(b.ports[1].disconnect).not.toHaveBeenCalled();
+  expect(hostState(b)?.state).toBe("connected");
+});

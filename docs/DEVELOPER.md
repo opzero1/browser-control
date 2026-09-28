@@ -36,7 +36,7 @@ The popup has three controls:
 
 The popup shows **Connecting** until the host sends its first message, because `connectNative` returns a port even when no host is installed. A host that does not answer within 15 seconds, or that fails the 30-second heartbeat, is dropped. When the host exits or is dropped, the extension shows **Disconnected** and its reconnect alarm reconnects within 30 seconds.
 
-The host removes a stale socket left by a crashed host only when a connection to it is refused. It does this under the exclusive lock file `<socket>.lock`, so two hosts cannot both replace the endpoint. At shutdown it removes the socket only if the socket is still the one it bound.
+Every Unix host startup holds the lock file `<socket>.lock`, from its first look at the socket path until its own socket is listening. The lock holds the owner's process ID. A new host treats it as stale only if that process is dead, or if the lock is older than five minutes, which only happens when a process ID has been reused. While the lock is held, the host removes a socket left by a crashed host only if a connection to it is refused. At shutdown it removes the socket only if it is still the one it bound. A host that cannot take the lock exits, and the extension retries within 30 seconds.
 
 ## Verify
 

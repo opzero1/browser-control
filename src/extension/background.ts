@@ -1426,6 +1426,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     const port = transport.port;
     withTimeout(transport.call("ping", {}, HEARTBEAT_TIMEOUT_MS), HEARTBEAT_TIMEOUT_MS, "Native heartbeat")
       .catch(async (error) => {
+        if (transport.port !== port) return;
         const message = error instanceof Error ? error.message : String(error);
         await runChromeEffect(stopActiveSessions(message)).catch(() => undefined);
         if (transport.port === port) transport.failPort(message);

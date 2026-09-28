@@ -67,7 +67,7 @@ These entries stay in Chrome until you remove the extension. The extension does 
   - Windows: `%USERPROFILE%\AppData\Local\opzero-chrome\`, plus the registry key `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.opzero.chrome`
 
   It also writes a launcher script in the `native-host` folder and the file `scripts/extension-id.json` inside the helper folder that you unpacked.
-- **Host.** The host creates the private folder `~/.opzero-chrome` and a socket file in it, which it deletes when it stops. The host keeps no log files. The only messages that it writes to its error output are fixed text with no user data.
+- **Host.** The host creates the private folder `~/.opzero-chrome` and a socket file in it, which it deletes when it stops. While it starts, it also holds a small lock file next to the socket that contains only its process ID, and it deletes the lock as soon as the socket is ready. The host keeps no log files. The only messages that it writes to its error output are fixed text with no user data.
 - **Screenshots.** The host passes screenshots to the requesting client in memory. It does not save them. The agent decides whether to keep them.
 - **Recordings.** When your agent asks for a short recording, the client library in the helper folder (`native-host/transport.js`) saves JPEG frames, a `frames.ffconcat` list, a `capture.json` summary with the time and SHA-256 hash of each frame and, if `ffmpeg` is installed, a `recording.mp4` file. It puts them in a new `tab-video-` folder inside a private folder that your agent tooling chooses, with access restricted to your user account. A recording lasts at most 60 seconds (30 seconds by default) and stops at 100 MB. The files stay until you delete them.
 

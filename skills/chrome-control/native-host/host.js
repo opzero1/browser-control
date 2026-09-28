@@ -30,9 +30,9 @@ var pending = /* @__PURE__ */ new Map();
 var nextId = 1;
 var ownsSocket = false;
 var boundSocket;
-var holdsRecoveryLock = false;
-var recoveryLockPath = `${socketPath}.lock`;
-var staleRecoveryLockMs = 1e4;
+var startupLock;
+var startupLockPath = `${socketPath}.lock`;
+var orphanedStartupLockMs = 300 * 1e3;
 var tcpToken;
 function native(message) {
 	const body = Buffer.from(JSON.stringify(message));
@@ -252,7 +252,7 @@ var server = node_net.default.createServer((socket) => {
 function shutdown(code) {
 	for (const socket of clients.keys()) socket.destroy();
 	if (ownsSocket) removeOwnSocket();
-	releaseRecoveryLock();
+	releaseStartupLock();
 	node_process.default.exit(code);
 }
 server.on("error", () => {
@@ -277,11 +277,12 @@ try {
 		});
 		const stat = node_fs.default.lstatSync(directory);
 		if (!stat.isDirectory() || stat.uid !== node_process.default.getuid?.() || (stat.mode & 63) !== 0) throw new Error("private socket directory required");
-		if (!node_fs.default.existsSync(socketPath)) listenUnix();
+		if (!acquireStartupLock()) throw new Error("endpoint busy");
+		const existing = lstatIfExists(socketPath);
+		if (!existing) listenUnix();
 		else {
-			const existing = node_fs.default.lstatSync(socketPath);
 			if (!existing.isSocket() || existing.uid !== node_process.default.getuid?.()) throw new Error("endpoint exists");
-			reclaimStaleSocket();
+			reclaimStaleSocket(existing);
 		}
 	}
 } catch {
@@ -290,6 +291,14 @@ try {
 function refuseEndpoint() {
 	node_process.default.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
 	shutdown(1);
+}
+function lstatIfExists(file) {
+	try {
+		return node_fs.default.lstatSync(file);
+	} catch (statError) {
+		if (statError.code === "ENOENT") return void 0;
+		throw statError;
+	}
 }
 function listenUnix() {
 	server.listen(socketPath, () => {
@@ -301,7 +310,7 @@ function listenUnix() {
 			};
 			ownsSocket = true;
 			node_fs.default.chmodSync(socketPath, 384);
-			releaseRecoveryLock();
+			releaseStartupLock();
 		} catch {
 			refuseEndpoint();
 		}
@@ -313,62 +322,93 @@ function removeOwnSocket() {
 		if (boundSocket && current.dev === boundSocket.dev && current.ino === boundSocket.ino) node_fs.default.unlinkSync(socketPath);
 	} catch {}
 }
-function acquireRecoveryLock(retry = true) {
+function createStartupLock() {
+	const staged = `${startupLockPath}.${node_process.default.pid}`;
+	node_fs.default.writeFileSync(staged, String(node_process.default.pid), { mode: 384 });
 	try {
-		node_fs.default.closeSync(node_fs.default.openSync(recoveryLockPath, "wx", 384));
-		holdsRecoveryLock = true;
+		node_fs.default.linkSync(staged, startupLockPath);
+		const info = node_fs.default.lstatSync(staged);
+		startupLock = {
+			dev: info.dev,
+			ino: info.ino
+		};
 		return true;
 	} catch (lockError) {
-		if (lockError.code !== "EEXIST" || !retry) return false;
+		if (lockError.code === "EEXIST") return false;
+		throw lockError;
+	} finally {
 		try {
-			const lock = node_fs.default.lstatSync(recoveryLockPath);
-			if (!lock.isFile() || lock.uid !== node_process.default.getuid?.() || Date.now() - lock.mtimeMs < staleRecoveryLockMs) return false;
-			node_fs.default.unlinkSync(recoveryLockPath);
-		} catch {
-			return false;
-		}
-		return acquireRecoveryLock(false);
+			node_fs.default.unlinkSync(staged);
+		} catch {}
 	}
 }
-function releaseRecoveryLock() {
-	if (!holdsRecoveryLock) return;
-	holdsRecoveryLock = false;
+function lockOwnerAlive(pid) {
+	if (!Number.isInteger(pid) || pid <= 0) return false;
 	try {
-		node_fs.default.unlinkSync(recoveryLockPath);
+		node_process.default.kill(pid, 0);
+		return true;
+	} catch (signalError) {
+		return signalError.code === "EPERM";
+	}
+}
+function acquireStartupLock() {
+	if (createStartupLock()) return true;
+	let lock;
+	let owner;
+	try {
+		lock = node_fs.default.lstatSync(startupLockPath);
+		if (!lock.isFile() || lock.uid !== node_process.default.getuid?.()) return false;
+		owner = Number(node_fs.default.readFileSync(startupLockPath, "utf8"));
+	} catch {
+		return false;
+	}
+	if (lockOwnerAlive(owner) && Date.now() - lock.mtimeMs < orphanedStartupLockMs) return false;
+	const moved = `${startupLockPath}.stale.${node_process.default.pid}`;
+	try {
+		node_fs.default.renameSync(startupLockPath, moved);
+	} catch {
+		return false;
+	}
+	const movedInfo = lstatIfExists(moved);
+	if (!movedInfo || movedInfo.dev !== lock.dev || movedInfo.ino !== lock.ino) {
+		try {
+			node_fs.default.linkSync(moved, startupLockPath);
+		} catch {}
+		try {
+			node_fs.default.unlinkSync(moved);
+		} catch {}
+		return false;
+	}
+	try {
+		node_fs.default.unlinkSync(moved);
+	} catch {}
+	return createStartupLock();
+}
+function releaseStartupLock() {
+	const owned = startupLock;
+	startupLock = void 0;
+	if (!owned) return;
+	try {
+		const current = node_fs.default.lstatSync(startupLockPath);
+		if (current.dev === owned.dev && current.ino === owned.ino) node_fs.default.unlinkSync(startupLockPath);
 	} catch {}
 }
-function reclaimStaleSocket() {
-	if (!acquireRecoveryLock()) {
-		refuseEndpoint();
-		return;
-	}
-	let stale;
-	try {
-		stale = node_fs.default.lstatSync(socketPath);
-		if (!stale.isSocket() || stale.uid !== node_process.default.getuid?.()) throw new Error("endpoint exists");
-	} catch {
-		refuseEndpoint();
-		return;
-	}
+function reclaimStaleSocket(stale) {
 	const probe = node_net.default.connect(socketPath);
 	probe.once("connect", () => {
 		probe.destroy();
 		refuseEndpoint();
 	});
 	probe.once("error", (probeError) => {
-		if (probeError.code !== "ECONNREFUSED") {
-			refuseEndpoint();
-			return;
-		}
 		try {
+			if (probeError.code !== "ECONNREFUSED") throw new Error("endpoint busy");
 			const current = node_fs.default.lstatSync(socketPath);
 			if (current.dev !== stale.dev || current.ino !== stale.ino) throw new Error("endpoint changed");
 			node_fs.default.unlinkSync(socketPath);
+			listenUnix();
 		} catch {
 			refuseEndpoint();
-			return;
 		}
-		listenUnix();
 	});
 }
 var buffer = Buffer.alloc(0);

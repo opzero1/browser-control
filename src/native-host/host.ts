@@ -22,9 +22,9 @@ const pending = new Map<number, { socket: net.Socket; id: number | string; priva
 let nextId = 1;
 let ownsSocket = false;
 let boundSocket: { dev: number; ino: number } | undefined;
-let holdsRecoveryLock = false;
-const recoveryLockPath = `${socketPath}.lock`;
-const staleRecoveryLockMs = 10000;
+let startupLock: { dev: number; ino: number } | undefined;
+const startupLockPath = `${socketPath}.lock`;
+const orphanedStartupLockMs = 5 * 60 * 1000;
 let tcpToken: Buffer | undefined;
 
 function native(message: unknown) {
@@ -191,7 +191,7 @@ const server = net.createServer(socket => {
 function shutdown(code: number) {
   for (const socket of clients.keys()) socket.destroy();
   if (ownsSocket) removeOwnSocket();
-  releaseRecoveryLock();
+  releaseStartupLock();
   process.exit(code);
 }
 
@@ -215,11 +215,12 @@ try {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     const stat = fs.lstatSync(directory);
     if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) throw new Error("private socket directory required");
-    if (!fs.existsSync(socketPath)) listenUnix();
+    if (!acquireStartupLock()) throw new Error("endpoint busy");
+    const existing = lstatIfExists(socketPath);
+    if (!existing) listenUnix();
     else {
-      const existing = fs.lstatSync(socketPath);
       if (!existing.isSocket() || existing.uid !== process.getuid?.()) throw new Error("endpoint exists");
-      reclaimStaleSocket();
+      reclaimStaleSocket(existing);
     }
   }
 } catch {
@@ -231,6 +232,14 @@ function refuseEndpoint() {
   shutdown(1);
 }
 
+function lstatIfExists(file: string) {
+  try { return fs.lstatSync(file); }
+  catch (statError) {
+    if ((statError as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw statError;
+  }
+}
+
 // A bind never replaces an existing file, so a racing host fails with
 // EADDRINUSE instead of taking over this endpoint.
 function listenUnix() {
@@ -240,7 +249,7 @@ function listenUnix() {
       boundSocket = { dev: bound.dev, ino: bound.ino };
       ownsSocket = true;
       fs.chmodSync(socketPath, 0o600);
-      releaseRecoveryLock();
+      releaseStartupLock();
     } catch {
       refuseEndpoint();
     }
@@ -256,56 +265,84 @@ function removeOwnSocket() {
   } catch {}
 }
 
-function acquireRecoveryLock(retry = true): boolean {
+// Every Unix startup, fresh or recovering, holds this lock from the first
+// look at the endpoint until the new socket is listening. The lock appears
+// atomically with its owner's pid already written, via write then link.
+function createStartupLock(): boolean {
+  const staged = `${startupLockPath}.${process.pid}`;
+  fs.writeFileSync(staged, String(process.pid), { mode: 0o600 });
   try {
-    fs.closeSync(fs.openSync(recoveryLockPath, "wx", 0o600));
-    holdsRecoveryLock = true;
+    fs.linkSync(staged, startupLockPath);
+    const info = fs.lstatSync(staged);
+    startupLock = { dev: info.dev, ino: info.ino };
     return true;
   } catch (lockError) {
-    if ((lockError as NodeJS.ErrnoException).code !== "EEXIST" || !retry) return false;
-    try {
-      const lock = fs.lstatSync(recoveryLockPath);
-      if (!lock.isFile() || lock.uid !== process.getuid?.() || Date.now() - lock.mtimeMs < staleRecoveryLockMs) return false;
-      fs.unlinkSync(recoveryLockPath);
-    } catch {
-      return false;
-    }
-    return acquireRecoveryLock(false);
+    if ((lockError as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw lockError;
+  } finally {
+    try { fs.unlinkSync(staged); } catch {}
   }
 }
 
-function releaseRecoveryLock() {
-  if (!holdsRecoveryLock) return;
-  holdsRecoveryLock = false;
-  try { fs.unlinkSync(recoveryLockPath); } catch {}
+function lockOwnerAlive(pid: number) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; }
+  catch (signalError) { return (signalError as NodeJS.ErrnoException).code === "EPERM"; }
 }
 
-// A host killed without cleanup leaves its socket file behind. Recovery runs
-// under an exclusive lock so two hosts cannot both unlink the endpoint, and
-// only a refused connection proves that no live host owns the socket.
-function reclaimStaleSocket() {
-  if (!acquireRecoveryLock()) { refuseEndpoint(); return; }
-  let stale: fs.Stats;
+// A lock is stale only when its owner is dead. A live host holds it for
+// milliseconds, so one older than five minutes is orphaned by pid reuse.
+function acquireStartupLock(): boolean {
+  if (createStartupLock()) return true;
+  let lock: fs.Stats;
+  let owner: number;
   try {
-    stale = fs.lstatSync(socketPath);
-    if (!stale.isSocket() || stale.uid !== process.getuid?.()) throw new Error("endpoint exists");
+    lock = fs.lstatSync(startupLockPath);
+    if (!lock.isFile() || lock.uid !== process.getuid?.()) return false;
+    owner = Number(fs.readFileSync(startupLockPath, "utf8"));
   } catch {
-    refuseEndpoint();
-    return;
+    return false;
   }
+  if (lockOwnerAlive(owner) && Date.now() - lock.mtimeMs < orphanedStartupLockMs) return false;
+  const moved = `${startupLockPath}.stale.${process.pid}`;
+  try { fs.renameSync(startupLockPath, moved); } catch { return false; }
+  const movedInfo = lstatIfExists(moved);
+  if (!movedInfo || movedInfo.dev !== lock.dev || movedInfo.ino !== lock.ino) {
+    // Another host replaced the stale lock first. Put its lock back.
+    try { fs.linkSync(moved, startupLockPath); } catch {}
+    try { fs.unlinkSync(moved); } catch {}
+    return false;
+  }
+  try { fs.unlinkSync(moved); } catch {}
+  return createStartupLock();
+}
+
+function releaseStartupLock() {
+  const owned = startupLock;
+  startupLock = undefined;
+  if (!owned) return;
+  try {
+    const current = fs.lstatSync(startupLockPath);
+    if (current.dev === owned.dev && current.ino === owned.ino) fs.unlinkSync(startupLockPath);
+  } catch {}
+}
+
+// A host killed without cleanup leaves its socket file behind. The startup
+// lock is held here, so no other host is binding or recovering this path, and
+// a refused connection proves that no live host owns the socket.
+function reclaimStaleSocket(stale: fs.Stats) {
   const probe = net.connect(socketPath);
   probe.once("connect", () => { probe.destroy(); refuseEndpoint(); });
   probe.once("error", (probeError: NodeJS.ErrnoException) => {
-    if (probeError.code !== "ECONNREFUSED") { refuseEndpoint(); return; }
     try {
+      if (probeError.code !== "ECONNREFUSED") throw new Error("endpoint busy");
       const current = fs.lstatSync(socketPath);
       if (current.dev !== stale.dev || current.ino !== stale.ino) throw new Error("endpoint changed");
       fs.unlinkSync(socketPath);
+      listenUnix();
     } catch {
       refuseEndpoint();
-      return;
     }
-    listenUnix();
   });
 }
 
