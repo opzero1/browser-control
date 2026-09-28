@@ -8,15 +8,15 @@ function event() {
   return { addListener: (fn: (...args: any[]) => void) => listeners.push(fn), emit: (...args: any[]) => listeners.forEach(fn => fn(...args)) };
 }
 
-export async function background() {
+export async function background(initialStorage: Record<string, unknown> = {}) {
   const responses: any[] = [];
   const tabs = new Map<number, any>();
   let nextTab = 1;
   const port = { onMessage: event(), onDisconnect: event(), postMessage: (msg: any) => responses.push(msg), disconnect: vi.fn() };
-  const storage: Record<string, unknown> = {};
+  const storage: Record<string, unknown> = { ...initialStorage };
   let group = { id: 1, title: "", collapsed: false };
   const chrome = {
-    runtime: { connectNative: () => port, getManifest: () => ({ version: "test" }), id: "test", onMessage: event(), onStartup: event(), onInstalled: event(), onUpdateAvailable: event(), reload: vi.fn() },
+    runtime: { connectNative: vi.fn(() => port), getManifest: () => ({ version: "test" }), id: "test", onMessage: event(), onStartup: event(), onInstalled: event(), onUpdateAvailable: event(), reload: vi.fn() },
     storage: { local: { get: (key: string, cb: Function) => cb({ [key]: storage[key] }), set: (value: object, cb: Function) => { Object.assign(storage, value); cb(); } }, session: { get: (_: unknown, cb: Function) => cb({}) } },
     alarms: { create: vi.fn(), clear: vi.fn(), onAlarm: event() },
     windows: { getCurrent: (_: unknown, cb: Function) => cb({ id: 1, type: "normal" }) },
@@ -45,5 +45,8 @@ export async function background() {
     await vi.waitFor(() => expect(responses.find(r => r.id === requestId)).toBeDefined());
     return responses.find(r => r.id === requestId);
   }
-  return { chrome, port, responses, rpc };
+  function popup(type: string) {
+    return new Promise<any>(resolve => chrome.runtime.onMessage.emit({ type }, {}, resolve));
+  }
+  return { chrome, port, responses, rpc, popup, storage };
 }
