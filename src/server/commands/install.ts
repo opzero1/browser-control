@@ -132,7 +132,11 @@ function writeManifest(directory: TrustedDirectory, given: string, text: string)
   }
 }
 
-/** The step for a manifest that needs no write: unchanged, a refused conflict, or what a dry run would do. */
+/**
+ * The step for a manifest that needs no write: unchanged, a refused conflict, or what a dry run would do. Only a
+ * trusted manifest can be current (src/shared/manifest-file.ts); an untrusted one is replaced only with --force,
+ * and only where this user may replace it.
+ */
 function manifestPlan(file: string, state: ManifestState, options: Options): Step | null {
   if (state.kind === "current") return step("manifest", "ok", "unchanged", "The Chrome native messaging manifest is current.", { path: file });
   if (state.kind === "foreign" && !options.force) {
@@ -140,9 +144,23 @@ function manifestPlan(file: string, state: ManifestState, options: Options): Ste
       "A Chrome native messaging manifest for com.opzero.chrome already points at another host. Run browser-control install --force to replace it.",
       { path: file, previous: state.previous });
   }
+  if (state.kind === "untrusted" && !options.force) {
+    return step("manifest", "fail", "untrusted",
+      "A Chrome native messaging manifest for com.opzero.chrome is already there, but it is not a regular file owned by you that only you can write to, so another user could change it. Run browser-control install --force to replace it.",
+      { path: file, previous: state.previous });
+  }
+  if (state.kind === "untrusted" && !state.replaceable) {
+    return step("manifest", "fail", "cannot-replace",
+      "The Chrome native messaging manifest belongs to another user, in a directory with the sticky bit that is not yours, so only that user or root can replace it. Have it removed, or pass another --chrome-manifest-dir.",
+      { path: file, previous: state.previous });
+  }
   if (!options.dryRun) return null;
   if (state.kind === "absent") return step("manifest", "ok", "would-create", "Would write the Chrome native messaging manifest.", { path: file });
   if (state.kind === "outdated") return step("manifest", "ok", "would-update", "Would update the Chrome native messaging manifest.", { path: file });
+  if (state.kind === "untrusted") {
+    return step("manifest", "ok", "would-replace-untrusted", "Would replace the Chrome native messaging manifest that another user could change.",
+      { path: file, previous: state.previous });
+  }
   return step("manifest", "ok", "would-replace", "Would replace the Chrome native messaging manifest that points at another host.",
     { path: file, previous: state.previous });
 }
@@ -157,10 +175,13 @@ async function manifestStep(env: Env, platform: NodeJS.Platform, options: Option
   const wrapper = userWrapperPath(env);
   try {
     // Every path, the current-manifest fast path and the dry run included, starts with the trusted-path rule and
-    // then reads, creates and locks only the canonical directory. `file` is kept for messages.
+    // then reads, creates and locks only the canonical directory. `file` is kept for messages. A missing
+    // directory was checked only up to its first missing part, so nothing is read through it: the manifest is
+    // absent until the directory is made and locked.
     const canonical = trustedPath(directory, { missing: true });
     if ("unsafe" in canonical) throw new InstallLockUnsafe(manifestLockPath(file), canonical.unsafe, "directory");
-    const planned = manifestPlan(file, manifestState(path.join(canonical.path, MANIFEST_FILE), wrapper), options);
+    const found: ManifestState = "missing" in canonical ? { kind: "absent" } : manifestState(path.join(canonical.path, MANIFEST_FILE), wrapper);
+    const planned = manifestPlan(file, found, options);
     if (planned) return planned;
     // 0755 whatever the umask: the lock refuses a directory that group or others can write to.
     const made = trustedPath(canonical.path, { create: 0o755 });
@@ -206,6 +227,10 @@ async function replaceManifest(file: string, directory: TrustedDirectory, wrappe
   }
   if (state.kind === "foreign") {
     return step("manifest", "ok", "replaced", "Replaced the Chrome native messaging manifest that pointed at another host.",
+      { path: file, previous: state.previous });
+  }
+  if (state.kind === "untrusted") {
+    return step("manifest", "ok", "replaced-untrusted", "Replaced the Chrome native messaging manifest that another user could change.",
       { path: file, previous: state.previous });
   }
   if (state.kind === "outdated") return step("manifest", "ok", "updated", "Updated the Chrome native messaging manifest.", { path: file });

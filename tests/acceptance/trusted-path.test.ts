@@ -114,6 +114,26 @@ describe("the trusted-path rule", () => {
     for (const directory of ["real/x", "real/x/y"]) expect(fs.lstatSync(path.join(root, directory)).mode & 0o777).toBe(0o700);
   });
 
+  it("never reports a path whose `..` follows a missing directory as missing, since the walk never checked where it leads", () => {
+    const root = privateTemp("tp-");
+    // `attacker` is another user's to change: others can write to it, and `hosts` in it is a symlink.
+    const attacker = path.join(root, "attacker");
+    fs.mkdirSync(attacker);
+    fs.chmodSync(attacker, 0o777);
+    fs.mkdirSync(path.join(root, "real"), { mode: 0o700 });
+    fs.symlinkSync(path.join(root, "real"), path.join(attacker, "hosts"));
+    // Joined as text: path.join would resolve each `..` lexically first.
+    const given = `${root}/gap/../attacker/hosts`;
+    fs.symlinkSync(given, path.join(root, "link"));
+    for (const through of [given, path.join(root, "link"), `${root}/gap/x/../y`, `${path.join(root, "link")}/sub`]) {
+      expect(() => trustedPath(through, { missing: true }), through).toThrowError(/^ENOENT: /);
+    }
+    expect(canonicalSocketPath(`${given}/s.sock`)).toBe(`${given}/s.sock`);
+    expect(fs.existsSync(path.join(root, "gap"))).toBe(false);
+    // A missing tail without `..` is still reported, by the path the walk would make.
+    expect(trustedPath(`${root}/gap/./x`, { missing: true })).toEqual({ path: path.join(root, "gap/x"), missing: path.join(root, "gap") });
+  });
+
   it.runIf(process.platform === "darwin")("accepts macOS /var and /tmp, root's symlinks in root's /, and resolves them", () => {
     expect(trustedPath("/var")).toMatchObject({ path: "/private/var" });
     expect(trustedPath("/tmp")).toMatchObject({ path: "/private/tmp" });

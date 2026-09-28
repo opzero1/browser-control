@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_effect_services = require("../chunks/effect-services-DcZl9PNJ.js");
-const require_trusted_path = require("../chunks/trusted-path-CnzDyqZ7.js");
+const require_trusted_path = require("../chunks/trusted-path-DPFFlwYe.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_os = require("node:os");
@@ -57,8 +57,8 @@ function manifestLockPath(manifestFile) {
 var ENTRY = /^([1-9][0-9]{0,9})-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Entries this process holds, so an entry left by a dead process that had this pid is still found stale. */
 var held = /* @__PURE__ */ new Set();
-var WRITABLE_BY_OTHERS = 18;
-function codeOf(error) {
+var WRITABLE_BY_OTHERS$1 = 18;
+function codeOf$1(error) {
 	return error?.code;
 }
 /** Windows has no POSIX owners or modes, so there only the kind and identity of each directory are checked. */
@@ -71,7 +71,7 @@ function unchangedAt(file, expected, calls = {}) {
 	try {
 		stats = (calls.lstat ?? nodeFs.lstat)(file);
 	} catch (error) {
-		if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return false;
+		if (codeOf$1(error) === "ENOENT" || codeOf$1(error) === "ENOTDIR") return false;
 		throw error;
 	}
 	return !stats.isSymbolicLink() && stats.dev === expected.dev && stats.ino === expected.ino;
@@ -91,7 +91,7 @@ function stillResolves(given, directory, calls = {}) {
 		const again = require_trusted_path.trustedPath(given, { calls: io });
 		return !("unsafe" in again) && again.path === directory.path && again.dev === directory.dev && again.ino === directory.ino;
 	} catch (error) {
-		if (codeOf(error) === void 0) throw error;
+		if (codeOf$1(error) === void 0) throw error;
 		return false;
 	}
 }
@@ -115,7 +115,7 @@ function removeCreated(items, within, calls = {}) {
 		if (item.directory) node_fs.default.rmdirSync(item.path);
 		else node_fs.default.unlinkSync(item.path);
 	} catch (error) {
-		if (codeOf(error) === void 0) throw error;
+		if (codeOf$1(error) === void 0) throw error;
 		return false;
 	}
 	return true;
@@ -126,11 +126,11 @@ function inspect(lockPath, lock, io) {
 	try {
 		stats = io.lstat(lock);
 	} catch (error) {
-		if (codeOf(error) === "ENOENT") return null;
+		if (codeOf$1(error) === "ENOENT") return null;
 		throw error;
 	}
 	const uid = ownerId();
-	if (stats.isSymbolicLink() || !stats.isDirectory() || uid !== void 0 && (stats.uid !== uid || stats.mode & WRITABLE_BY_OTHERS)) throw new InstallLockUnsafe(lockPath, lock);
+	if (stats.isSymbolicLink() || !stats.isDirectory() || uid !== void 0 && (stats.uid !== uid || stats.mode & WRITABLE_BY_OTHERS$1)) throw new InstallLockUnsafe(lockPath, lock);
 	return {
 		dev: stats.dev,
 		ino: stats.ino
@@ -152,7 +152,7 @@ function running(pid) {
 		process.kill(pid, 0);
 		return true;
 	} catch (error) {
-		return codeOf(error) !== "ESRCH";
+		return codeOf$1(error) !== "ESRCH";
 	}
 }
 /**
@@ -168,7 +168,7 @@ function clearStale(lockPath, lock, parent, io) {
 	try {
 		names = io.readdir(lock);
 	} catch (error) {
-		if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return null;
+		if (codeOf$1(error) === "ENOENT" || codeOf$1(error) === "ENOTDIR") return null;
 		throw error;
 	}
 	let holder = null;
@@ -186,7 +186,7 @@ function clearStale(lockPath, lock, parent, io) {
 			if (!unchanged(lockPath, lock, listed, parent, io)) return null;
 			node_fs.default.unlinkSync(file);
 		} catch (error) {
-			if (codeOf(error) !== "ENOENT") throw error;
+			if (codeOf$1(error) !== "ENOENT") throw error;
 		}
 	}
 	if (!unchanged(lockPath, lock, listed, parent, io)) return null;
@@ -198,7 +198,7 @@ function clearStale(lockPath, lock, parent, io) {
 			"ENOTEMPTY",
 			"EEXIST",
 			"ENOTDIR"
-		].includes(codeOf(error) ?? "")) throw error;
+		].includes(codeOf$1(error) ?? "")) throw error;
 	}
 	return holder;
 }
@@ -230,7 +230,7 @@ function attempt(lockPath, parent, io) {
 			node_fs.default.renameSync(staging, lock);
 			taken = true;
 		} catch (error) {
-			const code = codeOf(error) ?? "";
+			const code = codeOf$1(error) ?? "";
 			if (!([
 				"EEXIST",
 				"ENOTEMPTY",
@@ -294,6 +294,63 @@ function acquireInstallLockSync(lockPath, timeoutMs = 1e4, calls = {}) {
 		if ("release" in result) return result;
 		if (performance.now() >= deadline) throw new InstallLockBusy(lockPath, result.holder);
 		Atomics.wait(pause, 0, 0, POLL_MS);
+	}
+}
+//#endregion
+//#region src/shared/manifest-file.ts
+var LIMIT = 65536;
+var WRITABLE_BY_OTHERS = 18;
+var STICKY = 512;
+function codeOf(error) {
+	return error?.code;
+}
+/** The manifest at `file`, read without following a symlink, by the inode lstat saw. */
+function existingManifest(file, calls = {}) {
+	const lstat = calls.lstat ?? ((target) => node_fs.default.lstatSync(target));
+	let entry;
+	try {
+		entry = lstat(file);
+	} catch (error) {
+		if (codeOf(error) === "ENOENT") return { kind: "absent" };
+		return {
+			kind: "present",
+			text: null,
+			trusted: false,
+			replaceable: false
+		};
+	}
+	const uid = process.getuid?.();
+	let replaceable = uid === void 0 || uid === 0 || entry.uid === uid;
+	if (!replaceable) try {
+		const directory = lstat(node_path.default.dirname(file));
+		replaceable = (directory.mode & STICKY) === 0 || directory.uid === uid;
+	} catch {}
+	let text = null;
+	if (entry.isFile() && entry.size <= LIMIT) try {
+		const fd = node_fs.default.openSync(file, node_fs.default.constants.O_RDONLY | (node_fs.default.constants.O_NOFOLLOW ?? 0) | (node_fs.default.constants.O_NONBLOCK ?? 0));
+		try {
+			const opened = node_fs.default.fstatSync(fd);
+			if (opened.isFile() && opened.dev === entry.dev && opened.ino === entry.ino && opened.size <= LIMIT) text = node_fs.default.readFileSync(fd, "utf8");
+		} finally {
+			node_fs.default.closeSync(fd);
+		}
+	} catch {}
+	const trusted = text !== null && (uid === void 0 || entry.uid === uid && (entry.mode & WRITABLE_BY_OTHERS) === 0);
+	return {
+		kind: "present",
+		text,
+		trusted,
+		replaceable
+	};
+}
+/** The host a manifest's text names in `path`, or null when it names none readably. */
+function namedHost(text) {
+	if (text === null) return null;
+	try {
+		const parsed = JSON.parse(text);
+		return parsed && typeof parsed === "object" && typeof parsed.path === "string" ? parsed.path : null;
+	} catch {
+		return null;
 	}
 }
 //#endregion
@@ -566,26 +623,20 @@ function replaceFile(directory, name, text, mode, intact, refusal) {
 		throw error;
 	}
 }
-/** The host an existing manifest names: undefined when there is none, null when it names none readably. */
-function existingHost(manifestPath) {
-	let text;
-	try {
-		text = node_fs.default.readFileSync(manifestPath, "utf8");
-	} catch (error) {
-		if (error.code === "ENOENT") return void 0;
-		return null;
-	}
-	try {
-		const parsed = JSON.parse(text);
-		return parsed && typeof parsed.path === "string" ? parsed.path : null;
-	} catch {
-		return null;
-	}
-}
-/** Refuse the manifest at `file` if it names another host; `manifestPath` is the path the user gave. */
-function refuseForeign(file, wrapper, manifestPath = file) {
-	const previous = existingHost(file);
-	if (previous !== void 0 && previous !== wrapper && !force) throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\nPass --force to replace it: ${manifestPath}`);
+/**
+* Refuse the manifest at `file` unless it is absent or this installer's own: a trusted file
+* (src/shared/manifest-file.ts) that names `wrapper`. With --force, anything else is replaced, except another
+* user's entry in a sticky directory that is not this user's, which only they or root can remove. `manifestPath`
+* is the path the user gave.
+*/
+function refuseExisting(file, wrapper, manifestPath = file) {
+	const existing = existingManifest(file);
+	if (existing.kind === "absent") return;
+	const previous = namedHost(existing.text);
+	if (existing.trusted && previous === wrapper) return;
+	if (!force && !existing.trusted) throw new InstallError(`A native messaging manifest for ${hostName} is already there, but it is not a regular file owned by you that only you can write to, so another user could change it.\nPass --force to replace it: ${manifestPath}`);
+	if (!force) throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\nPass --force to replace it: ${manifestPath}`);
+	if (!existing.replaceable) throw new InstallError(`Refusing to replace the native messaging manifest ${manifestPath}: another user owns it, in a directory with the sticky bit that is not yours, so only that user or root can remove it.`);
 }
 function install(extensionId, manifestPath, socketPath) {
 	const node = nodeExecutable();
@@ -600,7 +651,7 @@ function install(extensionId, manifestPath, socketPath) {
 	const name = node_path.default.basename(manifestPath);
 	const directory = require_trusted_path.trustedPath(given, { missing: true });
 	if ("unsafe" in directory) throw new InstallLockUnsafe(manifestLockPath(manifestPath), directory.unsafe, "directory");
-	refuseForeign(node_path.default.join(directory.path, name), wrapper, manifestPath);
+	if (!("missing" in directory)) refuseExisting(node_path.default.join(directory.path, name), wrapper, manifestPath);
 	publishTree(hosts, copyName, files);
 	const wrapperDir = privateChild(hosts, "skill");
 	replaceFile(wrapperDir, wrapperName, text, 448, () => unchangedAt(wrapperDir.path, wrapperDir), `${wrapperDir.path} was replaced while this installer used it, so the wrapper was not written.`);
@@ -617,7 +668,7 @@ function install(extensionId, manifestPath, socketPath) {
 	const lock = acquireInstallLockSync(manifestLockPath(node_path.default.join(made.path, name)));
 	try {
 		if (!sameDirectory(lock.directory, made)) throw new InstallError(moved);
-		refuseForeign(node_path.default.join(lock.directory.path, name), wrapper, manifestPath);
+		refuseExisting(node_path.default.join(lock.directory.path, name), wrapper, manifestPath);
 		replaceFile(lock.directory, name, `${JSON.stringify(manifest, null, 2)}\n`, 420, () => stillResolves(given, lock.directory), moved);
 	} finally {
 		lock.release();

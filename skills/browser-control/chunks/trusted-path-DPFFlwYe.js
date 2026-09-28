@@ -63,7 +63,7 @@ function trustedPath(given, options = {}) {
 		} catch (error) {
 			if (codeOf(error) !== "ENOENT") throw error;
 			if (options.create === void 0) {
-				if (options.missing) return {
+				if (options.missing && !pending.includes("..")) return {
 					path: node_path.default.join(next, ...pending),
 					missing: next
 				};
@@ -117,11 +117,37 @@ function canonicalSocketPath(file, calls = {}) {
 		return file;
 	}
 }
+/**
+* The canonical path of the Unix socket `file` for a client to connect to: its directory passed the rule, is
+* private (owned by this user, no group or other bits) and still has the identity the rule saw, and the endpoint
+* there is a socket owned by this user that group and others cannot use. Only this user or root can change
+* anything on that path, so connecting through it reaches the endpoint that was checked. Anything else throws,
+* and on Windows, which has no owners, every path does. The server, client.js and transport.js all connect this way.
+*/
+function privateSocketEndpoint(file, calls = {}) {
+	const name = node_path.default.basename(file);
+	if (!name || name === "." || name === "..") throw new Error("socket name required");
+	const directory = trustedPath(node_path.default.dirname(file), { calls });
+	if ("unsafe" in directory) throw new Error("trusted socket directory required");
+	const lstat = calls.lstat ?? nodeFs.lstat;
+	const canonical = node_path.default.join(directory.path, name);
+	const uid = ownerId();
+	const parent = lstat(directory.path);
+	const endpoint = lstat(canonical);
+	if (!parent.isDirectory() || parent.dev !== directory.dev || parent.ino !== directory.ino || parent.uid !== uid || parent.mode & 63 || !endpoint.isSocket() || endpoint.uid !== uid || endpoint.mode & 63) throw new Error("private owned socket required");
+	return canonical;
+}
 //#endregion
 Object.defineProperty(exports, "canonicalSocketPath", {
 	enumerable: true,
 	get: function() {
 		return canonicalSocketPath;
+	}
+});
+Object.defineProperty(exports, "privateSocketEndpoint", {
+	enumerable: true,
+	get: function() {
+		return privateSocketEndpoint;
 	}
 });
 Object.defineProperty(exports, "trustedPath", {

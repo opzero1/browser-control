@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { parseJsonRpcMessage, isJsonRpcRequest } from "../shared/rpc";
 import { parseObservation, type Observation } from "../shared/page-protocol";
+import { privateSocketEndpoint } from "../shared/trusted-path";
 export type { Observation } from "../shared/page-protocol";
 
 const exec = promisify(execFile);
@@ -42,11 +43,20 @@ export class ChromeTransport {
     this.#socket = socket; this.session = session; this.epoch = epoch;
   }
 
+  /**
+   * Connect to the host's socket at `socketPath` by its canonical path, once privateSocketEndpoint
+   * (src/shared/trusted-path.ts) found it to be this user's socket in a private directory that no other user can
+   * change. The handshake does not authenticate the host, so nothing is sent to any other endpoint. A file system
+   * error, such as ENOENT for a host that is not running, is thrown as it is.
+   */
   static async connect(socketPath: string) {
-    const directory = await fs.lstat(path.dirname(socketPath));
-    const endpoint = await fs.lstat(socketPath);
-    if (!directory.isDirectory() || directory.uid !== process.getuid?.() || (directory.mode & 0o077) !== 0 || !endpoint.isSocket() || endpoint.uid !== process.getuid?.()) throw new Error("Explicit private owned Unix socket required");
-    const socket = net.createConnection(socketPath);
+    let canonical: string;
+    try { canonical = privateSocketEndpoint(socketPath); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code) throw error;
+      throw new Error("Explicit private owned Unix socket required");
+    }
+    const socket = net.createConnection(canonical);
     await new Promise<void>((resolve, reject) => { socket.once("connect", resolve); socket.once("error", reject); });
     const transport = new ChromeTransport(socket, "", "");
     let text = "";

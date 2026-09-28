@@ -439,6 +439,67 @@ describe("a manifest directory symlink repointed while an installer holds the lo
   }, 30000);
 });
 
+describe("an existing manifest that another user could change", () => {
+  const UNTRUSTED = (manifest: string) => "A native messaging manifest for com.opzero.chrome is already there, but it is not a regular file owned by you that only you can write to, so another user could change it.\n"
+    + `Pass --force to replace it: ${manifest}\n`;
+
+  /** The zip installer with tests/server/support/child-foreign-owner.ts reporting `foreign` as another user's and `root` as root's. */
+  function hookedZip(context: ReturnType<typeof setup>, extra: string[], owners: { foreign?: string[]; root?: string[] }) {
+    return start(["--require", childPath("child-foreign-owner"), ...context.zipArgs, ...extra], {
+      ...context.env, BROWSER_CONTROL_STATE_DIR: context.state,
+      FOREIGN_OWNED: (owners.foreign ?? []).join(path.delimiter), ROOT_OWNED: (owners.root ?? []).join(path.delimiter)
+    });
+  }
+
+  it.each(["another user's", "group-writable"] as const)("is refused by the zip installer when it is %s, even naming its own wrapper, and replaced with --force", async (kind) => {
+    const context = setup();
+    const { manifest, zip } = context;
+    expect(await zip().done).toMatchObject({ code: 0, stderr: "" });
+    const text = fs.readFileSync(manifest, "utf8");
+    // Others can add entries to a directory with the sticky bit, as they can to /tmp, and the trusted-path rule accepts it.
+    fs.chmodSync(path.dirname(manifest), 0o1777);
+    const owners = kind === "another user's" ? { foreign: [manifest] } : {};
+    if (kind === "group-writable") fs.chmodSync(manifest, 0o664);
+    const ino = fs.lstatSync(manifest).ino;
+    expect(await hookedZip(context, [], owners).done).toMatchObject({ code: 1, stdout: "", stderr: UNTRUSTED(manifest) });
+    expect(fs.lstatSync(manifest).ino).toBe(ino);
+    expect(await hookedZip(context, ["--force"], owners).done).toMatchObject({ code: 0, stderr: "" });
+    expect(fs.lstatSync(manifest).ino).not.toBe(ino);
+    expect(fs.lstatSync(manifest).mode & 0o777).toBe(0o644);
+    expect(fs.readFileSync(manifest, "utf8")).toBe(text);
+    expect(fs.readdirSync(path.dirname(manifest))).toEqual(["com.opzero.chrome.json"]);
+  }, 30000);
+
+  it("is not replaced by the zip installer, even with --force, when it is another user's in a sticky directory that is not yours", async () => {
+    const context = setup();
+    const { manifest, zip } = context;
+    expect(await zip().done).toMatchObject({ code: 0, stderr: "" });
+    const text = fs.readFileSync(manifest, "utf8");
+    fs.chmodSync(path.dirname(manifest), 0o1777);
+    const ino = fs.lstatSync(manifest).ino;
+    const result = await hookedZip(context, ["--force"], { foreign: [manifest], root: [path.dirname(manifest)] }).done;
+    expect(result).toMatchObject({ code: 1, stdout: "",
+      stderr: `Refusing to replace the native messaging manifest ${manifest}: another user owns it, in a directory with the sticky bit that is not yours, so only that user or root can remove it.\n` });
+    expect(fs.lstatSync(manifest).ino).toBe(ino);
+    expect(fs.readFileSync(manifest, "utf8")).toBe(text);
+    expect(fs.readdirSync(path.dirname(manifest))).toEqual(["com.opzero.chrome.json"]);
+  }, 30000);
+
+  it("is never read by the zip installer through a manifest directory whose `..` follows a missing directory", async () => {
+    const context = setup();
+    // Another user's tree: others can write to `attacker`, and it holds a manifest naming another host.
+    const hosts = path.join(context.root, "attacker/hosts");
+    fs.mkdirSync(hosts, { recursive: true });
+    fs.writeFileSync(path.join(hosts, "com.opzero.chrome.json"), `${JSON.stringify({ name: "com.opzero.chrome", path: "/opt/other/host" })}\n`);
+    fs.chmodSync(path.join(context.root, "attacker"), 0o777);
+    const given = `${context.root}/gap/../attacker/hosts/com.opzero.chrome.json`;
+    const result = await start([zipInstaller, "--extension-id", "testextensionid", "--manifest-path", given], { ...context.env, BROWSER_CONTROL_STATE_DIR: context.state }).done;
+    expect(result).toMatchObject({ code: 1, stdout: "", stderr: `ENOENT: no such file or directory, lstat '${path.join(context.root, "gap")}'\n` });
+    expect(fs.existsSync(path.join(context.root, "gap"))).toBe(false);
+    expect(fs.readdirSync(hosts)).toEqual(["com.opzero.chrome.json"]);
+  }, 30000);
+});
+
 describe("the state root the zip installer records", () => {
   /** Every single-quoted literal in a generated wrapper: the socket, the Node it execs and the host script. */
   function literals(wrapper: string): string[] {

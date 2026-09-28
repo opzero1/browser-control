@@ -17,6 +17,7 @@ import { Effect } from "effect";
 import {
   acquireInstallLockSync, created, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves, unchangedAt, type Created, type TrustedDirectory
 } from "../shared/install-lock";
+import { existingManifest, namedHost } from "../shared/manifest-file";
 import { canonicalSocketPath, trustedPath } from "../shared/trusted-path";
 import { argValue, runScript, ScriptIo } from "./effect-services";
 
@@ -323,29 +324,27 @@ function replaceFile(directory: TrustedDirectory, name: string, text: string, mo
   }
 }
 
-/** The host an existing manifest names: undefined when there is none, null when it names none readably. */
-function existingHost(manifestPath: string): string | null | undefined {
-  let text: string;
-  try {
-    text = fs.readFileSync(manifestPath, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    return null;
+/**
+ * Refuse the manifest at `file` unless it is absent or this installer's own: a trusted file
+ * (src/shared/manifest-file.ts) that names `wrapper`. With --force, anything else is replaced, except another
+ * user's entry in a sticky directory that is not this user's, which only they or root can remove. `manifestPath`
+ * is the path the user gave.
+ */
+function refuseExisting(file: string, wrapper: string, manifestPath = file) {
+  const existing = existingManifest(file);
+  if (existing.kind === "absent") return;
+  const previous = namedHost(existing.text);
+  if (existing.trusted && previous === wrapper) return;
+  if (!force && !existing.trusted) {
+    throw new InstallError(`A native messaging manifest for ${hostName} is already there, but it is not a regular file owned by you that only you can write to, so another user could change it.\n`
+      + `Pass --force to replace it: ${manifestPath}`);
   }
-  try {
-    const parsed = JSON.parse(text);
-    return parsed && typeof parsed.path === "string" ? parsed.path : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Refuse the manifest at `file` if it names another host; `manifestPath` is the path the user gave. */
-function refuseForeign(file: string, wrapper: string, manifestPath = file) {
-  const previous = existingHost(file);
-  if (previous !== undefined && previous !== wrapper && !force) {
+  if (!force) {
     throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\n`
       + `Pass --force to replace it: ${manifestPath}`);
+  }
+  if (!existing.replaceable) {
+    throw new InstallError(`Refusing to replace the native messaging manifest ${manifestPath}: another user owns it, in a directory with the sticky bit that is not yours, so only that user or root can remove it.`);
   }
 }
 
@@ -363,10 +362,11 @@ function install(extensionId: string, manifestPath: string, socketPath: string |
   const text = launcher(node, path.join(copyDir, ...hostEntry.split("/")), socket);
   const given = path.dirname(manifestPath);
   const name = path.basename(manifestPath);
-  // The unlocked check, like every later step, reads only the manifest directory's canonical path.
+  // The unlocked check, like every later step, reads only the manifest directory's canonical path. A missing
+  // directory was checked only up to its first missing part, so nothing is read through it.
   const directory = trustedPath(given, { missing: true });
   if ("unsafe" in directory) throw new InstallLockUnsafe(manifestLockPath(manifestPath), directory.unsafe, "directory");
-  refuseForeign(path.join(directory.path, name), wrapper, manifestPath);
+  if (!("missing" in directory)) refuseExisting(path.join(directory.path, name), wrapper, manifestPath);
   publishTree(hosts, copyName, files);
   const wrapperDir = privateChild(hosts, "skill");
   // The wrapper names the copy only after that copy is verified in place.
@@ -388,7 +388,7 @@ function install(extensionId: string, manifestPath: string, socketPath: string |
   try {
     // Classify and write only in the directory the lock checked, never through the path given.
     if (!sameDirectory(lock.directory, made)) throw new InstallError(moved);
-    refuseForeign(path.join(lock.directory.path, name), wrapper, manifestPath);
+    refuseExisting(path.join(lock.directory.path, name), wrapper, manifestPath);
     replaceFile(lock.directory, name, `${JSON.stringify(manifest, null, 2)}\n`, 0o644, () => stillResolves(given, lock.directory), moved);
   } finally {
     lock.release();

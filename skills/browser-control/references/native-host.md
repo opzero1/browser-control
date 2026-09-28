@@ -18,6 +18,8 @@ If that fails, wait 2 seconds and retry once. Any non-error response means the n
 
 `client.js` connects to `~/.opzero-chrome/default.sock` unless `BROWSER_CONTROL_HOST_SOCKET` names another socket. A host installed with `npx -y @op1/browser-control install` listens on `sockets/user.sock` in the state root instead, the path that `doctor` prints for its `endpoint` check. Set `BROWSER_CONTROL_HOST_SOCKET` to that path for `client.js`. See [two installers, one manifest](#two-installers-one-manifest).
 
+`client.js` and `transport.js` connect only to a socket that you own and that group and others cannot use (the host makes it `0600`), in a directory private to you (mode `0700`). Every directory above it must pass the rule that the installer and the host apply (see below). They connect through the socket's canonical path. If the socket fails that check, `client.js` prints `Refusing the native host socket: it must be your socket, in a private directory that no other user can change; nothing was sent`, and `ChromeTransport.connect` throws `Explicit private owned Unix socket required`. Neither sends anything. A missing socket means that the host is not running. `client.js` then reports `Private client stopped; outcome may be unknown; do not replay`.
+
 If communication still fails, run these checks:
 
 ```sh
@@ -75,7 +77,7 @@ node scripts/install-native-host.js --extension-id <id>
 
 The installer copies the host into `hosts/skill-<digest>/` under the Browser Control state root (`BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`), writes the wrapper `hosts/skill/browser-control-host` there with the Node that ran the installer, and points the manifest at that wrapper. Chrome then keeps working if this skill directory moves or is deleted. The installer writes nothing into the skill directory. It records the canonical path of the state root, the manifest directory and the socket, and it refuses a state root or manifest directory that another user could change: every directory on the path you give, and on the paths its symlinks lead to, must be owned by you or root and writable only by its owner, unless it has the sticky bit, and each symlink must be yours or root's. The host applies the same rule to its socket's directory, which must also be private to you (mode `0700`), and works only through the canonical socket path. The host listens on `~/.opzero-chrome/default.sock`, the default of `client.js`, unless you pass `--socket-path` or set `BROWSER_CONTROL_HOST_SOCKET` for the installer.
 
-If the installer reports that the manifest already points at another host, check that host first; it can be the MCP server's host. Pass `--force` only to replace it. Reload the extension in `chrome://extensions` and retry:
+If the installer reports that the manifest already points at another host, check that host first; it can be the MCP server's host. Pass `--force` only to replace it. The installer also refuses a manifest that is not a regular file owned by you, or that group or others can write to, even if it names this installer's wrapper, because another user could change it. `--force` replaces that file too, except in a directory with the sticky bit that you do not own: there, only the file's owner or root can remove another user's file. Reload the extension in `chrome://extensions` and retry:
 
 ```sh
 node native-host/client.js ping

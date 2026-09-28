@@ -1,7 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -428,8 +427,9 @@ describe("Browser Control distribution", () => {
   });
 
   it("lets pnpm-style script forwarding call the built client", async () => {
-    const socketPath = path.join(os.tmpdir(), "opencode", `oc-${process.pid}.sock`);
-    fs.rmSync(socketPath, { force: true });
+    // The client connects only to your socket in a private directory, as the host makes it.
+    const socketDir = testTemp();
+    const socketPath = path.join(socketDir, "s");
 
     const server = net.createServer();
     const received = new Promise<Record<string, unknown>>((resolve, reject) => {
@@ -455,13 +455,14 @@ describe("Browser Control distribution", () => {
       server.listen(socketPath, resolve);
       server.on("error", reject);
     });
+    fs.chmodSync(socketPath, 0o600);
 
     const client = await runNode(["dist/native-host/client.js", "--", "ping"], {
       BROWSER_CONTROL_HOST_SOCKET: socketPath
     });
     const request = await received;
     server.close();
-    fs.rmSync(socketPath, { force: true });
+    fs.rmSync(socketDir, { recursive: true, force: true });
 
     expect(client.stderr).toBe("");
     expect(client.code).toBe(0);

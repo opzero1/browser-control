@@ -1,8 +1,6 @@
 // Bounded, non-replaying JSON-RPC client for the private native-host socket (a port of opchrome.py).
-import fs from "node:fs";
 import net from "node:net";
-import path from "node:path";
-import { trustedPath } from "../shared/trusted-path";
+import { privateSocketEndpoint } from "../shared/trusted-path";
 import { Gate } from "./gate";
 import { isPyInt, parseStrictJson, pyDumps, type JsonObject } from "./pyjson";
 import { AsyncMutex } from "./runtime/mutex";
@@ -94,9 +92,10 @@ export class Connection implements HostConnection {
   }
 
   /**
-   * Connect, check the endpoint's ownership, and complete the protocol-2 handshake. The socket's directory must
-   * pass the trusted-path rule (src/shared/trusted-path.ts) and be private; the endpoint is then checked and
-   * connected to through its canonical path, so a symlink in `socketPath` repointed after the check redirects nothing.
+   * Connect, check the endpoint's ownership, and complete the protocol-2 handshake. `privateSocketEndpoint`
+   * (src/shared/trusted-path.ts) requires the socket's directory to pass the trusted-path rule and be private, and
+   * the endpoint to be this user's socket; the connection goes to its canonical path, so a symlink in `socketPath`
+   * repointed after the check redirects nothing.
    */
   static async open(socketPath: string, timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS, options: ConnectionOptions = {}): Promise<Connection> {
     const timeout = timeoutSeconds as unknown;
@@ -106,19 +105,7 @@ export class Connection implements HostConnection {
     const connection = new Connection(timeout, options);
     try {
       if (typeof socketPath !== "string") throw new Invalid();
-      const name = path.basename(socketPath);
-      if (!name || name === "." || name === "..") throw new Invalid();
-      const directory = trustedPath(path.dirname(socketPath));
-      if ("unsafe" in directory) throw new Invalid();
-      const canonical = path.join(directory.path, name);
-      const uid = process.getuid?.();
-      const parent = fs.lstatSync(directory.path);
-      const endpoint = fs.lstatSync(canonical);
-      if (!parent.isDirectory() || parent.dev !== directory.dev || parent.ino !== directory.ino || parent.uid !== uid || parent.mode & 0o077
-          || !endpoint.isSocket() || endpoint.uid !== uid || endpoint.mode & 0o077) {
-        throw new Invalid();
-      }
-      connection.socket = await connectSocket(canonical, timeout * 1000);
+      connection.socket = await connectSocket(privateSocketEndpoint(socketPath), timeout * 1000);
       connection.attach(connection.socket);
     } catch {
       connection.close();

@@ -3,6 +3,7 @@
 // modules, so the commands check exactly what the server and the pool use.
 import fs from "node:fs";
 import path from "node:path";
+import { existingManifest, namedHost } from "../../shared/manifest-file";
 import type { PackageAssets } from "../assets";
 import {
   HOST_WRAPPER_NAME, homeDirectory, NATIVE_HOST_NAME, nodeExecutable, PACKAGE_NAME, statePaths, STORE_EXTENSION_ID, userSocket, whichExecutable,
@@ -150,33 +151,26 @@ export function exists(file: string): boolean {
   }
 }
 
+/**
+ * `untrusted`: not a regular file owned by this user that group and others cannot write to
+ * (src/shared/manifest-file.ts), whatever it says; `replaceable` is false for another user's entry in a sticky
+ * directory that is not this user's.
+ */
 export type ManifestState =
   | { kind: "absent" }
   | { kind: "current" }
   | { kind: "outdated" }
-  | { kind: "foreign"; previous: string | null };
+  | { kind: "foreign"; previous: string | null }
+  | { kind: "untrusted"; previous: string | null; replaceable: boolean };
 
-/** Classify the existing user manifest against the one install writes. */
+/** Classify the existing user manifest against the one install writes; only a trusted file can be current. */
 export function manifestState(file: string, wrapper: string): ManifestState {
-  let stats: fs.Stats;
-  try {
-    stats = fs.lstatSync(file);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "absent" };
-    return { kind: "foreign", previous: null };
-  }
-  const data = stats.isFile() ? readRegular(file) : null;
-  if (!data) return { kind: "foreign", previous: null };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(data.toString("utf8"));
-  } catch {
-    return { kind: "foreign", previous: null };
-  }
-  const previous = parsed && typeof parsed === "object" && typeof (parsed as { path?: unknown }).path === "string"
-    ? (parsed as { path: string }).path : null;
+  const found = existingManifest(file);
+  if (found.kind === "absent") return { kind: "absent" };
+  const previous = namedHost(found.text);
+  if (!found.trusted) return { kind: "untrusted", previous, replaceable: found.replaceable };
   if (previous !== wrapper) return { kind: "foreign", previous };
-  return data.toString("utf8") === manifestText(wrapper) ? { kind: "current" } : { kind: "outdated" };
+  return found.text === manifestText(wrapper) ? { kind: "current" } : { kind: "outdated" };
 }
 
 /** Skills the package ships: every `skills/<name>/` entry of package.json `files`. */

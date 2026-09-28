@@ -116,6 +116,20 @@ describe("browser-control doctor", () => {
     expect(report["skill:browser-control"]).toMatchObject({ level: "warn", status: "stale", previous: path.join(root, "state/skills/browser-control/0.0.1-000000000000") });
   });
 
+  it("reports a byte-identical manifest that group or others can write to as untrusted, not current", async () => {
+    const { root, env, flags, deps } = setup();
+    await install(parseOptions(flags, INSTALL_FLAGS), env, deps);
+    const file = path.join(root, "manifests/com.opzero.chrome.json");
+    fs.chmodSync(file, 0o664);
+    const before = snapshotTree(root);
+    expect(byId((await run(flags, env, deps)).steps).manifest).toEqual({
+      id: "manifest", level: "fail", status: "untrusted", path: file, previous: path.join(root, "state/hosts/user/browser-control-host"),
+      message: "The Chrome native messaging manifest is not a regular file owned by you that only you can write to, so another user could change it. Run browser-control install --force to replace it.",
+      command: "browser-control install --force"
+    });
+    expect(snapshotTree(root)).toEqual(before);
+  });
+
   it("names the socket when the wrapper differs from this server's only there", async () => {
     const { root, env, flags, deps } = setup();
     const installed = await install(parseOptions(flags, INSTALL_FLAGS), env, deps);

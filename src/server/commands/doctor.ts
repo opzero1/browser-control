@@ -94,6 +94,10 @@ function manifestStep(env: Env, platform: NodeJS.Platform, options: Options): St
       return step("manifest", "fail", "missing", "The Chrome native messaging manifest is missing. Run browser-control install.", { path: file, command: INSTALL_HINT });
     case "outdated":
       return step("manifest", "fail", "outdated", "The Chrome native messaging manifest is outdated. Run browser-control install.", { path: file, command: INSTALL_HINT });
+    case "untrusted":
+      return step("manifest", "fail", "untrusted",
+        "The Chrome native messaging manifest is not a regular file owned by you that only you can write to, so another user could change it. Run browser-control install --force to replace it.",
+        { path: file, previous: state.previous, command: `${INSTALL_HINT} --force` });
     default:
       return step("manifest", "fail", "foreign", "The Chrome native messaging manifest points at another host. Run browser-control install --force to replace it.",
         { path: file, previous: state.previous, command: `${INSTALL_HINT} --force` });

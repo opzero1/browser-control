@@ -1,6 +1,6 @@
 // The one rule for a directory that the installers, the native host or the server create, write, delete, bind or
-// connect through: no other user may be able to change what its path leads to. The release zip's installer and
-// the native host run on Node 18, so this uses only node:fs and node:path.
+// connect through: no other user may be able to change what its path leads to. The release zip's installer, the
+// native host and its client.js and transport.js run on Node 18, so this uses only node:fs and node:path.
 //
 // The path is walked as given, one component at a time from /, the way the kernel resolves it. Every directory on
 // the way, and the one at the end, must be owned by this user or root and writable only by its owner unless it
@@ -25,7 +25,11 @@ export interface TrustedDirectory extends Identity {
   readonly path: string;
 }
 
-/** A missing directory whose existing part passed the rule: `path` is where it would be, `missing` its first missing directory. */
+/**
+ * A missing directory whose existing part passed the rule: `path` is where it would be, `missing` its first missing
+ * directory. Nothing past `missing` was checked, and in a sticky directory another user may create it at any
+ * time, so nothing may be read through `path`; make it with the `create` option instead.
+ */
 export interface MissingDirectory {
   readonly path: string;
   readonly missing: string;
@@ -46,7 +50,10 @@ export interface TrustedPathFs {
 export interface TrustedPathOptions {
   /** Make each missing directory with this mode, inside its checked parent, instead of failing with ENOENT. */
   readonly create?: number;
-  /** Report where a missing directory would be instead of failing with ENOENT. */
+  /**
+   * Report where a missing directory would be instead of failing with ENOENT. A `..` after the missing directory
+   * still fails with ENOENT, as the kernel fails there: the directory it would lead to was never walked.
+   */
   readonly missing?: boolean;
   readonly calls?: Partial<TrustedPathFs>;
 }
@@ -121,10 +128,12 @@ export function trustedPath(given: string, options: TrustedPathOptions = {}): Tr
     } catch (error) {
       if (codeOf(error) !== "ENOENT") throw error;
       if (options.create === undefined) {
-        if (options.missing) return { path: path.join(next, ...pending), missing: next };
+        // Joining a `..` as text would name a directory the walk never checked.
+        if (options.missing && !pending.includes("..")) return { path: path.join(next, ...pending), missing: next };
         throw error;
       }
-      // `current` passed, so only this user or root could have made anything at `next` since.
+      // Made inside `current`, which passed. In a sticky directory another user can make an entry here first, so
+      // whatever is at `next` afterwards is checked below like any other entry.
       try {
         io.mkdir(next, options.create);
       } catch (made) {
@@ -166,4 +175,28 @@ export function canonicalSocketPath(file: string, calls: Partial<TrustedPathFs> 
     if (codeOf(error) === undefined) throw error;
     return file;
   }
+}
+
+/**
+ * The canonical path of the Unix socket `file` for a client to connect to: its directory passed the rule, is
+ * private (owned by this user, no group or other bits) and still has the identity the rule saw, and the endpoint
+ * there is a socket owned by this user that group and others cannot use. Only this user or root can change
+ * anything on that path, so connecting through it reaches the endpoint that was checked. Anything else throws,
+ * and on Windows, which has no owners, every path does. The server, client.js and transport.js all connect this way.
+ */
+export function privateSocketEndpoint(file: string, calls: Partial<TrustedPathFs> = {}): string {
+  const name = path.basename(file);
+  if (!name || name === "." || name === "..") throw new Error("socket name required");
+  const directory = trustedPath(path.dirname(file), { calls });
+  if ("unsafe" in directory) throw new Error("trusted socket directory required");
+  const lstat = calls.lstat ?? nodeFs.lstat;
+  const canonical = path.join(directory.path, name);
+  const uid = ownerId();
+  const parent = lstat(directory.path);
+  const endpoint = lstat(canonical);
+  if (!parent.isDirectory() || parent.dev !== directory.dev || parent.ino !== directory.ino || parent.uid !== uid || parent.mode & 0o077
+      || !endpoint.isSocket() || endpoint.uid !== uid || endpoint.mode & 0o077) {
+    throw new Error("private owned socket required");
+  }
+  return canonical;
 }

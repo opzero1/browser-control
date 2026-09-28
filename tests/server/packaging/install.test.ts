@@ -341,6 +341,86 @@ describe("browser-control install", () => {
     expect(snapshotTree(root)).toEqual(installed);
   });
 
+  it("never takes a manifest directory whose `..` follows a missing directory as checked, so neither the fast path nor a write reads or writes there", async () => {
+    const { root, env, assets, state, manifests, skills, flags } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    await install(options(flags), env, deps);
+    // Another user's tree: others can write to `attacker`, and it holds a byte-identical manifest.
+    const planted = writeFile(path.join(root, "attacker/hosts/com.opzero.chrome.json"), readText(path.join(manifests, "com.opzero.chrome.json")));
+    fs.chmodSync(path.join(root, "attacker"), 0o777);
+    // Kept as text: `gap` is missing, so the kernel fails at the `..` after it, and so must the walk.
+    const link = path.join(root, "chrome");
+    fs.symlinkSync(`${root}/gap/../attacker/hosts`, link);
+    const installed = snapshotTree(root);
+    for (const extra of [[], ["--dry-run"], ["--force"]]) {
+      const report = await install(options(["--state-dir", state, "--chrome-manifest-dir", link, "--skills-dir", skills, ...extra]), env, deps);
+      expect(byId(report.steps).manifest, extra.join(" ")).toMatchObject({ level: "fail", status: "error", code: "ENOENT" });
+    }
+    expect(snapshotTree(root)).toEqual(installed);
+    expect(fs.readdirSync(path.dirname(planted))).toEqual(["com.opzero.chrome.json"]);
+  });
+
+  /** lstat reports each path in `owners` as owned by that uid; tests cannot chown. */
+  function owned(owners: Record<string, number>) {
+    const lstat = fs.lstatSync;
+    vi.spyOn(fs, "lstatSync").mockImplementation(((file: fs.PathLike, options?: fs.StatSyncOptions) => {
+      const observed = lstat(file, options as fs.StatSyncOptions & { bigint?: false }) as fs.Stats;
+      const owner = owners[String(file)];
+      return owner === undefined ? observed : Object.assign(Object.create(Object.getPrototypeOf(observed)), observed, { uid: owner });
+    }) as typeof fs.lstatSync);
+  }
+
+  const UNTRUSTED_MESSAGE = "A Chrome native messaging manifest for com.opzero.chrome is already there, but it is not a regular file owned by you that only you can write to, so another user could change it. Run browser-control install --force to replace it.";
+
+  it.each(["another user's", "group-writable", "world-writable"] as const)("takes a byte-identical manifest that is %s as untrusted, not current: refused without --force, replaced with it", async (kind) => {
+    const { root, env, assets, manifests, flags, state } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    await install(options(flags), env, deps);
+    const file = path.join(manifests, "com.opzero.chrome.json");
+    const text = readText(file);
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    // Others can add entries to a directory with the sticky bit, as they can to /tmp, and the trusted-path rule accepts it.
+    fs.chmodSync(manifests, 0o1777);
+    if (kind === "another user's") owned({ [file]: fs.lstatSync(file).uid + 1 });
+    else fs.chmodSync(file, kind === "group-writable" ? 0o664 : 0o646);
+    const ino = fs.lstatSync(file).ino;
+    const refused = await install(options(flags), env, deps);
+    expect(byId(refused.steps).manifest).toEqual({ id: "manifest", level: "fail", status: "untrusted", message: UNTRUSTED_MESSAGE, path: file, previous: wrapper });
+    expect(refused.ok).toBe(false);
+    expect(byId((await install(options([...flags, "--dry-run", "--force"]), env, deps)).steps).manifest).toEqual({ id: "manifest", level: "ok",
+      status: "would-replace-untrusted", message: "Would replace the Chrome native messaging manifest that another user could change.", path: file, previous: wrapper });
+    expect(fs.lstatSync(file).ino).toBe(ino);
+    const replaced = await install(options([...flags, "--force"]), env, deps);
+    expect(byId(replaced.steps).manifest).toEqual({ id: "manifest", level: "ok",
+      status: "replaced-untrusted", message: "Replaced the Chrome native messaging manifest that another user could change.", path: file, previous: wrapper });
+    expect(fs.lstatSync(file).ino).not.toBe(ino);
+    expect(fs.lstatSync(file).mode & 0o777).toBe(0o644);
+    expect(readText(file)).toBe(text);
+    expect(fs.readdirSync(manifests)).toEqual(["com.opzero.chrome.json"]);
+  });
+
+  it("refuses to replace another user's manifest in a sticky directory that is not yours, even with --force, and says so", async () => {
+    const { root, env, assets, manifests, flags, state } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    await install(options(flags), env, deps);
+    const file = path.join(manifests, "com.opzero.chrome.json");
+    const text = readText(file);
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    fs.chmodSync(manifests, 0o1777);
+    // As in /tmp: the directory is root's, so only the manifest's owner or root may remove it.
+    owned({ [file]: fs.lstatSync(file).uid + 1, [manifests]: 0 });
+    const ino = fs.lstatSync(file).ino;
+    expect(byId((await install(options(flags), env, deps)).steps).manifest).toMatchObject({ level: "fail", status: "untrusted", previous: wrapper });
+    for (const extra of [["--force"], ["--force", "--dry-run"]]) {
+      expect(byId((await install(options([...flags, ...extra]), env, deps)).steps).manifest, extra.join(" ")).toEqual({ id: "manifest", level: "fail",
+        status: "cannot-replace", path: file, previous: wrapper,
+        message: "The Chrome native messaging manifest belongs to another user, in a directory with the sticky bit that is not yours, so only that user or root can replace it. Have it removed, or pass another --chrome-manifest-dir." });
+    }
+    expect(fs.lstatSync(file).ino).toBe(ino);
+    expect(readText(file)).toBe(text);
+    expect(fs.readdirSync(manifests)).toEqual(["com.opzero.chrome.json"]);
+  });
+
   it("writes the wrapper, the snippets and the manifest with the canonical path of a socket reached through a symlink", async () => {
     const { root, env: base, assets, flags, state } = setup();
     const sockets = path.join(root, "sockets");

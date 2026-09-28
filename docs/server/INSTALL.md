@@ -68,6 +68,11 @@ roots never share an endpoint. To use another socket, set `BROWSER_CONTROL_HOST_
 Without `--force`, install never replaces a `com.opzero.chrome.json` manifest that points at another host. It
 reports the path that manifest names and exits with status 1.
 
+Install and doctor treat a manifest as current only when it is a regular file owned by you that group and others
+cannot write to. Any other manifest is reported as `untrusted`, even if its bytes match, because another user
+could change it. `--force` replaces it, except in a directory with the sticky bit that you do not own. There,
+install reports `cannot-replace`, because only the file's owner or root can remove another user's file.
+
 ### The release zip's installer
 
 The Browser Control helper zip ships its own installer, `scripts/install-native-host.js`. It writes the same
