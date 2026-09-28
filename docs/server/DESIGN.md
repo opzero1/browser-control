@@ -555,3 +555,13 @@ Follow-ups:
 - Registry and cua-driver integers: see D20.
 - Kept, with the evidence recorded in the round's notes: the D19 renames (the user approved them on 2026-09-28 after being told they contradict the brief's rule on error codes, then asked for more renames) and the isolated extension ID (Q1: Chrome derived `pncpgnbanebkeopjghjleodgmphmmmcp` from the SHA-256 of the Python server's install path of `op-chrome/dist/extension` under the agent client's configuration, which C3 and C4 exclude).
 
+
+## Pre-PR round
+
+- Merged `origin/main` at `e35cda1` (PR #3). Its tree equals `8d7fd8a`, which this branch already contained, so the merge changed no file.
+- Orphaned leases: `claim_browser` receipts have no `owner` field. `pool status` lists every lease with its `owner` and `lease_id`, so the skill tells operators to match the receipt's `lease_id` there and pass that owner to `pool release`. The receipt is unchanged.
+- The release zip's installer writes nothing into the directory it runs from. It used to rewrite `scripts/extension-id.json` there, which changed the content-addressed skill copy under `<state>/skills/` and made doctor report it stale. That file is a build output; the two check scripts read it only as a fallback after `--extension-id` and `BROWSER_CONTROL_EXTENSION_ID`.
+- `references/native-host.md` and `INSTALL.md` describe both `com.opzero.chrome` installers: the last one run owns the manifest, the zip's host keeps `~/.opzero-chrome/default.sock` (D1), and doctor reports the zip's manifest as `manifest: foreign` with `previous` naming `<state>/hosts/skill/browser-control-host`. Doctor was not changed.
+- `release.yml` and `chrome-web-store.yml` run Node 24, like `check.yml`, because both run `pnpm run check`.
+- `docs/RELEASE.md` lists the reviewer steps and privacy text to refresh before the next release; `store/` and `site/` still describe the deployed 0.2.2 helper.
+- Two tests waited on timing rather than state. `tests/security/host.test.ts` now waits for the host to remove `<socket>.lock` (it does so once listening) before connecting. The hung-call test in `tests/server/private/cua-mcp.test.ts` gives the read 4 s, so the deadline falls inside the hung call even under load.
