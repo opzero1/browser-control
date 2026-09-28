@@ -63,9 +63,9 @@ npx -y @op1/browser-control doctor --json
 
 ## Know the state root
 
-Browser Control keeps its state under one directory: `BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`. The path must be absolute, or the server fails with `browser-control-invalid-state-dir`. It holds the pool registry, the controller profiles, the native-host copies, the isolated controllers' sockets, artifacts, locks, and the clipboard-guard binary. Do not edit registry files by hand; use the [pool CLI](browser-pool.md#operate-the-pool-from-the-cli).
+Browser Control keeps its state under one directory: `BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`. The path must be absolute, or the server fails with `browser-control-invalid-state-dir`. It holds the pool registry, the controller profiles, the native-host copies, every native-host socket and its startup lock (the user's Chrome's `sockets/user.sock` and the isolated controllers' sockets), artifacts, locks, and the clipboard-guard binary. Do not edit registry files by hand; use the [pool CLI](browser-pool.md#operate-the-pool-from-the-cli).
 
-One path stays outside the state root on purpose, even when `BROWSER_CONTROL_STATE_DIR` is set: the native host of the user's Chrome creates `~/.opzero-chrome` and listens on `~/.opzero-chrome/default.sock`. That is the published extension's native-host default, so the server and a host installed by the [bundled host scripts](native-host.md) use the same socket. To use another socket, set `BROWSER_CONTROL_HOST_SOCKET` to the same path for `install` and for the server.
+The user's Chrome follows the state root too: the wrapper that `install` writes starts its native host on `<state>/sockets/user.sock`, and the server connects there, even when `BROWSER_CONTROL_STATE_DIR` is set to another directory. Two state roots therefore never share an endpoint. To use another socket, set `BROWSER_CONTROL_HOST_SOCKET` to the same path for `install` and for the server. `doctor` prints the socket it checks. The standalone host from the release zip listens on `~/.opzero-chrome/default.sock` instead; see [native host scripts](native-host.md).
 
 ## Set the environment
 
@@ -74,7 +74,7 @@ Set these in the server's environment through your client's MCP config.
 | Variable | Effect |
 | --- | --- |
 | `BROWSER_CONTROL_STATE_DIR` | The state root. Default `~/.local/state/browser-control`. |
-| `BROWSER_CONTROL_HOST_SOCKET` | The user's Chrome endpoint. Default `~/.opzero-chrome/default.sock`. |
+| `BROWSER_CONTROL_HOST_SOCKET` | The user's Chrome endpoint. Default `sockets/user.sock` in the state root. |
 | `CUA_DRIVER` | An absolute path to cua-driver. Otherwise `PATH`, then `~/.local/bin/cua-driver`. |
 | `FAST_CHROME_ARTIFACT_ROOT` | An existing, private artifact root for tabs without a lease. Default `artifacts/user` in the state root. |
 | `FAST_CHROME_ALLOW_LOOPBACK` | `1` also allows `http://localhost` and `http://127.0.0.1` tabs. |

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { packageAssets, type PackageAssets } from "../../../src/server/assets";
+import { expectedWrapper } from "../../../src/server/commands/shared";
 import {
   allowLoopback, envLimit, HOST_SOCKET_ENV, HOST_WRAPPER_NAME, ISOLATED_EXTENSION_ID, ISOLATED_EXTENSION_KEY, nodeExecutable,
   resolveCuaDriver, SERVER_NAME, statePaths, STORE_EXTENSION_ID, unsharedSites, userArtifactRoot, userSocket, whichExecutable
@@ -48,7 +49,7 @@ describe("names and state paths", () => {
     expect(paths.root).toBe(path.join(home, ".local/state/browser-control"));
     expect(statePaths({ HOME: home, BROWSER_CONTROL_STATE_DIR: "/srv/state/" })).toEqual({
       root: "/srv/state/", registry: "/srv/state/pool/registry", controllers: "/srv/state/pool/controllers",
-      sockets: "/srv/state/sockets", hosts: "/srv/state/hosts", extensions: "/srv/state/extensions", artifacts: "/srv/state/artifacts",
+      sockets: "/srv/state/sockets", userSocket: "/srv/state/sockets/user.sock", hosts: "/srv/state/hosts", extensions: "/srv/state/extensions", artifacts: "/srv/state/artifacts",
       userArtifacts: "/srv/state/artifacts/user", locks: "/srv/state/locks", bin: "/srv/state/bin"
     });
     expect(gateCode(() => statePaths({ BROWSER_CONTROL_STATE_DIR: "relative/state" }))).toBe("browser-control-invalid-state-dir");
@@ -61,7 +62,12 @@ describe("names and state paths", () => {
     expect(HOST_SOCKET_ENV).toBe("BROWSER_CONTROL_HOST_SOCKET");
     expect(HOST_WRAPPER_NAME).toBe("browser-control-host");
     expect(userSocket({ HOME: "/h", BROWSER_CONTROL_HOST_SOCKET: "/run/x.sock" })).toBe("/run/x.sock");
-    expect(userSocket({ HOME: "/h", OPZERO_CHROME_HOST_SOCKET: "/run/old.sock" })).toBe("/h/.opzero-chrome/default.sock");
+    // The default follows the state root (C4): never the standalone host's ~/.opzero-chrome/default.sock, which
+    // the retired variable cannot redirect either, so an environment with only that variable stays isolated.
+    expect(userSocket({ HOME: "/h" })).toBe("/h/.local/state/browser-control/sockets/user.sock");
+    expect(userSocket({ HOME: "/h", BROWSER_CONTROL_STATE_DIR: "/custom/state" })).toBe("/custom/state/sockets/user.sock");
+    expect(userSocket({ HOME: "/h", BROWSER_CONTROL_STATE_DIR: "/custom/state", OPZERO_CHROME_HOST_SOCKET: "/run/old.sock" })).toBe("/custom/state/sockets/user.sock");
+    expect(gateCode(() => userSocket({ HOME: "/h", BROWSER_CONTROL_STATE_DIR: "relative" }))).toBe("browser-control-invalid-state-dir");
     expect(userArtifactRoot({ HOME: "/h", FAST_CHROME_ARTIFACT_ROOT: "/a" })).toEqual({ root: "/a", explicit: true });
     expect(userArtifactRoot({ HOME: "/h" })).toEqual({ root: "/h/.local/state/browser-control/artifacts/user", explicit: false });
     expect(allowLoopback({ FAST_CHROME_ALLOW_LOOPBACK: "1" })).toBe(true);
@@ -294,5 +300,55 @@ describe("packaged assets and stable copies (C3, Q1)", () => {
     child.stdin.end();
     expect(await exited).toBe(0);
     expect(stderr).toBe("");
+  }, 15000);
+
+  /** Start `command`, wait for `socket`, then close its stdin (Chrome's native port) and expect a clean exit. */
+  async function hostListens(command: string, args: string[], env: Record<string, string | undefined>, socket: string) {
+    const child = spawn(command, args, { env, stdio: ["pipe", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    const exited = new Promise((resolve) => child.on("exit", resolve));
+    await expect.poll(() => fs.existsSync(socket) && fs.lstatSync(socket).isSocket(), { timeout: 5000 }).toBe(true);
+    child.stdin.end();
+    expect(await exited).toBe(0);
+    expect(stderr).toBe("");
+  }
+
+  it("keeps the stable host's default socket and startup lock under the state root (C4)", async () => {
+    const root = privateTemp();
+    // Only the retired variable is set: it redirects nothing, and the default follows the state root.
+    const env = testEnv(root, { OPZERO_CHROME_HOST_SOCKET: path.join(root, "old.sock") });
+    const host = await ensureStableHost(env);
+    const socket = path.join(root, "state/sockets/user.sock");
+    await hostListens(nodeExecutable(), [host.hostScript], env, socket);
+    expect(fs.existsSync(path.join(root, "home/.opzero-chrome"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "old.sock"))).toBe(false);
+    expect(fs.lstatSync(path.dirname(socket)).mode & 0o777).toBe(0o700);
+  }, 15000);
+
+  it("points the install wrapper at the state root's user socket, so separate roots never share an endpoint", async () => {
+    const root = privateTemp();
+    for (const name of ["a", "b"]) {
+      const env = testEnv(root, { BROWSER_CONTROL_STATE_DIR: path.join(root, name) });
+      const host = await ensureStableHost(env);
+      const wrapperFile = path.join(root, `${name}-${HOST_WRAPPER_NAME}`);
+      fs.writeFileSync(wrapperFile, expectedWrapper(env, host.hostScript, nodeExecutable()), { mode: 0o700 });
+      expect(fs.readFileSync(wrapperFile, "utf8")).toContain(`export BROWSER_CONTROL_HOST_SOCKET='${path.join(root, name, "sockets/user.sock")}'\n`);
+      await hostListens(wrapperFile, [], env, path.join(root, name, "sockets/user.sock"));
+    }
+    expect(fs.existsSync(path.join(root, "home/.opzero-chrome"))).toBe(false);
+  }, 15000);
+
+  it("refuses to start the stable host under a relative state root", async () => {
+    const root = privateTemp();
+    const env = testEnv(root);
+    const host = await ensureStableHost(env);
+    const child = spawn(nodeExecutable(), [host.hostScript], { env: { ...env, BROWSER_CONTROL_STATE_DIR: "relative/state" }, cwd: root, stdio: ["pipe", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    expect(await new Promise((resolve) => child.on("exit", resolve))).toBe(1);
+    expect(stderr).toBe("Native endpoint setup refused; BROWSER_CONTROL_STATE_DIR must be an absolute path\n");
+    expect(fs.existsSync(path.join(root, "relative"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "home/.opzero-chrome"))).toBe(false);
   }, 15000);
 });

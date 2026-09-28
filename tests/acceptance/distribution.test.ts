@@ -23,6 +23,20 @@ function copyDir(from: string, to: string) {
   }
 }
 
+/** Start an installed wrapper as Chrome does, wait for its socket, then close its native port (stdin). */
+async function hostListens(wrapper: string, cwd: string, socket: string) {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) if (!key.startsWith("BROWSER_CONTROL_")) env[key] = value;
+  const child = spawn(wrapper, [], { cwd, env, stdio: ["pipe", "ignore", "pipe"] });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const exited = new Promise((resolve) => child.on("exit", resolve));
+  await expect.poll(() => fs.existsSync(socket) && fs.lstatSync(socket).isSocket(), { timeout: 5000 }).toBe(true);
+  child.stdin.end();
+  expect(await exited).toBe(0);
+  expect(stderr).toBe("");
+}
+
 function runNode(args: string[], env: NodeJS.ProcessEnv = {}) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
     const child = spawn(process.execPath, args, {
@@ -144,6 +158,7 @@ describe("Browser Control distribution", () => {
     copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
     const socketPath = path.join(tempDir, "browser-control.sock");
+    const state = path.join(tempDir, "state");
 
     const install = await runNode([
       path.join(skillDir, "scripts/install-native-host.js"),
@@ -153,15 +168,27 @@ describe("Browser Control distribution", () => {
       manifestPath,
       "--socket-path",
       socketPath
-    ]);
+    ], { BROWSER_CONTROL_STATE_DIR: state });
     expect(install.stderr).toBe("");
     expect(install.code).toBe(0);
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     expect(manifest.name).toBe("com.opzero.chrome");
-    expect(manifest.allowed_origins).toContain("chrome-extension://testextensionid/");
-    expect(fs.existsSync(manifest.path)).toBe(true);
-    expect(fs.readFileSync(manifest.path, "utf8")).toContain(`BROWSER_CONTROL_HOST_SOCKET="${socketPath}"`);
+    expect(manifest.allowed_origins).toEqual(["chrome-extension://testextensionid/"]);
+    // Chrome gets a wrapper under the state root, never a path inside the skill it was installed from.
+    expect(manifest.path).toBe(path.join(state, "hosts/skill/browser-control-host"));
+    const copies = fs.readdirSync(path.join(state, "hosts")).filter((name) => name.startsWith("skill-"));
+    expect(copies).toHaveLength(1);
+    expect(copies[0]).toMatch(/^skill-[0-9a-f]{12}$/);
+    const hostScript = path.join(state, "hosts", copies[0], "native-host/host.js");
+    expect(fs.readFileSync(manifest.path, "utf8")).toBe(
+      `#!/bin/sh\nexport BROWSER_CONTROL_HOST_SOCKET='${socketPath}'\nexec '${process.execPath}' '${hostScript}'\n`);
+    expect(fs.statSync(manifest.path).mode & 0o777).toBe(0o700);
+    for (const dir of [state, path.join(state, "hosts"), path.join(state, "hosts", copies[0]), path.join(state, "hosts/skill")]) {
+      expect(fs.lstatSync(dir).mode & 0o777, dir).toBe(0o700);
+    }
+    expect(fs.readFileSync(hostScript).equals(fs.readFileSync(path.join(skillDir, "native-host/host.js")))).toBe(true);
+    expect(install.stdout).toContain(`Host copy: ${path.join(state, "hosts", copies[0])}\n`);
     expect(JSON.parse(fs.readFileSync(path.join(skillDir, "scripts/extension-id.json"), "utf8")).extensionId).toBe("testextensionid");
 
     const check = await runNode([
@@ -173,6 +200,96 @@ describe("Browser Control distribution", () => {
     expect(check.stderr).toBe("");
     expect(check.code).toBe(0);
     expect(JSON.parse(check.stdout).ok).toBe(true);
+
+    // Running it again keeps the same copy and wrapper.
+    const again = await runNode([path.join(skillDir, "scripts/install-native-host.js"), "--extension-id", "testextensionid",
+      "--manifest-path", manifestPath, "--socket-path", socketPath], { BROWSER_CONTROL_STATE_DIR: state });
+    expect(again.code).toBe(0);
+    expect(fs.readdirSync(path.join(state, "hosts")).sort()).toEqual(["skill", copies[0]]);
+  });
+
+  it("starts the installed host after the skill it came from is gone", async () => {
+    const tempDir = testTemp();
+    const skillDir = path.join(tempDir, "browser-control");
+    copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
+    const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
+    const socketPath = path.join(tempDir, "h.sock");
+    const install = await runNode([path.join(skillDir, "scripts/install-native-host.js"), "--extension-id", "testextensionid",
+      "--manifest-path", manifestPath, "--socket-path", socketPath], { BROWSER_CONTROL_STATE_DIR: path.join(tempDir, "state") });
+    expect(install.code).toBe(0);
+    fs.rmSync(skillDir, { recursive: true, force: true });
+    const { path: wrapper } = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    await hostListens(wrapper, tempDir, socketPath);
+  });
+
+  it("keeps shell metacharacters in installed paths literal", async () => {
+    const tempDir = testTemp();
+    const skillDir = path.join(tempDir, "browser-control");
+    copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
+    const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
+    // Relative command substitutions: evaluated, they would write p and q into the host's working directory.
+    const socketPath = path.join(tempDir, "$(id>p)", "`id>q`.sock");
+    const install = await runNode([path.join(skillDir, "scripts/install-native-host.js"), "--extension-id", "testextensionid",
+      "--manifest-path", manifestPath, "--socket-path", socketPath], { BROWSER_CONTROL_STATE_DIR: path.join(tempDir, "$HOME `x`") });
+    expect(install.stderr).toBe("");
+    expect(install.code).toBe(0);
+    const { path: wrapper } = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    expect(wrapper).toBe(path.join(tempDir, "$HOME `x`", "hosts/skill/browser-control-host"));
+    await hostListens(wrapper, tempDir, socketPath);
+    expect(fs.readdirSync(tempDir).filter((name) => name === "p" || name === "q")).toEqual([]);
+  });
+
+  it("refuses a path that a single-quoted literal cannot hold, before writing anything", async () => {
+    const tempDir = testTemp();
+    const skillDir = path.join(tempDir, "browser-control");
+    copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
+    const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
+    const state = path.join(tempDir, "state");
+    for (const socketPath of [path.join(tempDir, "it's.sock"), path.join(tempDir, "line\nbreak.sock")]) {
+      const install = await runNode([path.join(skillDir, "scripts/install-native-host.js"), "--extension-id", "testextensionid",
+        "--manifest-path", manifestPath, "--socket-path", socketPath], { BROWSER_CONTROL_STATE_DIR: state });
+      expect(install.code).toBe(1);
+      expect(install.stderr).toMatch(/^Refusing a path with an apostrophe or a control character: /);
+      expect(fs.existsSync(manifestPath)).toBe(false);
+      expect(fs.existsSync(path.join(state, "hosts/skill"))).toBe(false);
+    }
+  });
+
+  it("refuses a relative state root", async () => {
+    const tempDir = testTemp();
+    const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
+    const install = await runNode(["dist/scripts/install-native-host.js", "--extension-id", "testextensionid", "--manifest-path", manifestPath],
+      { BROWSER_CONTROL_STATE_DIR: "relative/state" });
+    expect(install.code).toBe(1);
+    expect(install.stderr).toBe("BROWSER_CONTROL_STATE_DIR must be an absolute path.\n");
+    expect(fs.existsSync(manifestPath)).toBe(false);
+    expect(fs.existsSync(path.join(root, "relative"))).toBe(false);
+  });
+
+  it("keeps a manifest that points at another host unless --force is given", async () => {
+    const tempDir = testTemp();
+    const skillDir = path.join(tempDir, "browser-control");
+    copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
+    const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
+    const state = path.join(tempDir, "state");
+    const foreign = `${JSON.stringify({ name: "com.opzero.chrome", path: "/opt/other/host", type: "stdio", allowed_origins: [] })}\n`;
+    fs.writeFileSync(manifestPath, foreign);
+    const args = [path.join(skillDir, "scripts/install-native-host.js"), "--extension-id", "testextensionid", "--manifest-path", manifestPath];
+    const refused = await runNode(args, { BROWSER_CONTROL_STATE_DIR: state });
+    expect(refused.code).toBe(1);
+    expect(refused.stderr).toBe(`A native messaging manifest for com.opzero.chrome already points at another host:\n  /opt/other/host\nPass --force to replace it: ${manifestPath}\n`);
+    expect(fs.readFileSync(manifestPath, "utf8")).toBe(foreign);
+    expect(fs.existsSync(path.join(state, "hosts/skill"))).toBe(false);
+
+    fs.writeFileSync(manifestPath, "{ not json");
+    expect((await runNode(args, { BROWSER_CONTROL_STATE_DIR: state })).stderr).toContain("already points at another host:\n  (unreadable)\n");
+    expect(fs.readFileSync(manifestPath, "utf8")).toBe("{ not json");
+
+    const forced = await runNode([...args, "--force"], { BROWSER_CONTROL_STATE_DIR: state });
+    expect(forced.code).toBe(0);
+    expect(JSON.parse(fs.readFileSync(manifestPath, "utf8")).path).toBe(path.join(state, "hosts/skill/browser-control-host"));
+    // Its own manifest is replaced without --force.
+    expect((await runNode(args, { BROWSER_CONTROL_STATE_DIR: state })).code).toBe(0);
   });
 
   it("reports a repair command for an invalid native host manifest", async () => {

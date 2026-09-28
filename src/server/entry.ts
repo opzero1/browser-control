@@ -91,6 +91,9 @@ export async function runStdioServer(options: StdioServerOptions = {}): Promise<
     stdin.on("end", onEnd);
     stdin.on("close", onEnd);
     if (signals) process.on("SIGTERM", onSignal);
+    // A transport that closes for any other reason (a stdin read error) ends through the same bounded path,
+    // as Python's server leaves through its lifespan cleanup however the stdio loop ends.
+    server.onclose = () => shutdown.begin();
     server.connect(transport).catch(() => shutdown.begin());
   });
 }

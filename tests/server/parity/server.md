@@ -189,7 +189,7 @@ Each is required by C1-C8, the coordinator decisions or the platform; everything
   a non-empty string still fails with `fast-chrome-session-required`.
 - S3 (C8) No fixed route: `route` has kinds `lease` and `user`; `status` has no `lease` field; `claim_browser`
   never raises `browser-controller-fixed-entry`; `tabs` and `open_tab` take no claim.json pin.
-- S4 (D19) The user route reads `BROWSER_CONTROL_HOST_SOCKET` (default `~/.opzero-chrome/default.sock`), and
+- S4 (D19, D1) The user route reads `BROWSER_CONTROL_HOST_SOCKET` (default `<state>/sockets/user.sock`), and
   `OPZERO_CHROME_HOST_SOCKET` is ignored; `status` reports `backend: "browser-control"`; the retired
   `opchrome-*` codes are `browser-control-*`; the instructions say "Browser Control" and "Load browser-control".
 - S5 (D2) Without `FAST_CHROME_ARTIFACT_ROOT`, user-route captures go under `<state>/artifacts/user`, created

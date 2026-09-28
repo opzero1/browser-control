@@ -47,11 +47,11 @@ Install is idempotent. Run it again after each upgrade. It does these steps:
 Chrome manifests and skill links point only at copies under the state directory, never into the npx cache.
 
 `<state>` is `BROWSER_CONTROL_STATE_DIR`, by default `~/.local/state/browser-control`. The state directory
-also holds the isolated profiles, the pool registry, the isolated controllers' sockets, locks and artifacts.
+also holds the isolated profiles, the pool registry, every native-host socket, locks and artifacts.
 
-The user's Chrome is the exception. Its native host creates `~/.opzero-chrome` and listens on
-`~/.opzero-chrome/default.sock` even when `BROWSER_CONTROL_STATE_DIR` is set, because that path is the published
-extension's native-host default. To use another socket, set `BROWSER_CONTROL_HOST_SOCKET` to the same path for
+The user's Chrome follows the state root too: the wrapper starts its native host on `<state>/sockets/user.sock`,
+and the server connects there, even when `BROWSER_CONTROL_STATE_DIR` is set to another directory. Two state
+roots never share an endpoint. To use another socket, set `BROWSER_CONTROL_HOST_SOCKET` to the same path for
 `install` and for the server.
 
 ### Options
@@ -143,7 +143,7 @@ command to run.
 | Variable | Meaning |
 |---|---|
 | `BROWSER_CONTROL_STATE_DIR` | Absolute state directory. Default `~/.local/state/browser-control`. |
-| `BROWSER_CONTROL_HOST_SOCKET` | The user route's native host socket. Default `~/.opzero-chrome/default.sock`. |
+| `BROWSER_CONTROL_HOST_SOCKET` | The user route's native host socket. Default `<state>/sockets/user.sock`. |
 | `BROWSER_CONTROL_USER_DATA_DIR` | Chrome user-data directory for the read-only extension check in install and doctor. |
 | `BROWSER_CONTROL_PREFERENCES_PATH` | Exact Preferences file for that check. Takes precedence over the user-data directory. |
 | `CUA_DRIVER` | Absolute path to cua-driver. |

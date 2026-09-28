@@ -297,6 +297,27 @@ describe("Chrome identity and readiness", () => {
     runtime.cua = async () => ({ windows: rows });
     expect((await runtime.windows(123)).map((row) => row.window_id)).toEqual([1]);
   });
+
+  it("refuses a cua-driver pid or window ID written as a float literal, as type() is int does (D20)", async () => {
+    const target = pool();
+    // cua-driver's own JSON text, verbatim: 1.0 and 1e0 are Python floats even though they are integral.
+    const cua = path.join(target.root, "cua-driver");
+    const bounds = '"is_on_screen": true, "bounds": {"width": 1200, "height": 900}';
+    const windows = `{"windows": [{"pid": 123, "window_id": 1.0, ${bounds}}, {"pid": 123, "window_id": 2e0, ${bounds}}, {"pid": 123.0, "window_id": 3, ${bounds}}]}`;
+    const apps = (pid: string) => `{"apps": [{"bundle_id": "${BUNDLE}", "running": true, "pid": ${pid}}]}`;
+    const script = (pid: string) => `#!/bin/sh\ncase "$1" in\n  list_windows) echo '${windows}' ;;\n  list_apps) echo '${apps(pid)}' ;;\nesac\n`;
+    const info = metadata("isolated-1", target.ctx) as Grant;
+    // A live pid, so an accepted value reaches ps and matches no profile instead of failing there.
+    for (const [pid, expected] of [[`${process.pid}`, null], [`${process.pid}.0`, "browser-controller-process-unconfirmed"],
+      [`${process.pid}e0`, "browser-controller-process-unconfirmed"], ["true", "browser-controller-process-unconfirmed"]]) {
+      fs.writeFileSync(cua, script(pid as string), { mode: 0o700 });
+      const runtime = new Runtime(monotonic() + 5, { ...target.env, CUA_DRIVER: cua, PATH: "/nonexistent" });
+      expect(await gate(runtime.processes(info)), pid as string).toBe(expected);
+    }
+    // A row's pid still matches by value (123.0 == 123 in Python); only the window ID must be an int.
+    const runtime = new Runtime(monotonic() + 5, { ...target.env, CUA_DRIVER: cua, PATH: "/nonexistent" });
+    expect((await runtime.windows(123)).map((row) => row.window_id)).toEqual([3]);
+  });
 });
 
 describe("receipts and sharing", () => {

@@ -121,6 +121,45 @@ describe("runStdioServer", () => {
     expect(seen.deadlines).toHaveLength(1);
   });
 
+  it("reads a line over 10 MiB like any other and keeps serving", async () => {
+    const { stdin, stdout, client } = streams();
+    const seen = { deadlines: [] as number[] };
+    const exits: number[] = [];
+    const done = runStdioServer({ stdin, stdout, installSignalHandlers: false, exit: (code) => exits.push(code), app: fakeApp({}, seen) });
+    await client.initialize();
+    const padding = " ".repeat(11 * 1024 * 1024);
+    // Split across writes, as a pipe delivers it, with the newline in the middle of the last chunk.
+    stdin.write(`{"jsonrpc":"2.0","id":9001,"method":"tools/call","params":{"name":"echo","arguments":{"x":1}}${padding.slice(0, 5)}`);
+    for (let offset = 5; offset < padding.length; offset += 4 * 1024 * 1024) stdin.write(padding.slice(offset, offset + 4 * 1024 * 1024));
+    stdin.write(`}\n{"jsonrpc":"2.0","id":9002,"method":"ping"}\n`);
+    // The ping may be answered before the tool call's async body settles.
+    await expect.poll(() => client.notifications.map((message) => message.id).sort()).toEqual([9001, 9002]);
+    const called = client.notifications.find((message) => message.id === 9001)?.result as { content: Array<{ text: string }> };
+    expect(JSON.parse(called.content[0].text)).toEqual({ name: "echo", args: { x: 1 } });
+    expect(seen.deadlines).toEqual([]);
+    expect(exits).toEqual([]);
+    stdin.end();
+    expect(await done).toBe(0);
+    expect(seen.deadlines).toHaveLength(1);
+  });
+
+  it("ends through the same bounded shutdown when the transport closes on a stdin read error", async () => {
+    const { stdin, stdout, client } = streams();
+    const seen = { deadlines: [] as number[] } as { options?: AppOptions; deadlines: number[] };
+    const exits: number[] = [];
+    const done = runStdioServer({ stdin, stdout, installSignalHandlers: false, exit: (code) => exits.push(code), app: fakeApp({}, seen) });
+    await client.initialize();
+    const failed = monotonic();
+    // The stream stays open: only the transport's own close can start the shutdown here.
+    stdin.emit("error", Object.assign(new Error("synthetic read error"), { code: "EIO" }));
+    expect(await done).toBe(0);
+    expect(exits).toEqual([0]);
+    expect(seen.options?.shutdown.isSet).toBe(true);
+    expect(seen.deadlines).toHaveLength(1);
+    expect(seen.deadlines[0] - failed).toBeGreaterThan(SHUTDOWN_SECONDS - 0.2);
+    expect(seen.deadlines[0] - failed).toBeLessThanOrEqual(SHUTDOWN_SECONDS + 0.05);
+  });
+
   const ENDINGS = ["eof", "sigterm"] as const;
   it.each(ENDINGS)("ends a real stdio server on %s within the bound, stopping a running wait", async (ending) => {
     const log = path.join(privateTemp(), "log");

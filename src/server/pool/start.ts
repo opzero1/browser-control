@@ -7,7 +7,7 @@ import { fixedErrorsAsync, io, openDirectory, writeJson } from "../fs-private";
 import { Gate, isGate } from "../gate";
 import { Connection, type HostConnection } from "../host-connection";
 import { lockUntil } from "../lock";
-import type { JsonObject } from "../pyjson";
+import { isPyInt, type JsonObject } from "../pyjson";
 import { ensureStableExtension, type StableExtension } from "../stable-copy";
 import { monotonic, pyRound, sleep } from "../time";
 import { cuaCli, hasProfile, psCommand } from "./cua-cli";
@@ -84,10 +84,6 @@ function truthy(value: unknown): boolean {
   return true;
 }
 
-function isInt(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value);
-}
-
 /** The real machine: cua-driver for apps and windows, /bin/ps for command lines, the extension handshake. */
 export class Runtime implements StartRuntime {
   readonly deadline: number;
@@ -143,8 +139,11 @@ export class Runtime implements StartRuntime {
     const pids: number[] = [];
     for (const app of apps) {
       if (get(app, "bundle_id") !== BUNDLE || !truthy(get(app, "running"))) continue;
-      const pid = get(app, "pid");
-      if (!isInt(pid) || pid <= 0) throw new Gate("browser-controller-process-unconfirmed");
+      const found = get(app, "pid");
+      // type(pid) is int: parsePythonJson records 1.0 and 1e0 as floats, which Python refused.
+      if (!isPyInt(app, "pid")) throw new Gate("browser-controller-process-unconfirmed");
+      const pid = found as number;
+      if (pid <= 0) throw new Gate("browser-controller-process-unconfirmed");
       if (hasProfile(await psCommand(pid, this.remaining() * 1000), info.profile)) pids.push(pid);
     }
     return [...new Set(pids)].sort((a, b) => a - b);
@@ -181,7 +180,7 @@ export class Runtime implements StartRuntime {
     for (const row of rows) {
       const found = get(row, "pid");
       if (!((typeof found === "number" || typeof found === "boolean") && Number(found) === pid)) continue;
-      if (!isInt(get(row, "window_id")) || get(row, "is_on_screen") !== true) continue;
+      if (!isPyInt(row, "window_id") || get(row, "is_on_screen") !== true) continue;
       if (!atLeast(get(get(row, "bounds", {}), "width", 0), 400) || !atLeast(get(get(row, "bounds", {}), "height", 0), 300)) continue;
       result.push({ pid, window_id: get(row, "window_id") as number, bounds: get(row, "bounds") });
     }

@@ -1,12 +1,12 @@
 // Names, environment and state paths shared by every slice.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { Gate } from "./gate";
 import { pyStrip } from "./pystr";
 import { validSite } from "./sites";
+import { homeDirectory, statePaths, type Env } from "./state-paths";
 
-export type Env = Readonly<Record<string, string | undefined>>;
+export { HOST_SOCKET_ENV, homeDirectory, statePaths, userSocket, type Env, type StatePaths } from "./state-paths";
 
 export const PACKAGE_NAME = "@op1/browser-control";
 export const BIN_NAME = "browser-control";
@@ -14,8 +14,6 @@ export const BIN_NAME = "browser-control";
 export const SERVER_NAME = "browser-control";
 /** The `backend` value that status reports. */
 export const BACKEND_NAME = "browser-control";
-/** The native-host endpoint variable read by the server and exported by host wrappers (D19). */
-export const HOST_SOCKET_ENV = "BROWSER_CONTROL_HOST_SOCKET";
 /** The generated native-host wrapper's file name (D19). */
 export const HOST_WRAPPER_NAME = "browser-control-host";
 /** The native messaging host name the extension connects to; fixed by the published extension. */
@@ -29,36 +27,6 @@ export const STORE_EXTENSION_ID = "dcnjjnecbhipdbngkhjppkckpkellmld";
 export const ISOLATED_EXTENSION_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4NxkS5tOQ6mMkdQUsB/7hBLyubdVree67X6CNAYH87O+dbeCNQUHlxyFvdAtldTMrMI2LHqIeNl3SC+2gFmbXDgZo05AW1iF5xAvlq7XeDli9lUGtxlW3sl3A3YPX72O/VxBf5C/S19+IVC6k49+BcdEHX/ENWwAASgagbzoVt43ThmPO2H6ShK9XpgoJUTdr7ysY4sVSwPINEIKSYjhpCOoL8DqruO2bscpo/Xi2gyNa6y5rpynj28AlvuoB8t95wLdEaWQpk1lRxbPp/CxgDUa+ZnsNJ3Tar93hwAg5MWPgy/fgDHVyT6vfBQnZugRGomJWlIS4ncrmVZNwI7zEwIDAQAB";
 /** Chrome's ID for ISOLATED_EXTENSION_KEY; a test recomputes it from the key. */
 export const ISOLATED_EXTENSION_ID = "mpodnojmjjafgogldgieimgbmfhhknbe";
-
-export interface StatePaths { root: string; registry: string; controllers: string; sockets: string; hosts: string; extensions: string; artifacts: string; userArtifacts: string; locks: string; bin: string }
-
-export function homeDirectory(env: Env = process.env): string {
-  return env.HOME ?? os.homedir();
-}
-
-/** BROWSER_CONTROL_STATE_DIR, default ~/.local/state/browser-control. A relative value fails closed (D8). */
-export function statePaths(env: Env = process.env): StatePaths {
-  const configured = env.BROWSER_CONTROL_STATE_DIR;
-  if (configured && !path.isAbsolute(configured)) throw new Gate("browser-control-invalid-state-dir");
-  const root = configured ? path.normalize(configured) : path.join(homeDirectory(env), ".local/state/browser-control");
-  return {
-    root,
-    registry: path.join(root, "pool/registry"),
-    controllers: path.join(root, "pool/controllers"),
-    sockets: path.join(root, "sockets"),
-    hosts: path.join(root, "hosts"),
-    extensions: path.join(root, "extensions"),
-    artifacts: path.join(root, "artifacts"),
-    userArtifacts: path.join(root, "artifacts/user"),
-    locks: path.join(root, "locks"),
-    bin: path.join(root, "bin")
-  };
-}
-
-/** The user route's endpoint: BROWSER_CONTROL_HOST_SOCKET when set, else the native host's default socket. */
-export function userSocket(env: Env = process.env): string {
-  return env[HOST_SOCKET_ENV] ?? path.join(homeDirectory(env), ".opzero-chrome/default.sock");
-}
 
 /** FAST_CHROME_ARTIFACT_ROOT when set (explicit, checked as Python did), else <state>/artifacts/user (D2). */
 export function userArtifactRoot(env: Env = process.env): { root: string; explicit: boolean } {

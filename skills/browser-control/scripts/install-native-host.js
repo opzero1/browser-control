@@ -1,15 +1,24 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_effect_services = require("../chunks/effect-services-DcZl9PNJ.js");
+let node_fs = require("node:fs");
+node_fs = require_Layer.__toESM(node_fs);
 let node_os = require("node:os");
 node_os = require_Layer.__toESM(node_os);
 let node_path = require("node:path");
 node_path = require_Layer.__toESM(node_path);
 let node_process = require("node:process");
 node_process = require_Layer.__toESM(node_process);
+let node_crypto = require("node:crypto");
+node_crypto = require_Layer.__toESM(node_crypto);
 //#region src/scripts/install-native-host.ts
 var root = node_path.default.resolve(__dirname, "..");
 var hostName = "com.opzero.chrome";
+var hostEntry = "native-host/host.js";
+var wrapperName = node_process.default.platform === "win32" ? "browser-control-host.cmd" : "browser-control-host";
+var force = node_process.default.argv.includes("--force");
+/** A refusal with a message for the user; nothing is written after one. */
+var InstallError = class extends Error {};
 function chromeManifestPath() {
 	if (node_process.default.platform === "darwin") return node_path.default.join(node_os.default.homedir(), "Library", "Application Support", "Google", "Chrome", "NativeMessagingHosts", `${hostName}.json`);
 	if (node_process.default.platform === "linux") return node_path.default.join(node_os.default.homedir(), ".config", "google-chrome", "NativeMessagingHosts", `${hostName}.json`);
@@ -33,32 +42,201 @@ function registerWindowsManifest(manifestPath) {
 		]);
 	});
 }
-function nativeHostLauncher() {
-	const nodeFallback = JSON.stringify(node_process.default.execPath);
-	const socketPath = require_effect_services.argValue("socket-path", node_process.default.env.BROWSER_CONTROL_HOST_SOCKET);
-	return `#!/usr/bin/env sh
-${socketPath ? `export BROWSER_CONTROL_HOST_SOCKET=${JSON.stringify(socketPath)}\n` : ""}SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-if command -v node >/dev/null 2>&1; then
-  exec node "$SCRIPT_DIR/host.js"
-fi
-if [ -x /opt/homebrew/bin/node ]; then
-  exec /opt/homebrew/bin/node "$SCRIPT_DIR/host.js"
-fi
-if [ -x /usr/local/bin/node ]; then
-  exec /usr/local/bin/node "$SCRIPT_DIR/host.js"
-fi
-if [ -x ${nodeFallback} ]; then
-  exec ${nodeFallback} "$SCRIPT_DIR/host.js"
-fi
-echo "Unable to find node executable for browser-control-host" >&2
-exit 127
-`;
+/** BROWSER_CONTROL_STATE_DIR, default ~/.local/state/browser-control: the same root the MCP server uses. */
+function stateRoot() {
+	const configured = node_process.default.env.BROWSER_CONTROL_STATE_DIR;
+	if (configured && !node_path.default.isAbsolute(configured)) throw new InstallError("BROWSER_CONTROL_STATE_DIR must be an absolute path.");
+	return configured ? node_path.default.normalize(configured) : node_path.default.join(node_os.default.homedir(), ".local", "state", "browser-control");
 }
-function windowsNativeHostLauncher() {
-	const socketPath = require_effect_services.argValue("socket-path", node_process.default.env.BROWSER_CONTROL_HOST_SOCKET);
-	return `@echo off
-${socketPath ? `set "BROWSER_CONTROL_HOST_SOCKET=${socketPath.replace(/"/g, "\"\"")}"\r\n` : ""}"${node_process.default.execPath.replace(/"/g, "\"\"")}" "%~dp0host.js"
-`;
+function isPrivate(stats) {
+	return node_process.default.platform === "win32" || stats.uid === node_process.default.getuid?.() && (stats.mode & 63) === 0;
+}
+/** Create `dir` (mode 0700) if needed, and refuse a symlink or a directory another user could change. */
+function privateDirectory(dir) {
+	node_fs.default.mkdirSync(dir, {
+		recursive: true,
+		mode: 448
+	});
+	const stats = node_fs.default.lstatSync(dir);
+	if (!stats.isDirectory() || !isPrivate(stats)) throw new InstallError(`Refusing a directory that is not private to you: ${dir}`);
+	return dir;
+}
+/** The host entry and every chunk it requires, by path relative to the skill root. */
+function hostFiles() {
+	const files = /* @__PURE__ */ new Map();
+	const pending = [hostEntry];
+	while (pending.length) {
+		const relative = pending.pop();
+		if (files.has(relative)) continue;
+		const data = node_fs.default.readFileSync(node_path.default.join(root, relative));
+		files.set(relative, data);
+		for (const match of data.toString("utf8").matchAll(/require\("(\.\.?\/[^"]+\.js)"\)/g)) {
+			const required = node_path.default.posix.normalize(node_path.default.posix.join(node_path.default.posix.dirname(relative), match[1]));
+			if (required.startsWith("../")) throw new InstallError(`The native host requires a file outside the skill: ${match[1]}`);
+			pending.push(required);
+		}
+	}
+	return files;
+}
+function digest(files) {
+	const hash = node_crypto.default.createHash("sha256");
+	for (const [relative, data] of [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
+		hash.update(`${relative}\0${data.length}\0`);
+		hash.update(data);
+	}
+	return hash.digest("hex");
+}
+function listFiles(dir, prefix = "") {
+	const result = [];
+	for (const entry of node_fs.default.readdirSync(node_path.default.join(dir, prefix), { withFileTypes: true })) {
+		const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+		if (entry.isDirectory()) result.push(...listFiles(dir, relative));
+		else result.push(relative);
+	}
+	return result;
+}
+/** `target` is a private directory holding exactly `files`, each a private regular file with the same bytes. */
+function treeMatches(target, files) {
+	try {
+		const stats = node_fs.default.lstatSync(target);
+		if (!stats.isDirectory() || !isPrivate(stats)) return false;
+		const present = listFiles(target);
+		if (present.length !== files.size) return false;
+		return present.every((relative) => {
+			const expected = files.get(relative);
+			const file = node_path.default.join(target, relative);
+			const entry = node_fs.default.lstatSync(file);
+			return expected !== void 0 && entry.isFile() && isPrivate(entry) && node_fs.default.readFileSync(file).equals(expected);
+		});
+	} catch {
+		return false;
+	}
+}
+function writeNew(file, data, mode) {
+	const fd = node_fs.default.openSync(file, node_fs.default.constants.O_WRONLY | node_fs.default.constants.O_CREAT | node_fs.default.constants.O_EXCL, mode);
+	try {
+		node_fs.default.writeSync(fd, typeof data === "string" ? Buffer.from(data) : data);
+		node_fs.default.fsyncSync(fd);
+	} finally {
+		node_fs.default.closeSync(fd);
+	}
+	node_fs.default.chmodSync(file, mode);
+}
+/**
+* Publish `files` as <parent>/<name>/: stage a private directory beside it, then rename it into place. A
+* matching copy is kept as it is; a damaged one is moved aside first. Returns the published directory.
+*/
+function publishTree(parent, name, files) {
+	const target = node_path.default.join(parent, name);
+	if (treeMatches(target, files)) return target;
+	const staging = node_path.default.join(parent, `.tmp-${node_crypto.default.randomUUID()}`);
+	const displaced = node_path.default.join(parent, `.old-${node_crypto.default.randomUUID()}`);
+	try {
+		node_fs.default.mkdirSync(staging, { mode: 448 });
+		for (const [relative, data] of files) {
+			const file = node_path.default.join(staging, relative);
+			node_fs.default.mkdirSync(node_path.default.dirname(file), {
+				recursive: true,
+				mode: 448
+			});
+			writeNew(file, data, 384);
+		}
+		if (node_fs.default.existsSync(target)) node_fs.default.renameSync(target, displaced);
+		try {
+			node_fs.default.renameSync(staging, target);
+		} catch (error) {
+			if (!treeMatches(target, files)) throw error;
+		}
+	} finally {
+		node_fs.default.rmSync(staging, {
+			recursive: true,
+			force: true
+		});
+		node_fs.default.rmSync(displaced, {
+			recursive: true,
+			force: true
+		});
+	}
+	if (!treeMatches(target, files)) throw new InstallError(`Could not verify the native host copy: ${target}`);
+	return target;
+}
+/** The Node running this installer, which the wrapper execs; never a PATH lookup or a fixed location. */
+function nodeExecutable() {
+	const node = node_process.default.execPath;
+	try {
+		if (!node_path.default.isAbsolute(node) || !node_fs.default.statSync(node).isFile()) throw new Error("not a file");
+		if (node_process.default.platform !== "win32") node_fs.default.accessSync(node, node_fs.default.constants.X_OK);
+	} catch {
+		throw new InstallError(`The running Node.js is not an absolute executable file: ${node}`);
+	}
+	return node;
+}
+/** A single-quoted sh literal: `$`, backticks and backslashes stay literal; an apostrophe or control character is refused. */
+function shellLiteral(value) {
+	if (value.includes("'") || /[\x00-\x1f\x7f]/.test(value)) throw new InstallError(`Refusing a path with an apostrophe or a control character: ${JSON.stringify(value)}`);
+	return `'${value}'`;
+}
+/** A value for inside double quotes in a batch file: `%` is doubled so it expands no variable. */
+function cmdValue(value) {
+	if (value.includes("\"") || /[\x00-\x1f\x7f]/.test(value)) throw new InstallError(`Refusing a path with a quote or a control character: ${JSON.stringify(value)}`);
+	return value.replace(/%/g, "%%");
+}
+function launcher(node, host, socketPath) {
+	if (node_process.default.platform === "win32") return `@echo off\r\n${socketPath ? `set "BROWSER_CONTROL_HOST_SOCKET=${cmdValue(socketPath)}"\r\n` : ""}"${cmdValue(node)}" "${cmdValue(host)}"\r\n`;
+	return `#!/bin/sh\n${socketPath ? `export BROWSER_CONTROL_HOST_SOCKET=${shellLiteral(socketPath)}\n` : ""}exec ${shellLiteral(node)} ${shellLiteral(host)}\n`;
+}
+/** Replace `file` atomically with `text`: a temporary file beside it, then a rename. */
+function replaceFile(file, text, mode) {
+	const temporary = node_path.default.join(node_path.default.dirname(file), `.${node_path.default.basename(file)}.${node_crypto.default.randomUUID()}.tmp`);
+	try {
+		writeNew(temporary, text, mode);
+		node_fs.default.renameSync(temporary, file);
+	} finally {
+		node_fs.default.rmSync(temporary, { force: true });
+	}
+}
+/** The host an existing manifest names: undefined when there is none, null when it names none readably. */
+function existingHost(manifestPath) {
+	let text;
+	try {
+		text = node_fs.default.readFileSync(manifestPath, "utf8");
+	} catch (error) {
+		if (error.code === "ENOENT") return void 0;
+		return null;
+	}
+	try {
+		const parsed = JSON.parse(text);
+		return parsed && typeof parsed.path === "string" ? parsed.path : null;
+	} catch {
+		return null;
+	}
+}
+function install(extensionId, manifestPath, socketPath) {
+	const node = nodeExecutable();
+	const hosts = privateDirectory(node_path.default.join(privateDirectory(stateRoot()), "hosts"));
+	const files = hostFiles();
+	const wrapperDir = node_path.default.join(hosts, "skill");
+	const wrapper = node_path.default.join(wrapperDir, wrapperName);
+	const copyDir = node_path.default.join(hosts, `skill-${digest(files).slice(0, 12)}`);
+	const text = launcher(node, node_path.default.join(copyDir, ...hostEntry.split("/")), socketPath);
+	const previous = existingHost(manifestPath);
+	if (previous !== void 0 && previous !== wrapper && !force) throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\nPass --force to replace it: ${manifestPath}`);
+	publishTree(hosts, node_path.default.basename(copyDir), files);
+	privateDirectory(wrapperDir);
+	replaceFile(wrapper, text, 448);
+	const manifest = {
+		name: hostName,
+		description: "Browser Control native messaging host",
+		type: "stdio",
+		path: wrapper,
+		allowed_origins: [`chrome-extension://${extensionId}/`]
+	};
+	node_fs.default.mkdirSync(node_path.default.dirname(manifestPath), { recursive: true });
+	replaceFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 420);
+	return {
+		wrapper,
+		copyDir
+	};
 }
 require_effect_services.runScript(require_Layer.gen(function* () {
 	const io = yield* require_effect_services.ScriptIo;
@@ -68,24 +246,22 @@ require_effect_services.runScript(require_Layer.gen(function* () {
 		node_process.default.exitCode = 1;
 		return;
 	}
-	const hostPath = node_process.default.platform === "win32" ? node_path.default.join(root, "native-host", "browser-control-host.cmd") : node_path.default.join(root, "native-host", "browser-control-host");
 	const manifestPath = require_effect_services.argValue("manifest-path", chromeManifestPath());
-	yield* io.mkdir(node_path.default.dirname(hostPath));
-	yield* io.writeText(hostPath, node_process.default.platform === "win32" ? windowsNativeHostLauncher() : nativeHostLauncher());
-	const manifest = {
-		name: hostName,
-		description: "Browser Control native messaging host",
-		type: "stdio",
-		path: hostPath,
-		allowed_origins: [`chrome-extension://${extensionId}/`]
-	};
-	yield* io.mkdir(node_path.default.dirname(manifestPath));
-	if (node_process.default.platform !== "win32") yield* io.chmod(hostPath, 493);
-	yield* io.writeText(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+	const socketPath = require_effect_services.argValue("socket-path", node_process.default.env.BROWSER_CONTROL_HOST_SOCKET);
+	const installed = yield* require_Layer.either(require_Layer.try_({
+		try: () => install(extensionId, manifestPath, socketPath),
+		catch: (error) => error instanceof Error ? error : new Error(String(error))
+	}));
+	if (installed._tag === "Left") {
+		yield* io.stderr(`${installed.left.message}\n`);
+		node_process.default.exitCode = 1;
+		return;
+	}
 	yield* registerWindowsManifest(manifestPath);
 	yield* io.stdout(`Installed native messaging manifest:\n${manifestPath}\n`);
 	yield* io.stdout(`Allowed extension origin: chrome-extension://${extensionId}/\n`);
-	yield* io.stdout(`Host executable: ${hostPath}\n`);
+	yield* io.stdout(`Host executable: ${installed.right.wrapper}\n`);
+	yield* io.stdout(`Host copy: ${installed.right.copyDir}\n`);
 	yield* require_Layer.catchAll(io.writeText(node_path.default.join(__dirname, "extension-id.json"), `${JSON.stringify({
 		extensionId,
 		extensionHostName: hostName

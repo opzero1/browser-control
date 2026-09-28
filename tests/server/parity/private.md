@@ -137,8 +137,9 @@ and fixed statuses are otherwise Python's.
   checks: a symlinked lock file is a file-system error, and a hard-linked, group- or other-accessible or
   foreign one is `browser-controller-unsafe-registry`. Python followed links and checked nothing. As in
   Python, a lock or state-directory failure other than a busy lock is not a `VaultError`.
-- P6 (D13, D20) Python's `type(x) is int` checks (window, pid, z-index, `expiresInMs`) accept a JSON float with
-  an integral value, such as `90000.0`, because JS numbers do not keep the distinction. Python's `str()` of a
+- P6 (D13, D20) Python's `type(x) is int` checks on the vault reader's cua-driver MCP output (window, pid,
+  z-index) accept a JSON float with an integral value, such as `1.0`, because the SDK client parses it with
+  `JSON.parse`; `expiresInMs` from the native host keeps the distinction. Python's `str()` of a
   non-string accessibility value is reproduced as its repr, with `isprintable` taken from the Unicode C and Z
   categories of the JS engine.
 - P7 Python's unused `_satisfied` helper is not ported. `read_field`'s worker thread is not needed: every wait

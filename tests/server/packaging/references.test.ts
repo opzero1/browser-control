@@ -53,14 +53,15 @@ describe("references in the server, its tests, skills and docs", () => {
     expect(found).toEqual([]);
   });
 
-  it("state the user's Chrome socket as the one exception to the state root", () => {
-    // The server keeps the published extension's native-host default even with a custom state root.
-    expect(userSocket({ HOME: "/h", BROWSER_CONTROL_STATE_DIR: "/custom/state" })).toBe("/h/.opzero-chrome/default.sock");
+  it("keep the user's Chrome socket under the state root and say so", () => {
+    // The user route's default follows BROWSER_CONTROL_STATE_DIR, like every other runtime path (C4).
+    expect(userSocket({ HOME: "/h", BROWSER_CONTROL_STATE_DIR: "/custom/state" })).toBe("/custom/state/sockets/user.sock");
     for (const file of ["skills/browser-control/references/setup.md", "docs/server/INSTALL.md"]) {
       const text = fs.readFileSync(path.join(repository, file), "utf8");
       expect(text, file).not.toMatch(/\ball (?:its|the|runtime) (?:runtime )?state\b/i);
-      expect(text, file).toContain("`~/.opzero-chrome/default.sock`");
-      expect(text, file).toContain("even when `BROWSER_CONTROL_STATE_DIR` is set");
+      expect(text, file).toContain("sockets/user.sock");
+      expect(text, file).toContain("even when `BROWSER_CONTROL_STATE_DIR` is set to another directory");
+      expect(text, file).not.toMatch(/Default `~\/\.opzero-chrome\/default\.sock`/);
     }
   });
 

@@ -193,6 +193,26 @@ describe("stdio server", () => {
     expect(server.child.stderr()).toBe("");
   });
 
+  it("keeps serving after an input line over 10 MiB and still finalizes its managed tab on EOF", async () => {
+    // Python's stdin reader has no line bound: an oversized message is read like any other, and only EOF or
+    // SIGTERM ends the server, through the bounded cleanup. The client's pipe stays open throughout.
+    const s = await stdio();
+    const host = await s.lease();
+    const server = await s.start();
+    expect(bodyOf(await server.call("open_tab", { url: "https://example.test/" })).tab_id).toBe("isolated-1:5");
+    expect(markers(s.root)).toHaveLength(1);
+    server.child.process.stdin?.write(`{"jsonrpc":"2.0","id":9001,"method":"ping"${" ".repeat(11 * 1024 * 1024)}}\n`);
+    expect((await server.client.request("ping", {}, 10000)).result).toEqual({});
+    await until(() => server.client.notifications.some((message) => message.id === 9001));
+    expect(bodyOf(await server.call("observe", { tab_id: "isolated-1:5" })).snapshot_id).toEqual(expect.any(String));
+    const [code, elapsed] = await server.stop("eof");
+    expect(code).toBe(0);
+    expect(elapsed).toBeLessThan(KILL_AFTER_EOF);
+    expect(tabMethods(host).slice(-3)).toEqual(["finalizeTabs", "getTabs", "getUserTabs"]);
+    expect(markers(s.root)).toEqual([]);
+    expect(server.child.stderr()).toBe("");
+  }, 20000);
+
   it("stops a running wait at once on SIGTERM, then finalizes", async () => {
     const s = await stdio();
     const server = await s.start();

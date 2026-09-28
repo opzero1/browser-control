@@ -369,6 +369,26 @@ describe("status and record formats", () => {
     expect(row.leases[0].mode).toBe("exclusive");
   });
 
+  it("refuses a marker or reap pid written as a float literal, as Python's type() is int check does (D20)", async () => {
+    const target = pool();
+    const directory = registryPath(target, "isolated-1");
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const lease = "00000000-0000-4000-8000-000000000001";
+    const marker = (pid: string) => `{"owner": "ses_one", "lease_id": "${lease}", "pid": ${pid}}`;
+    const reapRecord = (pid: string) => `{"pid": ${pid}, "started": "2026-01-01T00:00:00Z"}`;
+    const cases: Array<[string, string, string | null]> = [
+      ["tab-a.json", marker("123"), null], ["tab-a.json", marker("123.0"), "browser-controller-invalid-state"],
+      ["tab-a.json", marker("1.23e2"), "browser-controller-invalid-state"], ["tab-a.json", marker("true"), "browser-controller-invalid-state"],
+      ["reap.json", reapRecord("7"), null], ["reap.json", reapRecord("7.0"), "browser-controller-invalid-state"],
+      ["reap.json", reapRecord("7E0"), "browser-controller-invalid-state"]
+    ];
+    for (const [name, text, expected] of cases) {
+      fs.writeFileSync(path.join(directory, name), text, { mode: 0o600 });
+      expect(await gate(operate("status", { ctx: target.ctx })), text).toBe(expected);
+      fs.rmSync(path.join(directory, name));
+    }
+  });
+
   it("keeps the legacy record formats byte-identical", async () => {
     const target = withEnv(pool(), { FAST_CHROME_MAX_CONTROLLERS: "1" });
     await running(target, "isolated-1");

@@ -2,7 +2,7 @@
 
 This skill ships the Browser Control native host and its scripts next to `SKILL.md`: `native-host/client.js`, `native-host/host.js`, the `native-host/browser-control-host` wrapper, and `scripts/`. They need Node 18 or later and no repo checkout. Run the commands from the skill directory, the one that contains `SKILL.md`, unless an absolute path is clearer.
 
-Use them to check the extension connection, to install or repair the host from the release zip, and for raw client calls. Once the MCP server package is published, its `npx -y @op1/browser-control install` also writes the `com.opzero.chrome` manifest for the user's Chrome. Use one installer per Chrome profile: the last one run owns the manifest.
+Use them to check the extension connection, to install or repair the host from the release zip, and for raw client calls. If you use the MCP server, install with `npx -y @op1/browser-control install` instead; see [setup](setup.md). Both installers write the `com.opzero.chrome` manifest for the user's Chrome, so use one per Chrome profile. Each refuses to replace a manifest that points at another host unless you pass `--force`.
 
 The safety rules in [SKILL.md](../SKILL.md) apply to every raw client call. If the extension stays unreachable after the checks below, do not fall back to AppleScript, profile-store scraping, cookie inspection, or another browser-control mechanism.
 
@@ -15,6 +15,8 @@ node native-host/client.js ping
 ```
 
 If that fails, wait 2 seconds and retry once. Any non-error response means the native host and extension bridge are responding.
+
+`client.js` connects to `~/.opzero-chrome/default.sock` unless `BROWSER_CONTROL_HOST_SOCKET` names another socket. A host installed with `npx -y @op1/browser-control install` listens on `sockets/user.sock` in the state root instead, the path that `doctor` prints for its `endpoint` check. Set `BROWSER_CONTROL_HOST_SOCKET` to that path for `client.js`.
 
 If communication still fails, run these checks:
 
@@ -71,7 +73,9 @@ If `scripts/extension-id.json` is missing, ask the user for the extension ID sho
 node scripts/install-native-host.js --extension-id <id>
 ```
 
-The installer saves the ID into `scripts/extension-id.json` for future checks. Reload the extension in `chrome://extensions` and retry:
+The installer copies the host into `hosts/skill-<digest>/` under the Browser Control state root (`BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`), writes the wrapper `hosts/skill/browser-control-host` there with the Node that ran the installer, and points the manifest at that wrapper. Chrome then keeps working if this skill directory moves or is deleted. The host listens on `~/.opzero-chrome/default.sock`, the default of `client.js`, unless you pass `--socket-path`.
+
+If the installer reports that the manifest already points at another host, check that host first. Pass `--force` only to replace it. The installer also saves the ID into `scripts/extension-id.json` for future checks. Reload the extension in `chrome://extensions` and retry:
 
 ```sh
 node native-host/client.js ping

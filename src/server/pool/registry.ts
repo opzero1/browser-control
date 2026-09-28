@@ -15,7 +15,7 @@ import {
 import { Gate } from "../gate";
 import { Connection } from "../host-connection";
 import { lockNow, lockWait, type HeldLock } from "../lock";
-import type { JsonValue } from "../pyjson";
+import { isPyInt, type JsonValue } from "../pyjson";
 import { pyLen } from "../pystr";
 import { cookieSite } from "../sites";
 import { monotonic, sleep, utcStamp } from "../time";
@@ -67,11 +67,6 @@ function has(record: object, key: string): boolean {
 function keysAre(record: JsonRecord, keys: readonly string[]): boolean {
   const present = Object.keys(record);
   return present.length === keys.length && keys.every((key) => has(record, key));
-}
-
-/** type(value) is int. JSON numbers arrive as JS numbers, so an integral float literal also passes (D20). */
-function isInt(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value);
 }
 
 /** sorted() of str: code point order, not UTF-16 order. */
@@ -174,7 +169,7 @@ export function markers(dir: PrivateDir): Marker[] {
     if (!name.startsWith("tab-")) continue;
     const value = readJson(dir, name);
     if (value === null) continue;
-    if (!isRecord(value) || !keysAre(value, ["owner", "lease_id", "pid"]) || !validUuid(value.lease_id) || !isInt(value.pid)) {
+    if (!isRecord(value) || !keysAre(value, ["owner", "lease_id", "pid"]) || !validUuid(value.lease_id) || !isPyInt(value, "pid")) {
       throw new Gate("browser-controller-invalid-state");
     }
     validOwner(value.owner);
@@ -243,7 +238,7 @@ function lockLease(dir: PrivateDir, leaseId: string, exclusive = false): HeldLoc
 
 function readReap(dir: PrivateDir): ReapRecord | null {
   const value = readJson(dir, "reap.json");
-  if (value !== null && (!isRecord(value) || !keysAre(value, ["pid", "started"]) || !isInt(value.pid) || typeof value.started !== "string")) {
+  if (value !== null && (!isRecord(value) || !keysAre(value, ["pid", "started"]) || !isPyInt(value, "pid") || typeof value.started !== "string")) {
     throw new Gate("browser-controller-invalid-state");
   }
   return value as ReapRecord | null;

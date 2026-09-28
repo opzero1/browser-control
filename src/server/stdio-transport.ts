@@ -1,11 +1,10 @@
 // Newline-delimited JSON-RPC over stdio, like the SDK's StdioServerTransport, except that tools/call
 // arguments keep integral float literals (100.0) as PyFloat. Python's JSON parser keeps them floats, which the
-// strict int fields refuse; JSON.parse alone would make them ints.
+// strict int fields refuse; JSON.parse alone would make them ints. Unlike the SDK's ReadBuffer, a line has no
+// size bound, as Python's stdin reader has none: only EOF, a read error or SIGTERM ends the input.
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { JSONRPCMessageSchema, type JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { PyFloat, reviveFloats } from "./args";
-
-const MAX_BUFFER = 10 * 1024 * 1024;
 
 function isDict(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
@@ -40,51 +39,58 @@ export class StdioTransport implements Transport {
   onclose?: () => void;
   onerror?: (error: Error) => void;
   onmessage?: (message: JSONRPCMessage) => void;
-  private buffer: Buffer | undefined;
+  /** The pieces of the current line; newlines are searched only in new data. */
+  private pending: Buffer[] = [];
   private started = false;
+  private closed = false;
 
   constructor(private readonly stdin: NodeJS.ReadableStream, private readonly stdout: NodeJS.WritableStream) {}
 
   private readonly onData = (chunk: Buffer | string) => {
-    const data = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
-    if ((this.buffer?.length ?? 0) + data.length > MAX_BUFFER) {
-      this.buffer = undefined;
-      this.onerror?.(new Error(`ReadBuffer exceeded maximum size of ${MAX_BUFFER} bytes`));
-      void this.close();
-      return;
-    }
-    this.buffer = this.buffer ? Buffer.concat([this.buffer, data]) : data;
-    while (this.buffer) {
-      const index = this.buffer.indexOf("\n");
-      if (index < 0) break;
-      const line = this.buffer.toString("utf8", 0, index).replace(/\r$/, "");
-      this.buffer = this.buffer.subarray(index + 1);
+    let data = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    let index = data.indexOf(0x0a);
+    while (index >= 0 && !this.closed) {
+      const line = Buffer.concat([...this.pending, data.subarray(0, index)]);
+      this.pending = [];
+      data = data.subarray(index + 1);
       try {
-        this.onmessage?.(deserializeMessage(line));
+        this.onmessage?.(deserializeMessage(line.toString("utf8").replace(/\r$/, "")));
       } catch (error) {
         this.onerror?.(error as Error);
       }
+      index = data.indexOf(0x0a);
     }
+    if (data.length && !this.closed) this.pending.push(data);
   };
 
   private readonly onError = (error: Error) => {
     this.onerror?.(error);
   };
 
+  /** A stdin read error ends the input like EOF: the transport closes, and its owner starts the shutdown. */
+  private readonly onReadError = (error: Error) => {
+    this.onerror?.(error);
+    void this.close();
+  };
+
   async start(): Promise<void> {
     if (this.started) throw new Error("StdioTransport already started");
     this.started = true;
     this.stdin.on("data", this.onData);
-    this.stdin.on("error", this.onError);
+    this.stdin.on("error", this.onReadError);
     // A client that closed its end makes late writes fail with EPIPE; that must not crash the shutdown.
     this.stdout.on("error", this.onError);
   }
 
   async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
     this.stdin.off("data", this.onData);
-    this.stdin.off("error", this.onError);
+    this.stdin.off("error", this.onReadError);
+    // A later read error has nowhere to go but must not become an uncaught exception.
+    this.stdin.on("error", () => undefined);
     if (this.stdin.listenerCount("data") === 0) this.stdin.pause();
-    this.buffer = undefined;
+    this.pending = [];
     this.onclose?.();
   }
 
