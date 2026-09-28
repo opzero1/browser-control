@@ -457,7 +457,11 @@ describe("the extension check (ported from src/scripts/check-extension-installed
     }
     expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "darwin").preferencesPath).toBe(path.join(userData, "Profile 10/Preferences"));
     const custom = writeFile(path.join(root, "custom/Preferences"), JSON.stringify({ extensions: { settings: { [STORE_EXTENSION_ID]: { state: 1 } } } }));
-    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, OPZERO_CHROME_PREFERENCES_PATH: custom }, "darwin")).toMatchObject({ status: "enabled", preferencesPath: custom });
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, BROWSER_CONTROL_PREFERENCES_PATH: custom }, "darwin")).toMatchObject({ status: "enabled", preferencesPath: custom });
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, BROWSER_CONTROL_USER_DATA_DIR: userData }, "linux"))
+      .toMatchObject({ status: "not-installed", preferencesPath: path.join(userData, "Profile 10/Preferences") });
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, OPZERO_CHROME_PREFERENCES_PATH: custom, OPZERO_CHROME_USER_DATA_DIR: userData }, "linux").status)
+      .toBe("profile-missing");
     expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, CHROME_PROFILE_DIR: path.dirname(custom) }, "linux").status).toBe("enabled");
     expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "linux").status).toBe("profile-missing");
     expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "win32").status).toBe("unsupported");

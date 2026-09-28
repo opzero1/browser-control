@@ -7,9 +7,9 @@ import process from "node:process";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { isJsonRpcRequest, parseJsonRpcMessage, type JsonRpcMessage } from "../shared/rpc";
 
-const socketPath = process.env.OPZERO_CHROME_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
-const useTcp = process.platform === "win32" || process.env.OPZERO_CHROME_HOST_TRANSPORT === "tcp";
-const port = Number(process.env.OPZERO_CHROME_HOST_PORT || 17365);
+const socketPath = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
+const useTcp = process.platform === "win32" || process.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
+const port = Number(process.env.BROWSER_CONTROL_HOST_PORT || 17365);
 const epoch = randomUUID();
 const protocolRequestId = `protocol:${epoch}`;
 let extensionProtocol: "checking" | "ready" | "unsupported" = "checking";
@@ -21,6 +21,10 @@ const clients = new Map<net.Socket, { session: string; authenticated: boolean; i
 const pending = new Map<number, { socket: net.Socket; id: number | string; private: boolean; timer: NodeJS.Timeout }>();
 let nextId = 1;
 let ownsSocket = false;
+let boundSocket: { dev: number; ino: number } | undefined;
+let startupLock: { dev: number; ino: number } | undefined;
+const startupLockPath = `${socketPath}.lock`;
+const orphanedStartupLockMs = 5 * 60 * 1000;
 let tcpToken: Buffer | undefined;
 
 function native(message: unknown) {
@@ -75,7 +79,7 @@ function handleNative(message: JsonRpcMessage) {
   if (message.id != null) {
     if (message.method === "ping") native(result(message.id, "pong"));
     else if (message.method === "getHostInfo") native(result(message.id, {
-      name: "opzero-chrome-native-host", version: "0.2.0", protocolVersion: 2, extensionProtocol, epoch, pid: process.pid,
+      name: "browser-control-native-host", version: "0.2.2", protocolVersion: 2, extensionProtocol, epoch, pid: process.pid,
       transport: useTcp ? "tcp" : "unix", endpoint: useTcp ? `127.0.0.1:${port}` : socketPath
     }));
     else native(error(message.id, "Unsupported native host method"));
@@ -153,7 +157,7 @@ function handleClient(socket: net.Socket, message: JsonRpcMessage) {
     reply(socket, error(message.id, "Outcome unknown; connection revoked; do not replay"));
     release(socket);
     socket.end();
-  }, Number(process.env.OPZERO_CHROME_REQUEST_TIMEOUT_MS || 30000));
+  }, Number(process.env.BROWSER_CONTROL_REQUEST_TIMEOUT_MS || 30000));
   pending.set(extensionId, { socket, id: message.id, private: message.method === "privateFill", timer });
   const sent = native({ jsonrpc: "2.0", id: extensionId, method: message.method,
     params: { ...params, session_id: client.session, sessionId: client.session, turn_id: epoch, turnId: epoch } });
@@ -186,7 +190,8 @@ const server = net.createServer(socket => {
 
 function shutdown(code: number) {
   for (const socket of clients.keys()) socket.destroy();
-  if (ownsSocket) { try { fs.unlinkSync(socketPath); } catch {} }
+  if (ownsSocket) removeOwnSocket();
+  releaseStartupLock();
   process.exit(code);
 }
 
@@ -197,7 +202,7 @@ server.on("error", () => {
 
 try {
   if (useTcp) {
-    const file = process.env.OPZERO_CHROME_HOST_TOKEN_FILE;
+    const file = process.env.BROWSER_CONTROL_HOST_TOKEN_FILE;
     if (!file) throw new Error("token file required");
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || (process.platform !== "win32" && (stat.mode & 0o077) !== 0)) throw new Error("private token file required");
@@ -210,12 +215,141 @@ try {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     const stat = fs.lstatSync(directory);
     if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) throw new Error("private socket directory required");
-    if (fs.existsSync(socketPath)) throw new Error("endpoint exists");
-    server.listen(socketPath, () => { ownsSocket = true; fs.chmodSync(socketPath, 0o600); });
+    if (!acquireStartupLock()) throw new Error("endpoint busy");
+    const existing = lstatIfExists(socketPath);
+    if (!existing) listenUnix();
+    else {
+      if (!existing.isSocket() || existing.uid !== process.getuid?.()) throw new Error("endpoint exists");
+      reclaimStaleSocket(existing);
+    }
   }
 } catch {
+  refuseEndpoint();
+}
+
+function refuseEndpoint() {
   process.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
   shutdown(1);
+}
+
+function lstatIfExists(file: string) {
+  try { return fs.lstatSync(file); }
+  catch (statError) {
+    if ((statError as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw statError;
+  }
+}
+
+// A bind never replaces an existing file, so a racing host fails with
+// EADDRINUSE instead of taking over this endpoint.
+function listenUnix() {
+  // The bind inside listen is synchronous, so this umask makes the socket
+  // 0600 from the moment it exists instead of after the chmod below.
+  const previousUmask = process.umask(0o177);
+  try { server.listen(socketPath, onUnixListening); }
+  finally { process.umask(previousUmask); }
+}
+
+function onUnixListening() {
+  try {
+    const bound = fs.lstatSync(socketPath);
+    boundSocket = { dev: bound.dev, ino: bound.ino };
+    ownsSocket = true;
+    fs.chmodSync(socketPath, 0o600);
+    releaseStartupLock();
+  } catch {
+    refuseEndpoint();
+  }
+}
+
+// Another host may have replaced this endpoint after a stale-socket recovery,
+// so only the socket this host bound is removed.
+function removeOwnSocket() {
+  try {
+    const current = fs.lstatSync(socketPath);
+    if (boundSocket && current.dev === boundSocket.dev && current.ino === boundSocket.ino) fs.unlinkSync(socketPath);
+  } catch {}
+}
+
+// Every Unix startup, fresh or recovering, holds this lock from the first
+// look at the endpoint until the new socket is listening. The lock appears
+// atomically with its owner's pid already written, via write then link.
+function createStartupLock(): boolean {
+  const staged = `${startupLockPath}.${process.pid}`;
+  fs.writeFileSync(staged, String(process.pid), { mode: 0o600 });
+  try {
+    fs.linkSync(staged, startupLockPath);
+    const info = fs.lstatSync(staged);
+    startupLock = { dev: info.dev, ino: info.ino };
+    return true;
+  } catch (lockError) {
+    if ((lockError as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw lockError;
+  } finally {
+    try { fs.unlinkSync(staged); } catch {}
+  }
+}
+
+function lockOwnerAlive(pid: number) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; }
+  catch (signalError) { return (signalError as NodeJS.ErrnoException).code === "EPERM"; }
+}
+
+// A lock is stale only when its owner is dead. A live host holds it for
+// milliseconds, so one older than five minutes is orphaned by pid reuse.
+function acquireStartupLock(): boolean {
+  if (createStartupLock()) return true;
+  let lock: fs.Stats;
+  let owner: number;
+  try {
+    lock = fs.lstatSync(startupLockPath);
+    if (!lock.isFile() || lock.uid !== process.getuid?.()) return false;
+    owner = Number(fs.readFileSync(startupLockPath, "utf8"));
+  } catch {
+    return false;
+  }
+  if (lockOwnerAlive(owner) && Date.now() - lock.mtimeMs < orphanedStartupLockMs) return false;
+  const moved = `${startupLockPath}.stale.${process.pid}`;
+  try { fs.renameSync(startupLockPath, moved); } catch { return false; }
+  const movedInfo = lstatIfExists(moved);
+  if (!movedInfo || movedInfo.dev !== lock.dev || movedInfo.ino !== lock.ino) {
+    // Another host replaced the stale lock first. Put its lock back.
+    try { fs.linkSync(moved, startupLockPath); } catch {}
+    try { fs.unlinkSync(moved); } catch {}
+    return false;
+  }
+  try { fs.unlinkSync(moved); } catch {}
+  return createStartupLock();
+}
+
+function releaseStartupLock() {
+  const owned = startupLock;
+  startupLock = undefined;
+  if (!owned) return;
+  try {
+    const current = fs.lstatSync(startupLockPath);
+    if (current.dev === owned.dev && current.ino === owned.ino) fs.unlinkSync(startupLockPath);
+  } catch {}
+}
+
+// A host killed without cleanup leaves its socket file behind. The startup
+// lock is held here, so no other host is binding or recovering this path, and
+// a refused connection proves that no live host owns the socket.
+function reclaimStaleSocket(stale: fs.Stats) {
+  const probe = net.connect(socketPath);
+  probe.once("connect", () => { probe.destroy(); refuseEndpoint(); });
+  probe.once("error", (probeError: NodeJS.ErrnoException) => {
+    try {
+      if (probeError.code !== "ECONNREFUSED") throw new Error("endpoint busy");
+      const current = fs.lstatSync(socketPath);
+      if (current.dev !== stale.dev || current.ino !== stale.ino) throw new Error("endpoint changed");
+      fs.unlinkSync(socketPath);
+      listenUnix();
+    } catch {
+      refuseEndpoint();
+    }
+  });
 }
 
 let buffer = Buffer.alloc(0);

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Get help with Browser Control: connection problems, pausing the host, uninstalling and reporting security issues.">
+  <title>Support – Browser Control</title>
+  <link rel="icon" type="image/png" href="../icon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="../"><img src="../icon.png" alt="" width="32" height="32">Browser Control</a>
+      <nav class="nav" aria-label="Main">
+        <ul>
+          <li><a href="../">Home</a></li>
+          <li><a href="../privacy/">Privacy</a></li>
+          <li><a href="./" aria-current="page">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <h1>Support</h1>
+    <p class="lead">Help for installing, connecting and removing Browser Control.</p>
+    <p>On this page:</p>
+    <ul>
+      <li><a href="#get-help">Get help</a></li>
+      <li><a href="#disconnected">The popup shows Disconnected</a></li>
+      <li><a href="#popup-controls">Pause, resume and reload the host</a></li>
+      <li><a href="#uninstall">Uninstall and remove the native host</a></li>
+      <li><a href="#security">Report a security issue</a></li>
+      <li><a href="reviewers/">Reviewer test steps</a>: a full walkthrough that installs the host and shows the extension working</li>
+    </ul>
+
+    <h2 id="get-help">Get help</h2>
+    <div class="note">
+      <p><strong>Security issues:</strong> do not open a public issue. Report the problem privately through <a href="https://github.com/opzero1/browser-control/security/advisories/new">GitHub’s private vulnerability reporting</a>. See <a href="#security">Report a security issue</a>.</p>
+    </div>
+    <p>For everything else, such as setup problems, bugs, questions and feature requests, open an issue at <a href="https://github.com/opzero1/browser-control/issues">github.com/opzero1/browser-control/issues</a>. Issues are public. Include:</p>
+    <ul>
+      <li>The extension version, shown at the bottom of the Browser Control popup.</li>
+      <li>Your operating system and your Google Chrome™ version.</li>
+      <li>What the popup shows: <strong>Connected</strong>, <strong>Paused</strong> or <strong>Disconnected</strong>, and the text of the <strong>Error</strong> row if there is one.</li>
+      <li>The output of these two commands, run in the helper folder that you unpacked:
+        <pre><code>node scripts/check-native-host-manifest.js --json
+node native-host/client.js ping</code></pre>
+      </li>
+    </ul>
+    <div class="note">
+      <p>Before you post, remove personal data from what you share. Do not post passwords, tokens, private URLs or screenshots of private pages. Command output can contain your user name as part of file paths.</p>
+    </div>
+
+    <h2 id="disconnected">The popup shows Disconnected</h2>
+    <p>“Disconnected” means that the extension cannot reach the native messaging host. Try these steps in order.</p>
+    <ol>
+      <li><strong>Install the host.</strong> The extension does nothing until the host is installed. In the helper folder, run:
+        <pre><code>node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld</code></pre>
+        That ID is for the Chrome Web Store version. If you loaded an unpacked copy of the extension, use the ID that <code>chrome://extensions</code> shows for it.</li>
+      <li><strong>Check the host manifest.</strong> Run <code>node scripts/check-native-host-manifest.js --json</code>. It reports a missing manifest, a missing host program or a wrong extension ID, and it prints a repair command.</li>
+      <li><strong>Check Node.js.</strong> The host needs Node.js 18 or later. The host launcher looks for <code>node</code> on the <code>PATH</code>, then in <code>/opt/homebrew/bin</code> and <code>/usr/local/bin</code>, and then uses the Node.js that ran the installer. If you use a Node.js version manager, run the installer with the version that you want Chrome to use.</li>
+      <li><strong>Keep the helper folder in place.</strong> The manifest points to the host by its full path. If you moved or renamed the folder, run the installer again.</li>
+      <li><strong>Reload.</strong> Open the popup and click <strong>Reload host</strong>. While the host is not paused, the extension also retries the connection every 30 seconds.</li>
+      <li><strong>Check the socket folder.</strong> After a crash, the host removes a leftover <code>~/.opzero-chrome/default.sock</code> by itself when no running host answers on it. It still refuses to start if that path is not a socket, belongs to another user, or if the <code>~/.opzero-chrome</code> folder is not private to your user account. To make the folder private:
+        <pre><code>chmod 700 ~/.opzero-chrome</code></pre>
+        Then click <strong>Reload host</strong>.</li>
+      <li><strong>Use one Chrome profile at a time.</strong> All Chrome profiles share the same host manifest and socket. If Browser Control is turned on in more than one profile, only the first profile to start the host connects. Pause the host in the other profiles.</li>
+      <li><strong>Wait for the version check.</strong> If <code>node native-host/client.js ping</code> reports <code>Extension protocol v2 is not ready</code>, the host is still checking the extension. This takes up to 10 seconds after the host starts. If the message stays, update the extension and the helper to matching versions, and then click <strong>Reload host</strong>.</li>
+      <li><strong>Other browsers.</strong> The installer registers the host for Google Chrome™ only. For another browser, pass <code>--manifest-path</code> with the full path of the <code>com.opzero.chrome.json</code> file in that browser’s native messaging hosts folder.</li>
+    </ol>
+
+    <h2 id="popup-controls">Pause, resume and reload the host</h2>
+    <p>Open the Browser Control popup from the Chrome toolbar. The status shows <strong>Connected</strong>, <strong>Connecting</strong>, <strong>Paused</strong> or <strong>Disconnected</strong>. <strong>Connecting</strong> means that Chrome started the host and the extension is waiting for its first reply. If the host does not reply within 15 seconds, or later stops answering, the extension drops it and starts a new one. When the host is not connected, or when there is an error, the popup also shows the host name, the time of the last check and the last error.</p>
+    <dl>
+      <dt><strong>Reload host</strong></dt>
+      <dd>Turns off pause, closes the connection and opens it again, so Chrome starts a new host process. Use it after you install or update the helper. If the popup still shows Disconnected, wait 30 seconds or click the button again.</dd>
+      <dt><strong>Pause host</strong></dt>
+      <dd>Closes the connection to the host, stops the automatic retries and ends every agent session. Agents lose access at once, and the debugger is detached from agent tabs. The setting stays in effect after Chrome restarts. The button then changes to <strong>Resume host</strong>.</dd>
+      <dt><strong>Resume host</strong></dt>
+      <dd>Turns off pause and connects to the host again.</dd>
+    </dl>
+
+    <h2 id="uninstall">Uninstall and remove the native host</h2>
+    <ol>
+      <li>Remove the extension on the <code>chrome://extensions</code> page. Chrome deletes the extension’s storage and closes its connection to the host.</li>
+      <li>Remove the native messaging host manifest and the host’s socket folder.
+        <p>macOS:</p>
+        <pre><code>rm "$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.opzero.chrome.json"
+rm -r "$HOME/.opzero-chrome"</code></pre>
+        <p>Linux:</p>
+        <pre><code>rm "$HOME/.config/google-chrome/NativeMessagingHosts/com.opzero.chrome.json"
+rm -r "$HOME/.opzero-chrome"</code></pre>
+        <p>Windows (Command Prompt):</p>
+        <pre><code>reg delete "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.opzero.chrome" /f
+del "%USERPROFILE%\AppData\Local\opzero-chrome\com.opzero.chrome.json"</code></pre>
+        If you installed with <code>--manifest-path</code>, delete the file at that path instead.</li>
+      <li>Delete the helper folder that you unpacked.</li>
+      <li>Delete any <code>tab-video-</code> recording folders that your agent tooling created.</li>
+    </ol>
+    <p>The <a href="../privacy/#deletion">privacy policy</a> lists everything that Browser Control stores.</p>
+
+    <h2 id="security">Report a security issue</h2>
+    <p>Do not describe a security problem in a public issue. Report it privately through GitHub, so that only the Browser Control maintainers can read it:</p>
+    <ol>
+      <li>Open the private vulnerability report form at <a href="https://github.com/opzero1/browser-control/security/advisories/new">github.com/opzero1/browser-control/security/advisories/new</a>. You need a GitHub account.</li>
+      <li>Describe the affected version, the steps to reproduce the problem and its impact.</li>
+      <li>Submit the report. The report and any follow-up discussion stay in that private advisory.</li>
+    </ol>
+    <p>Use <a href="https://github.com/opzero1/browser-control/issues">GitHub Issues</a> for everything that is not a security problem.</p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Footer">
+        <ul class="footer-links">
+          <li><a href="../">Home</a></li>
+          <li><a href="../privacy/">Privacy</a></li>
+          <li><a href="./">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+      <p>Published by the Browser Control maintainers.</p>
+      <p>Google Chrome is a trademark of Google LLC.</p>
+    </div>
+  </footer>
+</body>
+</html>

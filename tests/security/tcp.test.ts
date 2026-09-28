@@ -16,7 +16,7 @@ it("authenticates TCP from a private file and never forwards pre-auth disconnect
   const address = reservation.address();
   if (!address || typeof address === "string") throw new Error("No address");
   await new Promise<void>(resolve => reservation.close(() => resolve()));
-  const env = { ...process.env, OPZERO_CHROME_HOST_TRANSPORT: "tcp", OPZERO_CHROME_HOST_PORT: String(address.port), OPZERO_CHROME_HOST_TOKEN_FILE: tokenFile };
+  const env = { ...process.env, BROWSER_CONTROL_HOST_TRANSPORT: "tcp", BROWSER_CONTROL_HOST_PORT: String(address.port), BROWSER_CONTROL_HOST_TOKEN_FILE: tokenFile };
   const host = spawn(process.execPath, ["dist/native-host/host.js"], { env, stdio: ["pipe", "pipe", "pipe"] });
   let buffer = Buffer.alloc(0);
   const requests: any[] = [];

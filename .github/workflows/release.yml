@@ -24,10 +24,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
         env:
-          OPZERO_CHROME_EXTENSION_ID: ${{ vars.OPZERO_CHROME_EXTENSION_ID }}
+          BROWSER_CONTROL_EXTENSION_ID: ${{ vars.BROWSER_CONTROL_EXTENSION_ID }}
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/release/browser-control-extension.zip
-            dist/release/chrome-control-skill.zip
+            dist/release/browser-control-skill.zip

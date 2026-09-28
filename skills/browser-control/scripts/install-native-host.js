@@ -35,9 +35,9 @@ function registerWindowsManifest(manifestPath) {
 }
 function nativeHostLauncher() {
 	const nodeFallback = JSON.stringify(node_process.default.execPath);
-	const socketPath = require_effect_services.argValue("socket-path", node_process.default.env.OPZERO_CHROME_HOST_SOCKET);
+	const socketPath = require_effect_services.argValue("socket-path", node_process.default.env.BROWSER_CONTROL_HOST_SOCKET);
 	return `#!/usr/bin/env sh
-${socketPath ? `export OPZERO_CHROME_HOST_SOCKET=${JSON.stringify(socketPath)}\n` : ""}SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+${socketPath ? `export BROWSER_CONTROL_HOST_SOCKET=${JSON.stringify(socketPath)}\n` : ""}SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if command -v node >/dev/null 2>&1; then
   exec node "$SCRIPT_DIR/host.js"
 fi
@@ -50,25 +50,25 @@ fi
 if [ -x ${nodeFallback} ]; then
   exec ${nodeFallback} "$SCRIPT_DIR/host.js"
 fi
-echo "Unable to find node executable for opzero-chrome-host" >&2
+echo "Unable to find node executable for browser-control-host" >&2
 exit 127
 `;
 }
 function windowsNativeHostLauncher() {
-	const socketPath = require_effect_services.argValue("socket-path", node_process.default.env.OPZERO_CHROME_HOST_SOCKET);
+	const socketPath = require_effect_services.argValue("socket-path", node_process.default.env.BROWSER_CONTROL_HOST_SOCKET);
 	return `@echo off
-${socketPath ? `set "OPZERO_CHROME_HOST_SOCKET=${socketPath.replace(/"/g, "\"\"")}"\r\n` : ""}"${node_process.default.execPath.replace(/"/g, "\"\"")}" "%~dp0host.js"
+${socketPath ? `set "BROWSER_CONTROL_HOST_SOCKET=${socketPath.replace(/"/g, "\"\"")}"\r\n` : ""}"${node_process.default.execPath.replace(/"/g, "\"\"")}" "%~dp0host.js"
 `;
 }
 require_effect_services.runScript(require_Layer.gen(function* () {
 	const io = yield* require_effect_services.ScriptIo;
-	const extensionId = require_effect_services.argValue("extension-id", node_process.default.env.OPZERO_CHROME_EXTENSION_ID);
+	const extensionId = require_effect_services.argValue("extension-id", node_process.default.env.BROWSER_CONTROL_EXTENSION_ID);
 	if (!extensionId) {
 		yield* io.stderr("Missing extension ID. Pass --extension-id <id> after loading extension/ unpacked in Chrome.\n");
 		node_process.default.exitCode = 1;
 		return;
 	}
-	const hostPath = node_process.default.platform === "win32" ? node_path.default.join(root, "native-host", "opzero-chrome-host.cmd") : node_path.default.join(root, "native-host", "opzero-chrome-host");
+	const hostPath = node_process.default.platform === "win32" ? node_path.default.join(root, "native-host", "browser-control-host.cmd") : node_path.default.join(root, "native-host", "browser-control-host");
 	const manifestPath = require_effect_services.argValue("manifest-path", chromeManifestPath());
 	yield* io.mkdir(node_path.default.dirname(hostPath));
 	yield* io.writeText(hostPath, node_process.default.platform === "win32" ? windowsNativeHostLauncher() : nativeHostLauncher());

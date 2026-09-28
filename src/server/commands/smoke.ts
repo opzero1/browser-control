@@ -117,8 +117,7 @@ export function smokeEnv(env: Env, state: string, socket: string): Record<string
     if (value === undefined || key.startsWith("FAST_CHROME_") || key.startsWith("BROWSER_CONTROL_") || key.startsWith("OPZERO_")) continue;
     result[key] = value;
   }
-  // The server reads HOST_SOCKET_ENV (D19); the retired name is set too, so no older reader finds the default.
-  return { ...result, BROWSER_CONTROL_STATE_DIR: state, [HOST_SOCKET_ENV]: socket, OPZERO_CHROME_HOST_SOCKET: socket, FAST_CHROME_ALLOW_LOOPBACK: "1" };
+  return { ...result, BROWSER_CONTROL_STATE_DIR: state, [HOST_SOCKET_ENV]: socket, FAST_CHROME_ALLOW_LOOPBACK: "1" };
 }
 
 type Called = { ok: true; value: Record<string, unknown> } | { ok: false; code: string };

@@ -9,5 +9,5 @@ fi
 if [ -x /usr/local/bin/node ]; then
   exec /usr/local/bin/node "$SCRIPT_DIR/host.js"
 fi
-echo "Unable to find node executable for opzero-chrome-host" >&2
+echo "Unable to find node executable for browser-control-host" >&2
 exit 127

@@ -36,7 +36,7 @@ function walk(relative: string): string[] {
 
 describe("references in the server, its tests, skills and docs", () => {
   it("name no organization, account pool, user path, Node manager or agent client configuration", () => {
-    const roots = ["src/server", "tests/server", "docs/server", ...shippedSkills().map((name) => `skills/${name}`)];
+    const roots = ["README.md", "src/server", "tests/server", "docs/server", ...shippedSkills().map((name) => `skills/${name}`)];
     const found: string[] = [];
     let scanned = 0;
     for (const file of roots.flatMap(walk)) {

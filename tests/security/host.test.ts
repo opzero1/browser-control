@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
@@ -12,8 +12,9 @@ async function host(env: NodeJS.ProcessEnv = {}, protocolVersion = 2) {
   const directory = testTemp();
   const endpoint = path.join(directory, "s");
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint, ...env }, stdio: ["pipe", "pipe", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint, ...env }, stdio: ["pipe", "pipe", "pipe"]
   });
+  child.stdin.on("error", () => undefined);
   cleanup.push(() => { child.kill(); fs.rmSync(directory, { recursive: true, force: true }); });
   const native: any[] = [];
   let buffer = Buffer.alloc(0);
@@ -136,7 +137,7 @@ it("revokes disconnected clients and creates a fresh session on reconnect", asyn
 });
 
 it("revokes unknown outcomes on timeout without replaying requests", async () => {
-  const h = await host({ OPZERO_CHROME_REQUEST_TIMEOUT_MS: "50" }); const a = await h.connect();
+  const h = await host({ BROWSER_CONTROL_REQUEST_TIMEOUT_MS: "50" }); const a = await h.connect();
   a.request(1, "createTab");
   await vi.waitFor(() => expect(a.messages).toHaveLength(1));
   expect(a.messages[0].error.message).toContain("Outcome unknown");
@@ -150,7 +151,7 @@ it("protects Unix endpoint permissions and never steals a running endpoint", asy
   expect(fs.statSync(h.endpoint).mode & 0o077).toBe(0);
   await vi.waitFor(() => expect(fs.statSync(h.endpoint).mode & 0o777).toBe(0o600));
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
   });
   cleanup.push(() => child.kill());
   const code = await new Promise(resolve => child.on("exit", resolve));
@@ -158,6 +159,137 @@ it("protects Unix endpoint permissions and never steals a running endpoint", asy
   expect(fs.existsSync(h.endpoint)).toBe(true);
   const a = await h.connect(); a.request(1, "host.ping");
   await vi.waitFor(() => expect(a.messages[0]?.result).toBe("pong"));
+});
+
+it("reclaims the stale endpoint of a host that was killed without cleanup", async () => {
+  const h = await host();
+  const exited = new Promise(resolve => h.child.once("exit", resolve));
+  h.child.kill("SIGKILL");
+  await exited;
+  expect(fs.lstatSync(h.endpoint).isSocket()).toBe(true);
+  const child = spawn(process.execPath, ["dist/native-host/host.js"], {
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
+  });
+  cleanup.push(() => child.kill());
+  await vi.waitFor(async () => {
+    const pong = await new Promise<string>((resolve, reject) => {
+      const socket = net.connect(h.endpoint);
+      socket.setEncoding("utf8");
+      socket.once("error", reject);
+      socket.once("connect", () => socket.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "host.ping" })}\n`));
+      socket.once("data", chunk => { socket.destroy(); resolve(JSON.parse(String(chunk)).result); });
+    });
+    expect(pong).toBe("pong");
+  });
+  expect(fs.statSync(h.endpoint).mode & 0o777).toBe(0o600);
+});
+
+function spawnHost(endpoint: string) {
+  const child = spawn(process.execPath, ["dist/native-host/host.js"], {
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
+  });
+  child.stdin.on("error", () => undefined);
+  cleanup.push(() => child.kill());
+  const exited = new Promise<number | null>(resolve => child.once("exit", resolve));
+  return { child, exited };
+}
+
+function hostInfo(endpoint: string) {
+  return new Promise<any>((resolve, reject) => {
+    const socket = net.connect(endpoint);
+    socket.setEncoding("utf8");
+    socket.once("error", reject);
+    socket.once("connect", () => socket.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "host.info" })}\n`));
+    socket.once("data", chunk => { socket.destroy(); resolve(JSON.parse(String(chunk)).result); });
+  });
+}
+
+async function staleEndpoint() {
+  const h = await host();
+  const exited = new Promise(resolve => h.child.once("exit", resolve));
+  h.child.kill("SIGKILL");
+  await exited;
+  return h.endpoint;
+}
+
+it("leaves exactly one live host when several recover the same stale endpoint at once", async () => {
+  for (let round = 0; round < 5; round++) {
+    const endpoint = await staleEndpoint();
+    const hosts = Array.from({ length: 4 }, () => spawnHost(endpoint));
+    await vi.waitFor(async () => expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string"));
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const alive = hosts.filter(h => h.child.exitCode === null);
+    expect(alive).toHaveLength(1);
+    expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string");
+    expect(fs.existsSync(`${endpoint}.lock`)).toBe(false);
+    alive[0].child.kill("SIGTERM");
+    await alive[0].exited;
+    expect(fs.existsSync(endpoint)).toBe(false);
+  }
+});
+
+function deadPid() {
+  const child = spawnSync(process.execPath, ["-e", ""]);
+  return child.pid as number;
+}
+
+it("fails closed while a live process holds the startup lock, for fresh and recovering starts", async () => {
+  const directory = testTemp();
+  cleanup.push(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const fresh = path.join(directory, "s");
+  fs.writeFileSync(`${fresh}.lock`, String(process.pid));
+  expect(await spawnHost(fresh).exited).toBe(1);
+  expect(fs.existsSync(fresh)).toBe(false);
+  expect(fs.readFileSync(`${fresh}.lock`, "utf8")).toBe(String(process.pid));
+
+  const stale = await staleEndpoint();
+  fs.writeFileSync(`${stale}.lock`, String(process.pid));
+  expect(await spawnHost(stale).exited).toBe(1);
+  expect(fs.lstatSync(stale).isSocket()).toBe(true);
+  expect(fs.readFileSync(`${stale}.lock`, "utf8")).toBe(String(process.pid));
+});
+
+it.each([
+  ["a dead owner", (lock: string) => fs.writeFileSync(lock, String(deadPid()))],
+  ["an orphaned lock whose pid was reused", (lock: string) => {
+    fs.writeFileSync(lock, String(process.pid));
+    const past = new Date(Date.now() - 10 * 60 * 1000);
+    fs.utimesSync(lock, past, past);
+  }]
+])("takes over the startup lock of %s and recovers the endpoint", async (_name, writeLock) => {
+  const endpoint = await staleEndpoint();
+  const lock = `${endpoint}.lock`;
+  writeLock(lock);
+  const recovered = spawnHost(endpoint);
+  await vi.waitFor(async () => expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string"));
+  expect(recovered.child.exitCode).toBeNull();
+  await vi.waitFor(() => expect(fs.existsSync(lock)).toBe(false));
+  expect(fs.statSync(endpoint).mode & 0o777).toBe(0o600);
+});
+
+it("does not remove a socket that replaced its own before it shuts down", async () => {
+  const h = await host();
+  const exited = new Promise(resolve => h.child.once("exit", resolve));
+  fs.unlinkSync(h.endpoint);
+  const replacement = net.createServer(socket => socket.end());
+  cleanup.push(() => replacement.close());
+  await new Promise<void>((resolve, reject) => { replacement.once("error", reject); replacement.listen(h.endpoint, resolve); });
+  h.child.kill("SIGTERM");
+  await exited;
+  expect(fs.lstatSync(h.endpoint).isSocket()).toBe(true);
+});
+
+it("refuses an endpoint path that holds something other than a socket", async () => {
+  const directory = testTemp();
+  cleanup.push(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const endpoint = path.join(directory, "s");
+  fs.writeFileSync(endpoint, "not a socket");
+  const child = spawn(process.execPath, ["dist/native-host/host.js"], {
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
+  });
+  cleanup.push(() => child.kill());
+  expect(await new Promise(resolve => child.on("exit", resolve))).toBe(1);
+  expect(fs.readFileSync(endpoint, "utf8")).toBe("not a socket");
 });
 
 it.each(["dispatch", "release"])("removes its own endpoint when the native output pipe breaks during %s", async mode => {

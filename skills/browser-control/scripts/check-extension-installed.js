@@ -21,7 +21,7 @@ function configuredExtensionId() {
 		const io = yield* require_effect_services.ScriptIo;
 		const explicit = require_effect_services.argValue("extension-id", process.argv.find((arg) => !arg.startsWith("--") && arg !== process.argv[0] && arg !== process.argv[1]));
 		if (explicit) return explicit;
-		if (process.env.OPZERO_CHROME_EXTENSION_ID) return process.env.OPZERO_CHROME_EXTENSION_ID;
+		if (process.env.BROWSER_CONTROL_EXTENSION_ID) return process.env.BROWSER_CONTROL_EXTENSION_ID;
 		const configPath = node_path.default.join(__dirname, "extension-id.json");
 		if (!(yield* io.exists(configPath))) return null;
 		return JSON.parse(yield* io.readText(configPath)).extensionId || null;
@@ -52,8 +52,8 @@ function selectProfilePreferences(userDataDir) {
 }
 function preferencesPath() {
 	return require_Layer.gen(function* () {
-		if (process.env.OPZERO_CHROME_PREFERENCES_PATH) return process.env.OPZERO_CHROME_PREFERENCES_PATH;
-		if (process.env.OPZERO_CHROME_USER_DATA_DIR) return yield* selectProfilePreferences(process.env.OPZERO_CHROME_USER_DATA_DIR);
+		if (process.env.BROWSER_CONTROL_PREFERENCES_PATH) return process.env.BROWSER_CONTROL_PREFERENCES_PATH;
+		if (process.env.BROWSER_CONTROL_USER_DATA_DIR) return yield* selectProfilePreferences(process.env.BROWSER_CONTROL_USER_DATA_DIR);
 		if (process.env.CHROME_PROFILE_DIR) return node_path.default.join(process.env.CHROME_PROFILE_DIR, "Preferences");
 		if (process.platform === "darwin") return yield* selectProfilePreferences(node_path.default.join(node_os.default.homedir(), "Library", "Application Support", "Google", "Chrome"));
 		if (process.platform === "linux") return yield* selectProfilePreferences(node_path.default.join(node_os.default.homedir(), ".config", "google-chrome"));
@@ -83,7 +83,7 @@ require_effect_services.runScript(require_Layer.gen(function* () {
 		yield* output({
 			ok: false,
 			status: "missing-extension-id",
-			message: "Missing extension ID. Pass --extension-id <id>, set OPZERO_CHROME_EXTENSION_ID, or create scripts/extension-id.json."
+			message: "Missing extension ID. Pass --extension-id <id>, set BROWSER_CONTROL_EXTENSION_ID, or create scripts/extension-id.json."
 		}, 3);
 		return;
 	}

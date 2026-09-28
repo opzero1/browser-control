@@ -3,67 +3,86 @@ name: Chrome Web Store
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Git tag to publish, for example vX.Y.Z"
+      ref:
+        description: "Git tag or branch to build, for example vX.Y.Z"
         required: true
         type: string
+      action:
+        description: "status reads the item state; upload replaces the draft package; submit uploads and submits for review; cancel cancels the pending review"
+        required: true
+        default: status
+        type: choice
+        options:
+          - status
+          - upload
+          - submit
+          - cancel
 
-run-name: Publish ${{ inputs.tag }} to Chrome Web Store
+run-name: Chrome Web Store ${{ inputs.action }} ${{ inputs.ref }}
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     env:
       EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+      CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.ref }}
 
       - uses: pnpm/action-setup@v4
+        if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         with:
           version: 10.33.2
 
       - uses: actions/setup-node@v4
+        if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         with:
           node-version: 22
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run check
+      - if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
+        run: pnpm install --frozen-lockfile
+
+      - if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
+        run: pnpm run check
 
       - name: Get Chrome Web Store access token
-        id: token
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+
+      - name: Fetch item status
         shell: bash
         env:
-          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           set -euo pipefail
-          response="$(curl -sS -w '\n%{http_code}' https://oauth2.googleapis.com/token \
-            -d "client_id=${CHROME_CLIENT_ID}" \
-            -d "client_secret=${CHROME_CLIENT_SECRET}" \
-            -d "refresh_token=${CHROME_REFRESH_TOKEN}" \
-            -d "grant_type=refresh_token")"
+          response="$(curl -sS -w '\n%{http_code}' \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            "https://chromewebstore.googleapis.com/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:fetchStatus")"
           status="$(printf '%s' "$response" | tail -n 1)"
           body="$(printf '%s' "$response" | sed '$d')"
-          if [ "$status" != "200" ]; then
-            printf 'Chrome Web Store token request failed with HTTP %s:\n%s\n' "$status" "$body" >&2
+          printf 'Chrome Web Store status returned HTTP %s:\n%s\n' "$status" "$body"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
             exit 1
           fi
-          token="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).access_token)' "$body")"
-          echo "::add-mask::$token"
-          echo "access_token=$token" >> "$GITHUB_OUTPUT"
 
       - name: Upload extension package
+        if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         shell: bash
         env:
-          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
-          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           set -euo pipefail
           response="$(curl -sS -w '\n%{http_code}' -X POST \
@@ -72,24 +91,43 @@ jobs:
             "https://chromewebstore.googleapis.com/upload/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:upload")"
           status="$(printf '%s' "$response" | tail -n 1)"
           body="$(printf '%s' "$response" | sed '$d')"
+          printf 'Chrome Web Store upload returned HTTP %s:\n%s\n' "$status" "$body"
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            printf 'Chrome Web Store upload failed with HTTP %s:\n%s\n' "$status" "$body" >&2
             exit 1
           fi
 
-      - name: Publish extension
+      - name: Submit for review
+        if: ${{ inputs.action == 'submit' }}
         shell: bash
         env:
-          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
-          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           set -euo pipefail
           response="$(curl -sS -w '\n%{http_code}' -X POST \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Length: 0" \
             "https://chromewebstore.googleapis.com/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:publish")"
           status="$(printf '%s' "$response" | tail -n 1)"
           body="$(printf '%s' "$response" | sed '$d')"
+          printf 'Chrome Web Store publish returned HTTP %s:\n%s\n' "$status" "$body"
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
-            printf 'Chrome Web Store publish failed with HTTP %s:\n%s\n' "$status" "$body" >&2
+            exit 1
+          fi
+
+      - name: Cancel pending review
+        if: ${{ inputs.action == 'cancel' }}
+        shell: bash
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          response="$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Length: 0" \
+            "https://chromewebstore.googleapis.com/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:cancelSubmission")"
+          status="$(printf '%s' "$response" | tail -n 1)"
+          body="$(printf '%s' "$response" | sed '$d')"
+          printf 'Chrome Web Store cancelSubmission returned HTTP %s:\n%s\n' "$status" "$body"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
             exit 1
           fi

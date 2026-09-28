@@ -180,7 +180,7 @@ describe("browser-control doctor --smoke", () => {
     expect(state).toMatch(new RegExp(`^${base}/bcs-[^/]+$`));
     expect(Buffer.byteLength(path.join(state, "sockets/isolated-8.sock"))).toBeLessThanOrEqual(103);
     for (const call of calls) {
-      expect(call.env).toEqual({ state, socket: path.join(state, "absent/user.sock"), retiredSocket: path.join(state, "absent/user.sock"),
+      expect(call.env).toEqual({ state, socket: path.join(state, "absent/user.sock"),
         loopback: "1", artifactRoot: null });
       expect(call.socketExists).toBe(false);
     }
@@ -232,6 +232,6 @@ describe("browser-control doctor --smoke", () => {
     const env = smokeEnv({ PATH: "/bin", HOME: "/h", CUA_DRIVER: "/c", FAST_CHROME_ARTIFACT_ROOT: "/a", BROWSER_CONTROL_STATE_DIR: "/s", OPZERO_CHROME_EXTENSION_ID: "x", UNSET: undefined },
       "/t/state", "/t/absent/user.sock");
     expect(env).toEqual({ PATH: "/bin", HOME: "/h", CUA_DRIVER: "/c", BROWSER_CONTROL_STATE_DIR: "/t/state", BROWSER_CONTROL_HOST_SOCKET: "/t/absent/user.sock",
-      OPZERO_CHROME_HOST_SOCKET: "/t/absent/user.sock", FAST_CHROME_ALLOW_LOOPBACK: "1" });
+      FAST_CHROME_ALLOW_LOOPBACK: "1" });
   });
 });

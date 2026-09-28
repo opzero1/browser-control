@@ -1,6 +1,6 @@
 // Whether the user's Chrome has the Browser Control extension: the check of src/scripts/check-extension-installed.ts
 // (same profile selection, the same Preferences and Secure Preferences lookup, the same statuses) as a read-only
-// function. The script itself runs at import and its build output is published with the chrome-control skill,
+// function. The script itself runs at import and its build output is published with the browser-control skill,
 // so it is ported rather than refactored.
 import fs from "node:fs";
 import path from "node:path";
@@ -51,8 +51,8 @@ function selectProfilePreferences(userDataDir: string): string {
 }
 
 function preferencesPath(env: Env, platform: NodeJS.Platform): string | null {
-  if (env.OPZERO_CHROME_PREFERENCES_PATH) return env.OPZERO_CHROME_PREFERENCES_PATH;
-  if (env.OPZERO_CHROME_USER_DATA_DIR) return selectProfilePreferences(env.OPZERO_CHROME_USER_DATA_DIR);
+  if (env.BROWSER_CONTROL_PREFERENCES_PATH) return env.BROWSER_CONTROL_PREFERENCES_PATH;
+  if (env.BROWSER_CONTROL_USER_DATA_DIR) return selectProfilePreferences(env.BROWSER_CONTROL_USER_DATA_DIR);
   if (env.CHROME_PROFILE_DIR) return path.join(env.CHROME_PROFILE_DIR, "Preferences");
   const home = homeDirectory(env);
   if (platform === "darwin") return selectProfilePreferences(path.join(home, "Library", "Application Support", "Google", "Chrome"));

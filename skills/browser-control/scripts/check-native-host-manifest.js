@@ -18,7 +18,7 @@ var manifestPath = require_effect_services.argValue("manifest-path", defaultMani
 function configuredExtensionId() {
 	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
-		const explicit = require_effect_services.argValue("extension-id", process.env.OPZERO_CHROME_EXTENSION_ID);
+		const explicit = require_effect_services.argValue("extension-id", process.env.BROWSER_CONTROL_EXTENSION_ID);
 		if (explicit) return explicit;
 		const configPath = node_path.default.join(__dirname, "extension-id.json");
 		if (!(yield* io.exists(configPath))) return null;
@@ -67,7 +67,7 @@ require_effect_services.runScript(require_Layer.gen(function* () {
 			status: "missing-extension-id",
 			hostName,
 			manifestPath,
-			message: "Missing extension ID. Pass --extension-id <id>, set OPZERO_CHROME_EXTENSION_ID, or create scripts/extension-id.json."
+			message: "Missing extension ID. Pass --extension-id <id>, set BROWSER_CONTROL_EXTENSION_ID, or create scripts/extension-id.json."
 		}, 2);
 		return;
 	}

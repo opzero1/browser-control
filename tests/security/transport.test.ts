@@ -43,8 +43,8 @@ async function endpoint(observationError: string, check: (client: ChromeTranspor
   }
 }
 
-it("waits through a removed main frame by repeating only observation", async () => {
-  await endpoint("Frame with ID 0 was removed.", async (client, methods) => {
+it.each(["Frame with ID 0 was removed.", 'Cannot access contents of url "about:blank". Extension manifest must request permission to access this host.'])("waits through %s by repeating only observation", async observationError => {
+  await endpoint(observationError, async (client, methods) => {
     const page = await client.open("https://synthetic.invalid/");
     expect((await client.waitFor(page, { text: "Ready" }, 500)).snapshot).toBe("fresh");
     expect(methods.filter(method => method === "observePage")).toHaveLength(2);
@@ -53,7 +53,7 @@ it("waits through a removed main frame by repeating only observation", async () 
   });
 });
 
-it.each(["Page owner revoked", "Transport closed; outcome unknown; no replay"])("does not hide %s while waiting", async error => {
+it.each(["Page owner revoked", "Transport closed; outcome unknown; no replay", 'Cannot access contents of url "https://synthetic.invalid/". Extension manifest must request permission to access this host.'])("does not hide %s while waiting", async error => {
   await endpoint(error, async (client, methods) => {
     const page = await client.open("https://synthetic.invalid/");
     await expect(client.waitFor(page, { text: "Ready" }, 500)).rejects.toThrow(error);

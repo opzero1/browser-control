@@ -82,6 +82,10 @@ If the result stops with `dispatched: false` at index 3, steps 0–2 ran and ste
 - Preserve the user's browser and profile during recovery. Report a blocker if both DOM and native control fail.
 - Keep login, actions, and evidence in the same browser process and profile. Cua's driver-owned isolated Chrome launches with extensions disabled, so it cannot use a Browser Control tab claim or private 1Password transfer. A control verified there is only evidence for that profile.
 
+## Use the bundled host scripts
+
+This skill ships the native host and its scripts next to this file. Use them to check that the extension answers (`node native-host/client.js ping`), to install or repair the host from the release zip (`node scripts/install-native-host.js`), and for raw client calls. Follow [native host scripts](references/native-host.md).
+
 ## Choose the needed reference
 
 - For batch boundaries, expectations, result handling, and patterns, read [batching](references/batching.md).

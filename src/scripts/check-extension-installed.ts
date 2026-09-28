@@ -27,7 +27,7 @@ function configuredExtensionId() {
     const positional = process.argv.find((arg) => !arg.startsWith("--") && arg !== process.argv[0] && arg !== process.argv[1]);
     const explicit = argValue("extension-id", positional);
     if (explicit) return explicit;
-    if (process.env.OPZERO_CHROME_EXTENSION_ID) return process.env.OPZERO_CHROME_EXTENSION_ID;
+    if (process.env.BROWSER_CONTROL_EXTENSION_ID) return process.env.BROWSER_CONTROL_EXTENSION_ID;
     const configPath = path.join(__dirname, "extension-id.json");
     if (!(yield* io.exists(configPath))) return null;
     return JSON.parse(yield* io.readText(configPath)).extensionId || null;
@@ -70,8 +70,8 @@ function selectProfilePreferences(userDataDir: string) {
 
 function preferencesPath() {
   return Effect.gen(function* () {
-    if (process.env.OPZERO_CHROME_PREFERENCES_PATH) return process.env.OPZERO_CHROME_PREFERENCES_PATH;
-    if (process.env.OPZERO_CHROME_USER_DATA_DIR) return yield* selectProfilePreferences(process.env.OPZERO_CHROME_USER_DATA_DIR);
+    if (process.env.BROWSER_CONTROL_PREFERENCES_PATH) return process.env.BROWSER_CONTROL_PREFERENCES_PATH;
+    if (process.env.BROWSER_CONTROL_USER_DATA_DIR) return yield* selectProfilePreferences(process.env.BROWSER_CONTROL_USER_DATA_DIR);
     if (process.env.CHROME_PROFILE_DIR) return path.join(process.env.CHROME_PROFILE_DIR, "Preferences");
     if (process.platform === "darwin") {
       return yield* selectProfilePreferences(path.join(os.homedir(), "Library", "Application Support", "Google", "Chrome"));
@@ -112,7 +112,7 @@ runScript(Effect.gen(function* () {
     yield* output({
       ok: false,
       status: "missing-extension-id",
-      message: "Missing extension ID. Pass --extension-id <id>, set OPZERO_CHROME_EXTENSION_ID, or create scripts/extension-id.json."
+      message: "Missing extension ID. Pass --extension-id <id>, set BROWSER_CONTROL_EXTENSION_ID, or create scripts/extension-id.json."
     }, 3);
     return;
   }

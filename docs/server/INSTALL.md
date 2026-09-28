@@ -139,6 +139,8 @@ command to run.
 |---|---|
 | `BROWSER_CONTROL_STATE_DIR` | Absolute state directory. Default `~/.local/state/browser-control`. |
 | `BROWSER_CONTROL_HOST_SOCKET` | The user route's native host socket. Default `~/.opzero-chrome/default.sock`. |
+| `BROWSER_CONTROL_USER_DATA_DIR` | Chrome user-data directory for the read-only extension check in install and doctor. |
+| `BROWSER_CONTROL_PREFERENCES_PATH` | Exact Preferences file for that check. Takes precedence over the user-data directory. |
 | `CUA_DRIVER` | Absolute path to cua-driver. |
 | `FAST_CHROME_ALLOW_LOOPBACK` | `1` allows HTTP on `127.0.0.1` and `localhost`, for synthetic checks only. |
 | `FAST_CHROME_UNSHARED_SITES` | Comma-separated registrable domains whose leases never share an isolated browser. Default none. |
@@ -150,6 +152,9 @@ command to run.
 After `npx` fetches a new version, run `install` again. It copies the new host, points the wrapper and the
 skill links at the new copies, and leaves the manifest unchanged. Older copies stay under
 `<state>/hosts` for a Chrome that still runs them.
+
+The wrapper pins the absolute Node executable that ran `install`. Rerun `install` before removing that Node
+installation, using the replacement Node executable.
 
 To remove the setup, delete the `com.opzero.chrome.json` manifest if it names
 `<state>/hosts/user/browser-control-host`, delete the skill links, then delete the state directory.

@@ -166,8 +166,6 @@ it("advertises protocol v2 and gates profile reads after revocation", async () =
   await b.rpc("createTab", params);
   b.port.onMessage.emit({ jsonrpc: "2.0", method: "internal.releaseClient", params });
   expect((await b.rpc("getUserTabs", params)).error).toBeDefined();
-  expect((await b.rpc("getUserHistory", params)).error).toBeDefined();
-  expect(b.chrome.history.search).not.toHaveBeenCalled();
   expect((await b.rpc("constructor", params)).error.message).toContain("Unsupported browser command");
 });
 

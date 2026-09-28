@@ -1,69 +1,69 @@
-# Opzero Chrome
+# Browser Control
 
-Chrome automation extension for Opzero agents.
+Browser Control connects an AI agent to Chrome through an MCP server, a Chrome extension, and a native messaging host. It provides observed page actions, tab ownership, screenshots, and isolated Chrome for Testing leases.
 
-## Install For Users
+## Install
 
-Install Opzero Chrome from the Chrome Web Store:
+The npm package requires Node.js 24 or later on macOS or Linux. Isolated browser leases and private 1Password transfer require macOS and a separately installed cua-driver.
 
-```text
-https://chromewebstore.google.com/detail/opzero-chrome/dcnjjnecbhipdbngkhjppkckpkellmld
-```
+1. Install the extension from the [Chrome Web Store](https://chromewebstore.google.com/detail/dcnjjnecbhipdbngkhjppkckpkellmld).
+2. Install the native host:
 
-For local development or manual testing, you can still download `opzero-chrome-extension.zip` from the latest GitHub Release, unzip it, then load the folder from `chrome://extensions` with Developer mode enabled.
+   ```sh
+   npx -y @op1/browser-control install
+   ```
 
-## Install The Agent Skill
+3. Open the extension popup and click **Reload host**.
+4. Print the configuration for your MCP client:
 
-Install the `chrome-control` skill from the repository path with any agent runtime that supports repository/path-based skill installs:
+   ```sh
+   npx -y @op1/browser-control config claude
+   ```
 
-```text
-https://github.com/opzero1/op-chrome/tree/main/skills/chrome-control
-```
+   Replace `claude` with `opencode`, `codex`, or `cursor` for another client. Add the printed configuration to that client.
+5. Check the installation:
 
-Alternatively, install the latest release zip into opencode's global skills directory with one command:
+   ```sh
+   npx -y @op1/browser-control doctor
+   ```
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/opzero1/op-chrome/main/scripts/install-chrome-control-skill.sh | sh
-```
+The server command is `npx -y @op1/browser-control mcp`. Installation stores stable copies under `~/.local/state/browser-control`. Set `BROWSER_CONTROL_STATE_DIR` to use another directory. To install the three bundled skills, pass `--skills-dir <your-client-skills-directory>` to `install`; no skills directory is chosen automatically.
 
-Manual install:
+See [installation and troubleshooting](docs/server/INSTALL.md) for flags, optional tools, and the isolated smoke check. The generated native-host wrapper uses the Node executable that ran `install`. Rerun `install` after removing or replacing that Node installation.
 
-```sh
-mkdir -p ~/.config/opencode/skills/chrome-control
-curl -fsSL https://github.com/opzero1/op-chrome/releases/latest/download/chrome-control-skill.zip -o /tmp/chrome-control-skill.zip
-unzip -o /tmp/chrome-control-skill.zip -d ~/.config/opencode/skills/chrome-control
-```
+## Use
 
-Trigger it in agents with `@chrome-control`, or by asking for Chrome/browser automation, Chrome setup checks, native host repair, tab/session control, or CDP access.
+Load the [browser-control skill](skills/browser-control/SKILL.md) in your agent. Start with `status` and `tabs`, then claim a tab or open one. Use `act_steps` to batch actions selected from observed controls. Release tabs before releasing a browser lease.
 
-After installing the skill, run the native host installer from the installed skill directory:
+The popup's **Pause host** disconnects the host and ends its agent sessions until **Resume host** is selected. The pause setting survives browser restarts. If the host exits, the extension retries within about 30 seconds.
 
-```sh
-node scripts/install-native-host.js --extension-id "$(node -p 'require("./scripts/extension-id.json").extensionId')"
-```
+The [bundled native host scripts](skills/browser-control/references/native-host.md) also support the standalone release-zip installation. Use one installer per Chrome profile because both installers write the same native-messaging manifest.
 
-## Verify
+## Identifiers
 
-```sh
-pnpm run check
-pnpm run check-native-host -- --extension-id <your-extension-id> --json
-pnpm run check-extension -- --extension-id <your-extension-id> --json
-pnpm run client -- ping
-pnpm run client -- getInfo
-```
+| Component | Value |
+| --- | --- |
+| npm package and CLI | `@op1/browser-control`, `browser-control` |
+| Chrome Web Store extension | `dcnjjnecbhipdbngkhjppkckpkellmld` |
+| Isolated-profile extension | `mpodnojmjjafgogldgieimgbmfhhknbe` |
+| Native messaging host | `com.opzero.chrome` |
+| Host and page protocols | Version 2 |
 
-If `ping` and `getInfo` work, Chrome, the extension, and the native host are connected.
+The isolated copy has a public key that fixes its extension ID across paths and upgrades. The Web Store build has no injected key. A manually loaded unpacked build without a key gets an ID derived from its absolute path.
 
-## Development
-
-See [docs/DEVELOPER.md](docs/DEVELOPER.md) for local setup and native host installation.
+## Develop
 
 ```sh
 pnpm install
-pnpm run build
 pnpm run check
 ```
 
-## Release
+`check` builds the extension, native host, MCP server, and skill, then runs type checks, tests, project checks, and Python parity mapping checks. To include disposable headless-browser tests, set `BROWSER_CONTROL_SYNTHETIC_CHROME` to a Chrome for Testing executable.
 
-See [docs/RELEASE.md](docs/RELEASE.md).
+Repository guides: [development](https://github.com/opzero1/browser-control/blob/main/docs/DEVELOPER.md) and [release](https://github.com/opzero1/browser-control/blob/main/docs/RELEASE.md).
+
+## Support and privacy
+
+- [Homepage](https://browser-control.pages.dev/)
+- [Privacy policy](docs/PRIVACY.md)
+- [Support](https://browser-control.pages.dev/support/)

@@ -20,3 +20,22 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check
+
+  browser:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright-core install chromium
+      - run: pnpm run build
+      - name: Verify disposable Chrome and native messaging
+        run: |
+          export BROWSER_CONTROL_SYNTHETIC_CHROME="$(node -p 'require("playwright-core").chromium.executablePath()')"
+          pnpm exec vitest run tests/security/private-input.browser.test.ts tests/server/packaging/live-browser.test.ts

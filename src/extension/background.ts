@@ -25,6 +25,7 @@ const DEBUGGER_VERSION = "1.3";
 const DEFAULT_CDP_TIMEOUT_MS = 10000;
 const MESSAGE_TIMEOUT_MS = 1000;
 const HEARTBEAT_TIMEOUT_MS = 3000;
+const HOST_HANDSHAKE_TIMEOUT_MS = 15000;
 
 type RpcId = number | string | null | undefined;
 type JsonRecord = Record<string, unknown>;
@@ -379,6 +380,7 @@ class NativeTransport {
   reconnectAttempt = 0;
   connected = false;
   paused = false;
+  handshakeTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(hostName: string) {
     this.hostName = hostName;
@@ -418,6 +420,7 @@ class NativeTransport {
   }
 
   disconnect(message = "Native host disconnected") {
+    this.clearHandshake();
     const port = this.port;
     this.port = null;
     this.connected = false;
@@ -482,11 +485,18 @@ class NativeTransport {
     if (this.paused || this.port) return;
     try {
       this.port = chrome.runtime.connectNative(this.hostName);
-      this.connected = true;
-      this.reconnectAttempt = 0;
-      this.setStatus("connected").catch(() => undefined);
+      this.connected = false;
+      this.setStatus("connecting").catch(() => undefined);
       const port = this.port;
-      port.onMessage.addListener((message) => { if (this.port === port) this.onMessage(message); });
+      this.clearHandshake();
+      this.handshakeTimer = setTimeout(() => {
+        if (this.port === port && !this.connected) this.failPort("Native host did not respond");
+      }, HOST_HANDSHAKE_TIMEOUT_MS);
+      port.onMessage.addListener((message) => {
+        if (this.port !== port) return;
+        this.markConnected();
+        this.onMessage(message);
+      });
       port.onDisconnect.addListener(() => { if (this.port === port) this.onDisconnect(); });
     } catch (error) {
       this.connected = false;
@@ -499,8 +509,33 @@ class NativeTransport {
     }
   }
 
+  // connectNative returns a port even when no host is installed, so only a
+  // message from the host proves that it is running.
+  markConnected() {
+    if (this.connected) return;
+    this.clearHandshake();
+    this.connected = true;
+    this.reconnectAttempt = 0;
+    this.setStatus("connected").catch(() => undefined);
+  }
+
+  clearHandshake() {
+    if (this.handshakeTimer !== undefined) clearTimeout(this.handshakeTimer);
+    this.handshakeTimer = undefined;
+  }
+
+  // Drops a port whose host never answered or stopped answering, so the
+  // reconnect alarm can start a fresh host instead of waiting forever.
+  failPort(message: string) {
+    this.disconnect(message);
+    if (this.paused) return;
+    this.reconnectAttempt += 1;
+    this.setStatus("disconnected", { error: message, nextRetryMs: 5000 }).catch(() => undefined);
+  }
+
   onDisconnect() {
     const message = chrome.runtime.lastError?.message || "Native host disconnected";
+    this.clearHandshake();
     this.connected = false;
     this.port = null;
     revokeAllSessions();
@@ -764,7 +799,7 @@ const api: Record<string, RpcHandler> = {
 
   getInfo: () => Effect.gen(function* () {
     return {
-    name: "Chrome",
+    name: chrome.runtime.getManifest().name,
     version: chrome.runtime.getManifest().version,
     protocolVersion: 2,
     pageProtocolVersion: 2,
@@ -797,21 +832,6 @@ const api: Record<string, RpcHandler> = {
       const info = tabInfo(tab);
       return info ? [info] : [];
     });
-  }),
-
-  getUserHistory: (params: JsonRecord = {}) => Effect.gen(function* () {
-    const chromeApi = yield* ChromeApi;
-    yield* Effect.try({ try: () => ensureSession(params), catch: toError });
-    const maxResults = Math.max(1, Math.min(Number(params.limit) || 100, 1000));
-    const from = Number(params.from);
-    const to = Number(params.to);
-    const query: chrome.history.HistoryQuery = {
-      text: typeof params.query === "string" ? params.query : "",
-      maxResults,
-      startTime: Number.isFinite(from) ? from : 0
-    };
-    if (Number.isFinite(to)) query.endTime = to;
-    return yield* chromeApi.call<chrome.history.HistoryItem[]>("history", "search", query);
   }),
 
   createTab: (params: JsonRecord = {}) => Effect.gen(function* () {
@@ -1337,31 +1357,6 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   if (session) nativeTransport?.notify("onCDPDetach", { session_id: session.id, source, reason });
 });
 
-chrome.downloads.onCreated.addListener((item) => {
-  if (!sessions.size) return;
-  nativeTransport?.notify("onDownloadChange", {
-    id: String(item.id),
-    filename: item.filename,
-    url: item.url,
-    status: "started"
-  });
-});
-
-chrome.downloads.onChanged.addListener((delta) => {
-  if (!sessions.size) return;
-  let status = delta.state?.current;
-  if (status === "complete") status = "complete";
-  else if (status === "interrupted") status = delta.error?.current === "USER_CANCELED" ? "canceled" : "failed";
-  else if (status) status = "in_progress";
-  if (!status) return;
-  nativeTransport?.notify("onDownloadChange", {
-    id: String(delta.id),
-    filename: delta.filename?.current,
-    url: delta.url?.current,
-    status
-  });
-});
-
 chrome.tabs.onRemoved.addListener((tabId) => {
   invalidateTab(tabId);
   const session = getSessionForTab(tabId);
@@ -1427,8 +1422,15 @@ function revokeAllSessions() {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === RECONNECT_ALARM && !nativeTransport?.connected && !nativeTransport?.paused) nativeTransport.connect();
   if (alarm.name === HEARTBEAT_ALARM && nativeTransport?.connected) {
-    withTimeout(nativeTransport.call("ping", {}, HEARTBEAT_TIMEOUT_MS), HEARTBEAT_TIMEOUT_MS, "Native heartbeat")
-      .catch((error) => runChromeEffect(stopActiveSessions(error instanceof Error ? error.message : String(error))).catch(() => undefined));
+    const transport = nativeTransport;
+    const port = transport.port;
+    withTimeout(transport.call("ping", {}, HEARTBEAT_TIMEOUT_MS), HEARTBEAT_TIMEOUT_MS, "Native heartbeat")
+      .catch(async (error) => {
+        if (transport.port !== port) return;
+        const message = error instanceof Error ? error.message : String(error);
+        await runChromeEffect(stopActiveSessions(message)).catch(() => undefined);
+        if (transport.port === port) transport.failPort(message);
+      });
   }
 });
 

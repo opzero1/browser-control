@@ -19,13 +19,14 @@ const requiredFiles = [
   "src/scripts/installed-browsers.ts",
   "scripts/extension-id.example.json",
   "scripts/extension-id.store.json",
-  "skills/chrome-control/SKILL.md",
-  "skills/chrome-control/native-host/client.js",
-  "skills/chrome-control/native-host/host.js",
-  "skills/chrome-control/native-host/opzero-chrome-host",
-  "skills/chrome-control/scripts/install-native-host.js",
-  "skills/chrome-control/scripts/check-native-host-manifest.js",
-  "skills/chrome-control/scripts/extension-id.json",
+  "skills/browser-control/SKILL.md",
+  "skills/browser-control/references/native-host.md",
+  "skills/browser-control/native-host/client.js",
+  "skills/browser-control/native-host/host.js",
+  "skills/browser-control/native-host/browser-control-host",
+  "skills/browser-control/scripts/install-native-host.js",
+  "skills/browser-control/scripts/check-native-host-manifest.js",
+  "skills/browser-control/scripts/extension-id.json",
   ".github/workflows/check.yml",
   ".github/workflows/chrome-web-store.yml",
   ".github/workflows/release.yml",
@@ -42,9 +43,9 @@ const requiredFiles = [
   "dist/native-host/client.js",
   "dist/scripts/install-native-host.js",
   "dist/scripts/extension-id.json",
-  "dist/skill/chrome-control/SKILL.md",
-  "dist/skill/chrome-control/native-host/opzero-chrome-host",
-  "dist/skill/chrome-control/scripts/install-native-host.js",
+  "dist/skill/browser-control/SKILL.md",
+  "dist/skill/browser-control/native-host/browser-control-host",
+  "dist/skill/browser-control/scripts/install-native-host.js",
   "src/scripts/check-native-host-manifest.ts",
   "README.md",
   "docs/DEVELOPER.md",
@@ -58,9 +59,9 @@ for (const file of requiredFiles) {
 }
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "dist/extension/manifest.json"), "utf8"));
-for (const permission of ["debugger", "nativeMessaging", "scripting", "downloads", "history", "tabGroups", "tabs"]) {
-  if (!manifest.permissions.includes(permission)) failures.push(`Manifest missing ${permission}`);
-}
+const expectedPermissions = ["alarms", "debugger", "nativeMessaging", "scripting", "storage", "tabGroups", "tabs"];
+if (JSON.stringify(manifest.permissions) !== JSON.stringify(expectedPermissions)) failures.push(`Manifest permissions must be exactly ${expectedPermissions.join(", ")}`);
+if ("key" in manifest) failures.push("Store package manifest must not contain a key field");
 if (manifest.manifest_version !== 3) failures.push("Manifest is not MV3");
 if (manifest.background?.service_worker !== "background.js") failures.push("Manifest background service worker mismatch");
 for (const [size, file] of Object.entries({ 16: "images/icon-16.png", 32: "images/icon-32.png", 48: "images/icon-48.png", 128: "images/icon-128.png" })) {

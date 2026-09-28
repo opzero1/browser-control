@@ -516,3 +516,12 @@ Q4 (user decision, 2026-09-28): rename the remaining stale names outside the ser
 - The package ships the three skills the skills slice wrote (`browser-control`, `onepassword-session`, which `browser-control` links to, and `create-verification-skill`) and `docs/server/INSTALL.md`, in addition to the section 2.2 `files`.
 - `install`, `doctor` and the smoke check use the server's modules for paths and trust: `stableHostPlan`, `publishTree` and `treeMatches` (stable-copy.ts), `MANIFEST`, `ISOLATED_EXTENSION_ORIGIN` and `SOCKET_PATH_LIMIT` (pool/provision.ts), `BUNDLE` (pool/start.ts), `metadata` (pool/registry.ts), `guardianTrusted` (private/clipboard-guard.ts), `runProcess` (pool/cua-cli.ts) and the SDK's `StdioClientTransport`.
 - Test fixtures name synthetic sites (`example.global`, `deploy-preview-N--example.netlify.app`) in place of organization-specific ones. `python-urls.json` was regenerated from the reference with `CAPTURE_ONLY=urls`; it equals the previous capture with the names substituted.
+
+## Residual-risk follow-up
+
+- Merged `afif/browser-control-rename` at `8d7fd8a`, including its native-host startup recovery fixes and extension version 0.2.2. The npm package keeps its bin, files, Node 24 requirement, and public publication metadata. Nothing was published.
+- Completed Q4: removed `native-host-env.ts`; the native host now reads `BROWSER_CONTROL_HOST_SOCKET` directly. Install and doctor read `BROWSER_CONTROL_USER_DATA_DIR` and `BROWSER_CONTROL_PREFERENCES_PATH`, with no fallback to their retired names. Smoke tests strip retired settings instead of forwarding them.
+- Replaced the shipped README with npm setup instructions, the fixed isolated extension ID, and Node upgrade guidance. The forbidden-reference scan now includes the README.
+- Added `tests/server/packaging/live-browser.test.ts`. With `BROWSER_CONTROL_SYNTHETIC_CHROME` set on macOS, it provisions only a disposable profile and stable copies, checks Chrome's actual extension ID, requires `extensionProtocol: ready` and both version-2 protocols, then drives a loopback form through the built MCP CLI and verifies the submitted text. Chrome and the temporary state are removed after the test.
+- The macOS browser CI job installs Chrome for Testing and runs both the live native-messaging test and the private-input browser suite. These tests use synthetic values and do not access a vault.
+- The headless transport test does not exercise cua-driver's GUI launch or focus-preservation behavior. `doctor --smoke` is the separate check for that path.
