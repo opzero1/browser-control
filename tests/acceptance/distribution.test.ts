@@ -196,8 +196,10 @@ describe("Browser Control distribution", () => {
     expect(copies).toHaveLength(1);
     expect(copies[0]).toMatch(/^skill-[0-9a-f]{12}$/);
     const hostScript = path.join(realState, "hosts", copies[0], "native-host/host.js");
+    // The socket is exported by its canonical path too.
+    const realSocket = path.join(fs.realpathSync(tempDir), "browser-control.sock");
     expect(fs.readFileSync(manifest.path, "utf8")).toBe(
-      `#!/bin/sh\nexport BROWSER_CONTROL_HOST_SOCKET='${socketPath}'\nexec '${process.execPath}' '${hostScript}'\n`);
+      `#!/bin/sh\nexport BROWSER_CONTROL_HOST_SOCKET='${realSocket}'\nexec '${process.execPath}' '${hostScript}'\n`);
     expect(fs.statSync(manifest.path).mode & 0o777).toBe(0o700);
     for (const dir of [state, path.join(state, "hosts"), path.join(state, "hosts", copies[0]), path.join(state, "hosts/skill")]) {
       expect(fs.lstatSync(dir).mode & 0o777, dir).toBe(0o700);

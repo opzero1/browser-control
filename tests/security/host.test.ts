@@ -3,6 +3,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { childPath } from "../server/support/children";
 import { testTemp } from "../support/temp";
 
 const cleanup: (() => void)[] = [];
@@ -307,6 +308,87 @@ it.each(["dispatch", "release"])("removes its own endpoint when the native outpu
   const replacement = net.createServer(socket => socket.end());
   await new Promise<void>((resolve, reject) => { replacement.once("error", reject); replacement.listen(h.endpoint, resolve); });
   await new Promise<void>(resolve => replacement.close(() => resolve()));
+});
+
+/** A host started with the socket alias hook preloaded (tests/server/support/child-socket-alias.ts). */
+function hookedHost(endpoint: string, hook: Record<string, string>) {
+  const child = spawn(process.execPath, ["--require", childPath("child-socket-alias"), "dist/native-host/host.js"], {
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint, ...hook }, stdio: ["pipe", "ignore", "pipe"]
+  });
+  child.stdin.on("error", () => undefined);
+  cleanup.push(() => child.kill());
+  const exited = new Promise<number | null>(resolve => child.once("exit", resolve));
+  return { child, exited };
+}
+
+it("refuses a symlink planted at its startup lock's staging name, and writes nothing where it points", async () => {
+  const directory = testTemp();
+  const outside = testTemp();
+  cleanup.push(() => { fs.rmSync(directory, { recursive: true, force: true }); fs.rmSync(outside, { recursive: true, force: true }); });
+  const endpoint = path.join(directory, "s");
+  const victim = path.join(outside, "victim");
+  fs.writeFileSync(victim, "keep");
+  const h = hookedHost(endpoint, { ALIAS_PLANT: `${endpoint}.lock.{pid}`, ALIAS_PLANT_TARGET: victim });
+  expect(await h.exited).toBe(1);
+  expect(fs.readFileSync(victim, "utf8")).toBe("keep");
+  expect(fs.readdirSync(outside)).toEqual(["victim"]);
+  expect(fs.readdirSync(directory)).toEqual([`s.lock.${h.child.pid}`]);
+  expect(fs.lstatSync(path.join(directory, `s.lock.${h.child.pid}`)).isSymbolicLink()).toBe(true);
+});
+
+it("works only in the canonical socket directory when a symlink in the socket path is repointed after its check", async () => {
+  // `alias` is in a private directory and leads to real/sockets; once the host has checked the socket's directory,
+  // the hook points it at another user's tree, where a file waits at the name of the host's startup lock.
+  const root = testTemp();
+  cleanup.push(() => fs.rmSync(root, { recursive: true, force: true }));
+  const real = path.join(root, "real");
+  const attacker = path.join(root, "attacker");
+  for (const directory of [real, attacker]) fs.mkdirSync(path.join(directory, "sockets"), { recursive: true, mode: 0o700 });
+  const alias = path.join(root, "alias");
+  fs.symlinkSync(real, alias);
+  const h = hookedHost(path.join(alias, "sockets/s"), {
+    ALIAS_PLANT: path.join(attacker, "sockets/s.lock.{pid}"), ALIAS_LINK: alias, ALIAS_TARGET: attacker, ALIAS_AFTER: "sockets"
+  });
+  const canonical = path.join(fs.realpathSync(real), "sockets/s");
+  await vi.waitFor(async () => expect((await hostInfo(canonical)).epoch).toBeTypeOf("string"));
+  expect(fs.readlinkSync(alias)).toBe(attacker);
+  const planted = `s.lock.${h.child.pid}`;
+  expect(fs.readdirSync(path.join(attacker, "sockets"))).toEqual([planted]);
+  expect(fs.readFileSync(path.join(attacker, "sockets", planted), "utf8")).toBe("keep");
+  await vi.waitFor(() => expect(fs.readdirSync(path.join(real, "sockets"))).toEqual(["s"]));
+  h.child.kill("SIGTERM");
+  expect(await h.exited).toBe(0);
+  expect(fs.readdirSync(path.join(real, "sockets"))).toEqual([]);
+  expect(fs.readdirSync(path.join(attacker, "sockets"))).toEqual([planted]);
+});
+
+it("refuses a socket path through a symlink in a directory that other users can write to, and creates nothing", async () => {
+  const root = testTemp();
+  cleanup.push(() => { fs.chmodSync(path.join(root, "open"), 0o700); fs.rmSync(root, { recursive: true, force: true }); });
+  const real = path.join(root, "real");
+  fs.mkdirSync(real, { mode: 0o700 });
+  const open = path.join(root, "open");
+  fs.mkdirSync(open);
+  fs.chmodSync(open, 0o777);
+  fs.symlinkSync(real, path.join(open, "link"));
+  expect(await spawnHost(path.join(open, "link/sockets/s")).exited).toBe(1);
+  expect(fs.readdirSync(real)).toEqual([]);
+  expect(fs.readdirSync(open)).toEqual(["link"]);
+});
+
+it("keeps the default ~/.opzero-chrome/default.sock, made private under a temporary HOME", async () => {
+  // A short name: the canonical /private/var/... path must fit sun_path.
+  const home = testTemp("h");
+  cleanup.push(() => fs.rmSync(home, { recursive: true, force: true }));
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME: home };
+  delete env.BROWSER_CONTROL_HOST_SOCKET;
+  const child = spawn(process.execPath, ["dist/native-host/host.js"], { env, stdio: ["pipe", "ignore", "pipe"] });
+  child.stdin.on("error", () => undefined);
+  cleanup.push(() => child.kill());
+  const endpoint = path.join(home, ".opzero-chrome/default.sock");
+  await vi.waitFor(async () => expect((await hostInfo(endpoint)).epoch).toBeTypeOf("string"));
+  expect(fs.lstatSync(path.dirname(endpoint)).mode & 0o777).toBe(0o700);
+  expect(fs.statSync(endpoint).mode & 0o777).toBe(0o600);
 });
 
 it("refuses reserved lifecycle calls from local clients and unscoped events", async () => {

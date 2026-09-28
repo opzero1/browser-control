@@ -169,7 +169,7 @@ command to run.
 | Variable | Meaning |
 |---|---|
 | `BROWSER_CONTROL_STATE_DIR` | Absolute state directory. Default `~/.local/state/browser-control`. |
-| `BROWSER_CONTROL_HOST_SOCKET` | The user route's native host socket. Default `<state>/sockets/user.sock`. |
+| `BROWSER_CONTROL_HOST_SOCKET` | The user route's native host socket. Default `<state>/sockets/user.sock`. Its directory must be private to you, and every directory and symlink on the way to it must be yours or root's and not writable by others unless sticky. Install, the host and the server use its canonical path. |
 | `BROWSER_CONTROL_USER_DATA_DIR` | Chrome user-data directory for the read-only extension check in install and doctor. |
 | `BROWSER_CONTROL_PREFERENCES_PATH` | Exact Preferences file for that check. Takes precedence over the user-data directory. |
 | `CUA_DRIVER` | Absolute path to cua-driver. |

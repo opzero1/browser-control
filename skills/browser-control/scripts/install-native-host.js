@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_effect_services = require("../chunks/effect-services-DcZl9PNJ.js");
+const require_trusted_path = require("../chunks/trusted-path-CnzDyqZ7.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_os = require("node:os");
@@ -47,7 +48,7 @@ var InstallLockUnsafe = class extends Error {
 var nodeFs = {
 	lstat: (file) => node_fs.default.lstatSync(file),
 	readdir: (directory) => node_fs.default.readdirSync(directory),
-	realpath: (file) => node_fs.default.realpathSync(file)
+	readlink: (file) => node_fs.default.readlinkSync(file)
 };
 /** The lock that serializes every installer's check and replacement of one native messaging manifest. */
 function manifestLockPath(manifestFile) {
@@ -57,50 +58,12 @@ var ENTRY = /^([1-9][0-9]{0,9})-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 /** Entries this process holds, so an entry left by a dead process that had this pid is still found stale. */
 var held = /* @__PURE__ */ new Set();
 var WRITABLE_BY_OTHERS = 18;
-var STICKY = 512;
 function codeOf(error) {
 	return error?.code;
 }
 /** Windows has no POSIX owners or modes, so there only the kind and identity of each directory are checked. */
 function ownerId() {
 	return process.getuid?.();
-}
-/** Only its owner, this user or root, can change the directory: others may write to it only if it is sticky. */
-function trusted(stats) {
-	if (stats.isSymbolicLink() || !stats.isDirectory()) return false;
-	const uid = ownerId();
-	if (uid === void 0) return true;
-	const shared = (stats.mode & WRITABLE_BY_OTHERS) !== 0 && (stats.mode & STICKY) === 0;
-	return (stats.uid === uid || stats.uid === 0) && !shared;
-}
-function checkChain(directory, io) {
-	const real = io.realpath(directory);
-	const { root } = node_path.default.parse(real);
-	let current = root;
-	let stats = io.lstat(current);
-	if (!trusted(stats)) return { unsafe: current };
-	for (const part of real.slice(root.length).split(node_path.default.sep)) {
-		if (!part) continue;
-		current = node_path.default.join(current, part);
-		stats = io.lstat(current);
-		if (!trusted(stats)) return { unsafe: current };
-	}
-	return {
-		path: current,
-		dev: stats.dev,
-		ino: stats.ino
-	};
-}
-/**
-* The real path of `directory` and its identity, once every directory from / down to it is owned by this user
-* or root and writable only by its owner unless it has the sticky bit; otherwise the first directory that is
-* not. Only this user or root can then rename, replace or remove anything in it.
-*/
-function checkDirectory(directory, calls = {}) {
-	return checkChain(directory, {
-		...nodeFs,
-		...calls
-	});
 }
 /** Whether `file`, not followed, is still what `expected` identifies; a missing file is not. */
 function unchangedAt(file, expected, calls = {}) {
@@ -114,9 +77,9 @@ function unchangedAt(file, expected, calls = {}) {
 	return !stats.isSymbolicLink() && stats.dev === expected.dev && stats.ino === expected.ino;
 }
 /**
-* Whether `directory` is still the one that was checked and `given` still resolves to it. An installer checks
-* this just before it renames a file into `directory`: the given path is the one Chrome reads, and a symlink in
-* it may have been repointed since.
+* Whether `given` still passes the trusted-path rule and leads to `directory`, which still has the identity it
+* was checked with. An installer checks this just before it renames a file into `directory`: the given path is
+* the one Chrome reads.
 */
 function stillResolves(given, directory, calls = {}) {
 	const io = {
@@ -125,7 +88,8 @@ function stillResolves(given, directory, calls = {}) {
 	};
 	if (!unchangedAt(directory.path, directory, io)) return false;
 	try {
-		return io.realpath(given) === directory.path;
+		const again = require_trusted_path.trustedPath(given, { calls: io });
+		return !("unsafe" in again) && again.path === directory.path && again.dev === directory.dev && again.ino === directory.ino;
 	} catch (error) {
 		if (codeOf(error) === void 0) throw error;
 		return false;
@@ -309,9 +273,9 @@ function attempt(lockPath, parent, io) {
 		}
 	};
 }
-/** The lock's parent, resolved and checked from / down; an acquisition works only in that directory. */
+/** The lock's parent, by the canonical path the trusted-path rule gives it; an acquisition works only there. */
 function trustedParent(lockPath, io) {
-	const checked = checkChain(node_path.default.dirname(lockPath), io);
+	const checked = require_trusted_path.trustedPath(node_path.default.dirname(lockPath), { calls: io });
 	if ("unsafe" in checked) throw new InstallLockUnsafe(lockPath, checked.unsafe, "directory");
 	return checked;
 }
@@ -386,16 +350,12 @@ function privateAt(dir, expected) {
 	};
 }
 /**
-* Create the state root `dir` (mode 0700) if needed and return its real path, once every directory from / down
-* to it is owned by you or root and writable only by its owner unless it has the sticky bit, and it is private
-* to you. Then no other user can rename anything on that path.
+* The canonical path of the state root `dir`, once it passes the trusted-path rule and is private to you. Missing
+* directories are made with mode 0700, each only inside a directory that passed. Then no other user can rename
+* anything on that path.
 */
 function stateDirectory(dir) {
-	node_fs.default.mkdirSync(dir, {
-		recursive: true,
-		mode: 448
-	});
-	const checked = checkDirectory(dir);
+	const checked = require_trusted_path.trustedPath(dir, { create: 448 });
 	if ("unsafe" in checked) throw new InstallError(`Refusing the state directory ${dir}: ${checked.unsafe} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`);
 	return privateAt(checked.path, checked);
 }
@@ -634,8 +594,13 @@ function install(extensionId, manifestPath, socketPath) {
 	const copyName = `skill-${digest(files).slice(0, 12)}`;
 	const copyDir = node_path.default.join(hosts.path, copyName);
 	const wrapper = node_path.default.join(hosts.path, "skill", wrapperName);
-	const text = launcher(node, node_path.default.join(copyDir, ...hostEntry.split("/")), socketPath);
-	refuseForeign(manifestPath, wrapper);
+	const socket = socketPath && node_process.default.platform !== "win32" ? require_trusted_path.canonicalSocketPath(socketPath) : socketPath;
+	const text = launcher(node, node_path.default.join(copyDir, ...hostEntry.split("/")), socket);
+	const given = node_path.default.dirname(manifestPath);
+	const name = node_path.default.basename(manifestPath);
+	const directory = require_trusted_path.trustedPath(given, { missing: true });
+	if ("unsafe" in directory) throw new InstallLockUnsafe(manifestLockPath(manifestPath), directory.unsafe, "directory");
+	refuseForeign(node_path.default.join(directory.path, name), wrapper, manifestPath);
 	publishTree(hosts, copyName, files);
 	const wrapperDir = privateChild(hosts, "skill");
 	replaceFile(wrapperDir, wrapperName, text, 448, () => unchangedAt(wrapperDir.path, wrapperDir), `${wrapperDir.path} was replaced while this installer used it, so the wrapper was not written.`);
@@ -646,16 +611,14 @@ function install(extensionId, manifestPath, socketPath) {
 		path: wrapper,
 		allowed_origins: [`chrome-extension://${extensionId}/`]
 	};
-	node_fs.default.mkdirSync(node_path.default.dirname(manifestPath), {
-		recursive: true,
-		mode: 493
-	});
-	const lock = acquireInstallLockSync(manifestLockPath(manifestPath));
+	const made = require_trusted_path.trustedPath(directory.path, { create: 493 });
+	if ("unsafe" in made) throw new InstallLockUnsafe(manifestLockPath(manifestPath), made.unsafe, "directory");
+	const moved = `The native messaging manifest directory ${given} no longer resolves to ${made.path}, so no manifest was written. Make sure nothing else is changing it, then try again.`;
+	const lock = acquireInstallLockSync(manifestLockPath(node_path.default.join(made.path, name)));
 	try {
-		const given = node_path.default.dirname(manifestPath);
-		const name = node_path.default.basename(manifestPath);
+		if (!sameDirectory(lock.directory, made)) throw new InstallError(moved);
 		refuseForeign(node_path.default.join(lock.directory.path, name), wrapper, manifestPath);
-		replaceFile(lock.directory, name, `${JSON.stringify(manifest, null, 2)}\n`, 420, () => stillResolves(given, lock.directory), `The native messaging manifest directory ${given} no longer resolves to ${lock.directory.path}, so no manifest was written. Make sure nothing else is changing it, then try again.`);
+		replaceFile(lock.directory, name, `${JSON.stringify(manifest, null, 2)}\n`, 420, () => stillResolves(given, lock.directory), moved);
 	} finally {
 		lock.release();
 	}

@@ -136,6 +136,20 @@ describe("browser-control doctor", () => {
     expect(byId((await run(flags, env, deps)).steps).wrapper).toMatchObject({ status: "stale" });
   });
 
+  it("checks and names the canonical path of a socket reached through a symlink", async () => {
+    const { root, env: base, flags, deps } = setup();
+    const sockets = path.join(root, "sockets");
+    fs.mkdirSync(sockets, { mode: 0o700 });
+    fs.symlinkSync(sockets, path.join(root, "slink"));
+    const env = { ...base, BROWSER_CONTROL_HOST_SOCKET: path.join(root, "slink/user.sock") };
+    const canonical = socketPath(sockets, "user.sock");
+    await install(parseOptions(flags, INSTALL_FLAGS), env, deps);
+    hosts.push(await FakeHost.start(canonical));
+    const report = byId((await run(flags, env, { ...deps, connect: (file: string, timeout?: number) => Connection.open(file, timeout) })).steps);
+    expect(report.wrapper).toMatchObject({ level: "ok", status: "current" });
+    expect(report.endpoint).toMatchObject({ level: "ok", status: "connected", path: canonical });
+  });
+
   it("checks the user endpoint's protocol 2 handshake", async () => {
     const { root, env, flags } = setup();
     const socket = env.BROWSER_CONTROL_HOST_SOCKET as string;

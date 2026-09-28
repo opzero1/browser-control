@@ -4,9 +4,10 @@
 // a content-addressed copy under the Browser Control state root, and the wrapper there execs this exact Node.
 // Nothing is written into the skill's directory; scripts/extension-id.json is the build's default ID.
 //
-// The state root is used by its real path, once every directory from / down to it passes the lock's ancestor
-// rule, and the manifest is written in the real directory the manifest lock checked. So the wrapper path in the
-// manifest and every path in the wrapper stay the same when a symlink in a given path is repointed afterwards.
+// The state root, the manifest directory and the socket are used by their canonical paths, once the paths given
+// pass the trusted-path rule (src/shared/trusted-path.ts), and the manifest is written in the canonical directory
+// the manifest lock checked. So the wrapper path in the manifest and every path in the wrapper stay the same when
+// a symlink in a given path is repointed afterwards.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -14,8 +15,9 @@ import path from "node:path";
 import process from "node:process";
 import { Effect } from "effect";
 import {
-  acquireInstallLockSync, checkDirectory, created, manifestLockPath, removeCreated, stillResolves, unchangedAt, type Created, type TrustedDirectory
+  acquireInstallLockSync, created, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves, unchangedAt, type Created, type TrustedDirectory
 } from "../shared/install-lock";
+import { canonicalSocketPath, trustedPath } from "../shared/trusted-path";
 import { argValue, runScript, ScriptIo } from "./effect-services";
 
 const root = path.resolve(__dirname, "..");
@@ -72,13 +74,12 @@ function privateAt(dir: string, expected?: TrustedDirectory): TrustedDirectory {
 }
 
 /**
- * Create the state root `dir` (mode 0700) if needed and return its real path, once every directory from / down
- * to it is owned by you or root and writable only by its owner unless it has the sticky bit, and it is private
- * to you. Then no other user can rename anything on that path.
+ * The canonical path of the state root `dir`, once it passes the trusted-path rule and is private to you. Missing
+ * directories are made with mode 0700, each only inside a directory that passed. Then no other user can rename
+ * anything on that path.
  */
 function stateDirectory(dir: string): TrustedDirectory {
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const checked = checkDirectory(dir);
+  const checked = trustedPath(dir, { create: 0o700 });
   if ("unsafe" in checked) {
     throw new InstallError(`Refusing the state directory ${dir}: ${checked.unsafe} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`);
   }
@@ -357,8 +358,15 @@ function install(extensionId: string, manifestPath: string, socketPath: string |
   const copyName = `skill-${digest(files).slice(0, 12)}`;
   const copyDir = path.join(hosts.path, copyName);
   const wrapper = path.join(hosts.path, "skill", wrapperName);
-  const text = launcher(node, path.join(copyDir, ...hostEntry.split("/")), socketPath);
-  refuseForeign(manifestPath, wrapper);
+  // The host checks its socket's directory again when it starts; the wrapper names the socket by its canonical path.
+  const socket = socketPath && process.platform !== "win32" ? canonicalSocketPath(socketPath) : socketPath;
+  const text = launcher(node, path.join(copyDir, ...hostEntry.split("/")), socket);
+  const given = path.dirname(manifestPath);
+  const name = path.basename(manifestPath);
+  // The unlocked check, like every later step, reads only the manifest directory's canonical path.
+  const directory = trustedPath(given, { missing: true });
+  if ("unsafe" in directory) throw new InstallLockUnsafe(manifestLockPath(manifestPath), directory.unsafe, "directory");
+  refuseForeign(path.join(directory.path, name), wrapper, manifestPath);
   publishTree(hosts, copyName, files);
   const wrapperDir = privateChild(hosts, "skill");
   // The wrapper names the copy only after that copy is verified in place.
@@ -372,17 +380,16 @@ function install(extensionId: string, manifestPath: string, socketPath: string |
     allowed_origins: [`chrome-extension://${extensionId}/`]
   };
   // 0755 whatever the umask: the lock refuses a directory that group or others can write to.
-  fs.mkdirSync(path.dirname(manifestPath), { recursive: true, mode: 0o755 });
+  const made = trustedPath(directory.path, { create: 0o755 });
+  if ("unsafe" in made) throw new InstallLockUnsafe(manifestLockPath(manifestPath), made.unsafe, "directory");
+  const moved = `The native messaging manifest directory ${given} no longer resolves to ${made.path}, so no manifest was written. Make sure nothing else is changing it, then try again.`;
   // `browser-control install` takes the same lock, so the manifest is classified again and replaced as one step.
-  const lock = acquireInstallLockSync(manifestLockPath(manifestPath));
+  const lock = acquireInstallLockSync(manifestLockPath(path.join(made.path, name)));
   try {
-    // The lock checked the real path of the manifest's directory from / down: classify and write there, never
-    // through the path given, whose symlinks may be repointed.
-    const given = path.dirname(manifestPath);
-    const name = path.basename(manifestPath);
+    // Classify and write only in the directory the lock checked, never through the path given.
+    if (!sameDirectory(lock.directory, made)) throw new InstallError(moved);
     refuseForeign(path.join(lock.directory.path, name), wrapper, manifestPath);
-    replaceFile(lock.directory, name, `${JSON.stringify(manifest, null, 2)}\n`, 0o644, () => stillResolves(given, lock.directory),
-      `The native messaging manifest directory ${given} no longer resolves to ${lock.directory.path}, so no manifest was written. Make sure nothing else is changing it, then try again.`);
+    replaceFile(lock.directory, name, `${JSON.stringify(manifest, null, 2)}\n`, 0o644, () => stillResolves(given, lock.directory), moved);
   } finally {
     lock.release();
   }

@@ -6,8 +6,11 @@ import path from "node:path";
 import process from "node:process";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { isJsonRpcRequest, parseJsonRpcMessage, type JsonRpcMessage } from "../shared/rpc";
+import { trustedPath } from "../shared/trusted-path";
 
-const socketPath = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
+const requestedSocket = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
+// Replaced by the canonical path once the socket's directory is checked; the lock, bind, recovery and cleanup use it.
+let socketPath = requestedSocket;
 const useTcp = process.platform === "win32" || process.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
 const port = Number(process.env.BROWSER_CONTROL_HOST_PORT || 17365);
 const epoch = randomUUID();
@@ -23,7 +26,7 @@ let nextId = 1;
 let ownsSocket = false;
 let boundSocket: { dev: number; ino: number } | undefined;
 let startupLock: { dev: number; ino: number } | undefined;
-const startupLockPath = `${socketPath}.lock`;
+let startupLockPath = `${socketPath}.lock`;
 const orphanedStartupLockMs = 5 * 60 * 1000;
 let tcpToken: Buffer | undefined;
 
@@ -211,10 +214,8 @@ try {
     server.listen(port, "127.0.0.1");
   } else {
     process.umask(0o077);
-    const directory = path.dirname(socketPath);
-    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const stat = fs.lstatSync(directory);
-    if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) throw new Error("private socket directory required");
+    socketPath = privateSocketPath(requestedSocket);
+    startupLockPath = `${socketPath}.lock`;
     if (!acquireStartupLock()) throw new Error("endpoint busy");
     const existing = lstatIfExists(socketPath);
     if (!existing) listenUnix();
@@ -230,6 +231,21 @@ try {
 function refuseEndpoint() {
   process.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
   shutdown(1);
+}
+
+// The socket's directory must pass the trusted-path rule (src/shared/trusted-path.ts) and be private: owned by
+// this user, mode 0700. A missing directory is made 0700, and only inside one that passed. The canonical socket
+// path returned holds no symlink, so another user cannot redirect anything done through it.
+function privateSocketPath(requested: string) {
+  const name = path.basename(requested);
+  if (!name || name === "." || name === "..") throw new Error("socket name required");
+  const directory = trustedPath(path.dirname(requested), { create: 0o700 });
+  if ("unsafe" in directory) throw new Error("trusted socket directory required");
+  const stat = fs.lstatSync(directory.path);
+  if (!stat.isDirectory() || stat.dev !== directory.dev || stat.ino !== directory.ino || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
+    throw new Error("private socket directory required");
+  }
+  return path.join(directory.path, name);
 }
 
 function lstatIfExists(file: string) {
@@ -273,11 +289,15 @@ function removeOwnSocket() {
 
 // Every Unix startup, fresh or recovering, holds this lock from the first
 // look at the endpoint until the new socket is listening. The lock appears
-// atomically with its owner's pid already written, via write then link.
+// atomically with its owner's pid already written, via write then link. The
+// staged file is created exclusively and never followed, so anything already
+// at its name, a symlink included, refuses the startup and is left alone.
 function createStartupLock(): boolean {
   const staged = `${startupLockPath}.${process.pid}`;
-  fs.writeFileSync(staged, String(process.pid), { mode: 0o600 });
+  const fd = fs.openSync(staged, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW, 0o600);
   try {
+    try { fs.writeSync(fd, String(process.pid)); }
+    finally { fs.closeSync(fd); }
     fs.linkSync(staged, startupLockPath);
     const info = fs.lstatSync(staged);
     startupLock = { dev: info.dev, ino: info.ino };

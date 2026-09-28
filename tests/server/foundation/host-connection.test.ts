@@ -126,7 +126,8 @@ describe("host connection (test_opchrome.py)", () => {
     expect(host.requests).toHaveLength(0);
   });
 
-  const UNSAFE = ["parent-mode", "socket-mode", "socket-link", "parent-link", "file"] as const;
+  // A symlink above the socket is refused only when another user could repoint it: see the canonical-path tests below.
+  const UNSAFE = ["parent-mode", "socket-mode", "socket-link", "shared-parent-link", "file"] as const;
   it.each(UNSAFE)("refuses an unsafe endpoint: %s", async (unsafe) => {
     const host = await hostFactory();
     let endpoint = host.path;
@@ -136,10 +137,12 @@ describe("host connection (test_opchrome.py)", () => {
     else if (unsafe === "socket-link") {
       endpoint = path.join(root, "link");
       fs.symlinkSync(host.path, endpoint);
-    } else if (unsafe === "parent-link") {
-      const link = path.join(root, "link");
-      fs.symlinkSync(root, link);
-      endpoint = path.join(link, path.basename(host.path));
+    } else if (unsafe === "shared-parent-link") {
+      const shared = path.join(root, "shared");
+      fs.mkdirSync(shared);
+      fs.chmodSync(shared, 0o777);
+      fs.symlinkSync(root, path.join(shared, "link"));
+      endpoint = path.join(shared, "link", path.basename(host.path));
     } else {
       endpoint = path.join(root, "file");
       fs.writeFileSync(endpoint, "not a socket", { mode: 0o600 });
@@ -150,6 +153,47 @@ describe("host connection (test_opchrome.py)", () => {
     } finally {
       fs.chmodSync(root, 0o700);
     }
+  });
+
+  /** Two fake hosts at real/sockets/s0 and attacker/sockets/s0, and `alias`, in the private test directory, leading to real. */
+  async function aliasedHosts() {
+    const root = dir();
+    const [real, attacker] = ["real", "attacker"].map((name) => path.join(root, name));
+    for (const directory of [real, attacker]) fs.mkdirSync(path.join(directory, "sockets"), { recursive: true, mode: 0o700 });
+    const good = await FakeHost.start(socketPath(real, "sockets/s0"));
+    const evil = await FakeHost.start(socketPath(attacker, "sockets/s0"));
+    hosts.push(good, evil);
+    const alias = path.join(root, "alias");
+    fs.symlinkSync(real, alias);
+    return { good, evil, alias, attacker, given: socketPath(alias, "sockets/s0") };
+  }
+
+  it("connects through the canonical path of a socket reached through a symlink in a trusted directory", async () => {
+    const { good, evil, given } = await aliasedHosts();
+    const connection = await open(given);
+    expect(await connection.call("getTabs")).toBe("host-session-1");
+    expect(good.requests.map(([, request]) => request.method)).toEqual(["host.info", "getInfo", "getTabs"]);
+    expect(evil.requests).toHaveLength(0);
+  });
+
+  it("connects only to the socket it checked when a symlink in its path is repointed after the check", async () => {
+    const { good, evil, alias, attacker, given } = await aliasedHosts();
+    const lstat = fs.lstatSync;
+    let repointed = false;
+    // Once the endpoint itself has been checked, another user who owned `alias` points it at their own host.
+    vi.spyOn(fs, "lstatSync").mockImplementation(((file: fs.PathLike, options?: fs.StatSyncOptions) => {
+      const observed = lstat(file, options as fs.StatSyncOptions & { bigint?: false }) as fs.Stats;
+      if (!repointed && path.basename(String(file)) === "s0") {
+        repointed = true;
+        fs.unlinkSync(alias);
+        fs.symlinkSync(attacker, alias);
+      }
+      return observed;
+    }) as typeof fs.lstatSync);
+    await open(given);
+    expect(repointed).toBe(true);
+    expect(evil.requests).toHaveLength(0);
+    expect(good.requests).toHaveLength(2);
   });
 
   const AUTHORITY = [...AUTHORITY_KEYS].sort().flatMap((key) => [false, true].map((nested) => ({ key, nested })));

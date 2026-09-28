@@ -2,6 +2,7 @@
 // native host can derive its default socket without loading the server.
 import os from "node:os";
 import path from "node:path";
+import { canonicalSocketPath } from "../shared/trusted-path";
 import { Gate } from "./gate";
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -41,8 +42,11 @@ export function statePaths(env: Env = process.env): StatePaths {
 
 /**
  * The user route's endpoint: BROWSER_CONTROL_HOST_SOCKET when set, else <state>/sockets/user.sock. The default
- * follows the state root, so installs with different roots never share an endpoint (C4, D1).
+ * follows the state root, so installs with different roots never share an endpoint (C4, D1). A socket that is set
+ * is given by its canonical path (src/shared/trusted-path.ts), which the wrapper, the snippets and doctor export;
+ * the default is already canonical wherever install accepts the state root, which fs-private keeps free of symlinks.
  */
 export function userSocket(env: Env = process.env): string {
-  return env[HOST_SOCKET_ENV] ?? statePaths(env).userSocket;
+  const configured = env[HOST_SOCKET_ENV];
+  return configured === undefined ? statePaths(env).userSocket : canonicalSocketPath(configured);
 }

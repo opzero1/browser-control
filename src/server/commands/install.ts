@@ -4,9 +4,10 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  acquireInstallLock, checkDirectory, created as createdEntry, InstallLockBusy, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves,
+  acquireInstallLock, created as createdEntry, InstallLockBusy, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves,
   type Created, type InstallLock, type TrustedDirectory
 } from "../../shared/install-lock";
+import { trustedPath } from "../../shared/trusted-path";
 import { packageAssets, type PackageAssets } from "../assets";
 import { HOST_WRAPPER_NAME, nodeExecutable, resolveCuaDriver, statePaths, STORE_EXTENSION_ID, type Env } from "../config";
 import { childDirectory, existingDirectory, openDirectory, writePrivate } from "../fs-private";
@@ -41,7 +42,7 @@ export const INSTALL_FLAGS = ["--state-dir", "--chrome-manifest-dir", "--skills-
 /**
  * The wrapper and the manifest name paths under the state root, so it must be a path no other user can change.
  * fs-private refuses a symlink anywhere in the root and requires the root itself to be private, so the root is its
- * own real path; the directories above it must also pass the installers' lock rule (src/shared/install-lock.ts).
+ * own canonical path; the directories above it must also pass the trusted-path rule (src/shared/trusted-path.ts).
  */
 function stateStep(env: Env, dryRun: boolean): Step {
   const root = statePaths(env).root;
@@ -55,7 +56,7 @@ function stateStep(env: Env, dryRun: boolean): Step {
     return step("state", "fail", "unsafe",
       "The state directory must be a real directory owned by you with mode 0700. Fix it or pass another --state-dir.", { path: root, code: gateCode(error) });
   }
-  const checked = checkDirectory(root);
+  const checked = trustedPath(root);
   if ("unsafe" in checked || checked.path !== root) {
     return step("state", "fail", "unsafe-ancestor",
       "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir.",
@@ -102,10 +103,11 @@ async function hostSteps(env: Env, assets: PackageAssets, dryRun: boolean): Prom
 }
 
 /**
- * Replace the manifest in `directory`, the real path the lock checked, atomically: a temporary file beside it,
- * fsync, rename. A symlink at the manifest is replaced, not followed. Just before the rename, `directory` must
- * still be the one checked and `given`, the directory Chrome reads, must still resolve to it; otherwise nothing
- * is renamed and this returns false. Only the temporary file is ever removed, while it is still the one written.
+ * Replace the manifest in `directory`, the canonical path the lock checked, atomically: a temporary file beside
+ * it, fsync, rename. A symlink at the manifest is replaced, not followed. Just before the rename, `directory`
+ * must still be the one checked and `given`, the directory Chrome reads, must still pass the trusted-path rule and
+ * lead to it; otherwise nothing is renamed and this returns false. Only the temporary file is ever removed, while
+ * it is still the one written.
  */
 function writeManifest(directory: TrustedDirectory, given: string, text: string): boolean {
   const temporary = path.join(directory.path, `.${MANIFEST_FILE}.${randomUUID()}.tmp`);
@@ -153,12 +155,17 @@ async function manifestStep(env: Env, platform: NodeJS.Platform, options: Option
   }
   const file = path.join(directory, MANIFEST_FILE);
   const wrapper = userWrapperPath(env);
-  const planned = manifestPlan(file, manifestState(file, wrapper), options);
-  if (planned) return planned;
-  // 0755 whatever the umask: the lock refuses a directory that group or others can write to.
-  fs.mkdirSync(directory, { recursive: true, mode: 0o755 });
   try {
-    return await replaceManifest(file, wrapper, options);
+    // Every path, the current-manifest fast path and the dry run included, starts with the trusted-path rule and
+    // then reads, creates and locks only the canonical directory. `file` is kept for messages.
+    const canonical = trustedPath(directory, { missing: true });
+    if ("unsafe" in canonical) throw new InstallLockUnsafe(manifestLockPath(file), canonical.unsafe, "directory");
+    const planned = manifestPlan(file, manifestState(path.join(canonical.path, MANIFEST_FILE), wrapper), options);
+    if (planned) return planned;
+    // 0755 whatever the umask: the lock refuses a directory that group or others can write to.
+    const made = trustedPath(canonical.path, { create: 0o755 });
+    if ("unsafe" in made) throw new InstallLockUnsafe(manifestLockPath(file), made.unsafe, "directory");
+    return await replaceManifest(file, made, wrapper, options);
   } catch (error) {
     if (!(error instanceof InstallLockUnsafe)) throw error;
     return step("manifest", "fail", "unsafe-lock",
@@ -167,11 +174,16 @@ async function manifestStep(env: Env, platform: NodeJS.Platform, options: Option
   }
 }
 
-/** The release zip's installer takes the same lock, so the manifest is classified again and replaced as one step. */
-async function replaceManifest(file: string, wrapper: string, options: Options): Promise<Step> {
+const MOVED = "The directory of the Chrome native messaging manifest changed while install was writing the manifest, so nothing was written. Make sure nothing else is changing it, then run browser-control install again.";
+
+/**
+ * The release zip's installer takes the same lock, so the manifest is classified again and replaced as one step.
+ * `directory` is the canonical manifest directory; `file` is the manifest as given, for messages and the last check.
+ */
+async function replaceManifest(file: string, directory: TrustedDirectory, wrapper: string, options: Options): Promise<Step> {
   let lock: InstallLock;
   try {
-    lock = await acquireInstallLock(manifestLockPath(file));
+    lock = await acquireInstallLock(manifestLockPath(path.join(directory.path, MANIFEST_FILE)));
   } catch (error) {
     if (!(error instanceof InstallLockBusy)) throw error;
     return step("manifest", "fail", "locked",
@@ -180,16 +192,15 @@ async function replaceManifest(file: string, wrapper: string, options: Options):
   }
   let state: ManifestState;
   try {
-    // The lock checked the real path of the manifest's directory from / down: classify and write there, never
-    // through `file`, whose symlinks may be repointed.
-    state = manifestState(path.join(lock.directory.path, MANIFEST_FILE), wrapper);
+    // Classify and write only in the directory the lock checked, never through `file`.
+    const locked = lock.directory;
+    if (locked.path !== directory.path || locked.dev !== directory.dev || locked.ino !== directory.ino) {
+      return step("manifest", "fail", "moved", MOVED, { path: file });
+    }
+    state = manifestState(path.join(locked.path, MANIFEST_FILE), wrapper);
     const settled = manifestPlan(file, state, options);
     if (settled) return settled;
-    if (!writeManifest(lock.directory, path.dirname(file), manifestText(wrapper))) {
-      return step("manifest", "fail", "moved",
-        "The directory of the Chrome native messaging manifest changed while install was writing the manifest, so nothing was written. Make sure nothing else is changing it, then run browser-control install again.",
-        { path: file });
-    }
+    if (!writeManifest(locked, path.dirname(file), manifestText(wrapper))) return step("manifest", "fail", "moved", MOVED, { path: file });
   } finally {
     lock.release();
   }

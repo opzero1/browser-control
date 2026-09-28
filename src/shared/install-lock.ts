@@ -5,26 +5,18 @@
 // is never held. A waiter removes an entry only when the process that made it no longer exists; entry names are
 // unique, so removing one can never release another installer's lock.
 //
-// No other user may be able to change the lock. Its parent is resolved to its real path, and every directory
-// from / down to it must be owned by this user or root and writable only by its owner, unless it has the sticky
-// bit (OpenSSH's safe_path rule); the lock works in that real path from then on. The lock itself must be a real
-// directory owned by this user that group and others cannot write to. Node has no unlinkat, so, as in
-// src/server/fs-private.ts, a directory is a path plus the (dev, ino) it had when it was checked, and nothing
-// is removed through that path until it is checked again. Nothing here removes recursively: a file is
+// No other user may be able to change the lock. Its parent must pass the trusted-path rule
+// (src/shared/trusted-path.ts), and the lock works in the parent's canonical path from then on. The lock itself
+// must be a real directory owned by this user that group and others cannot write to. Node has no unlinkat, so,
+// as in src/server/fs-private.ts, a directory is a path plus the (dev, ino) it had when it was checked, and
+// nothing is removed through that path until it is checked again. Nothing here removes recursively: a file is
 // unlinked and a directory removed with rmdir, which fails on one that is not empty.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { trustedPath, type Identity, type TrustedDirectory } from "./trusted-path";
 
-export interface Identity {
-  readonly dev: number;
-  readonly ino: number;
-}
-
-/** A directory whose real path was checked from / down, with the identity it had then. */
-export interface TrustedDirectory extends Identity {
-  readonly path: string;
-}
+export type { Identity, TrustedDirectory } from "./trusted-path";
 
 /** A file or directory this process made, with the identity it had when it was made. */
 export interface Created extends Identity {
@@ -34,7 +26,7 @@ export interface Created extends Identity {
 
 export interface InstallLock {
   readonly path: string;
-  /** The lock's parent, checked from / down: work in `directory.path` rather than through the path given. */
+  /** The lock's parent, by its canonical path: work in `directory.path` rather than through the path given. */
   readonly directory: TrustedDirectory;
   release(): void;
 }
@@ -76,13 +68,13 @@ export class InstallLockUnsafe extends Error {
 export interface InstallLockFs {
   lstat(file: string): fs.Stats;
   readdir(directory: string): string[];
-  realpath(file: string): string;
+  readlink(file: string): string;
 }
 
 const nodeFs: InstallLockFs = {
   lstat: (file) => fs.lstatSync(file),
   readdir: (directory) => fs.readdirSync(directory),
-  realpath: (file) => fs.realpathSync(file)
+  readlink: (file) => fs.readlinkSync(file)
 };
 
 /** The lock that serializes every installer's check and replacement of one native messaging manifest. */
@@ -94,7 +86,6 @@ const ENTRY = /^([1-9][0-9]{0,9})-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4
 /** Entries this process holds, so an entry left by a dead process that had this pid is still found stale. */
 const held = new Set<string>();
 const WRITABLE_BY_OTHERS = 0o022;
-const STICKY = 0o1000;
 
 function codeOf(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException | null)?.code;
@@ -103,39 +94,6 @@ function codeOf(error: unknown): string | undefined {
 /** Windows has no POSIX owners or modes, so there only the kind and identity of each directory are checked. */
 function ownerId(): number | undefined {
   return process.getuid?.();
-}
-
-/** Only its owner, this user or root, can change the directory: others may write to it only if it is sticky. */
-function trusted(stats: fs.Stats): boolean {
-  if (stats.isSymbolicLink() || !stats.isDirectory()) return false;
-  const uid = ownerId();
-  if (uid === undefined) return true;
-  const shared = (stats.mode & WRITABLE_BY_OTHERS) !== 0 && (stats.mode & STICKY) === 0;
-  return (stats.uid === uid || stats.uid === 0) && !shared;
-}
-
-function checkChain(directory: string, io: InstallLockFs): TrustedDirectory | { readonly unsafe: string } {
-  const real = io.realpath(directory);
-  const { root } = path.parse(real);
-  let current = root;
-  let stats = io.lstat(current);
-  if (!trusted(stats)) return { unsafe: current };
-  for (const part of real.slice(root.length).split(path.sep)) {
-    if (!part) continue;
-    current = path.join(current, part);
-    stats = io.lstat(current);
-    if (!trusted(stats)) return { unsafe: current };
-  }
-  return { path: current, dev: stats.dev, ino: stats.ino };
-}
-
-/**
- * The real path of `directory` and its identity, once every directory from / down to it is owned by this user
- * or root and writable only by its owner unless it has the sticky bit; otherwise the first directory that is
- * not. Only this user or root can then rename, replace or remove anything in it.
- */
-export function checkDirectory(directory: string, calls: Partial<InstallLockFs> = {}): TrustedDirectory | { readonly unsafe: string } {
-  return checkChain(directory, { ...nodeFs, ...calls });
 }
 
 /** Whether `file`, not followed, is still what `expected` identifies; a missing file is not. */
@@ -151,15 +109,16 @@ export function unchangedAt(file: string, expected: Identity, calls: Partial<Ins
 }
 
 /**
- * Whether `directory` is still the one that was checked and `given` still resolves to it. An installer checks
- * this just before it renames a file into `directory`: the given path is the one Chrome reads, and a symlink in
- * it may have been repointed since.
+ * Whether `given` still passes the trusted-path rule and leads to `directory`, which still has the identity it
+ * was checked with. An installer checks this just before it renames a file into `directory`: the given path is
+ * the one Chrome reads.
  */
 export function stillResolves(given: string, directory: TrustedDirectory, calls: Partial<InstallLockFs> = {}): boolean {
   const io = { ...nodeFs, ...calls };
   if (!unchangedAt(directory.path, directory, io)) return false;
   try {
-    return io.realpath(given) === directory.path;
+    const again = trustedPath(given, { calls: io });
+    return !("unsafe" in again) && again.path === directory.path && again.dev === directory.dev && again.ino === directory.ino;
   } catch (error) {
     if (codeOf(error) === undefined) throw error;
     return false;
@@ -337,9 +296,9 @@ function attempt(lockPath: string, parent: TrustedDirectory, io: InstallLockFs):
   };
 }
 
-/** The lock's parent, resolved and checked from / down; an acquisition works only in that directory. */
+/** The lock's parent, by the canonical path the trusted-path rule gives it; an acquisition works only there. */
 function trustedParent(lockPath: string, io: InstallLockFs): TrustedDirectory {
-  const checked = checkChain(path.dirname(lockPath), io);
+  const checked = trustedPath(path.dirname(lockPath), { calls: io });
   if ("unsafe" in checked) throw new InstallLockUnsafe(lockPath, checked.unsafe, "directory");
   return checked;
 }

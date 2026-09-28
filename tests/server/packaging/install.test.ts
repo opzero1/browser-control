@@ -318,6 +318,45 @@ describe("browser-control install", () => {
     for (const file of [wrapper, process.execPath, hostScriptOf(accepted)]) expect(fs.realpathSync(file)).toBe(file);
   });
 
+  it.each([["0770", 0o770], ["0777", 0o777]])("refuses a manifest directory reached through a symlink in a directory with mode %s, in a dry run, a write and on the current-manifest fast path", async (_mode, mode) => {
+    const { root, env, assets, state, manifests, skills } = setup();
+    fs.mkdirSync(manifests, { mode: 0o755 });
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, mode);
+    // Another user who can write to `shared` can repoint `link` at any time; the directory it leads to is yours.
+    const link = path.join(shared, "link");
+    fs.symlinkSync(manifests, link);
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    const through = (directory: string, ...extra: string[]) => options(["--state-dir", state, "--chrome-manifest-dir", directory, "--skills-dir", skills, ...extra]);
+    const refusal = { level: "fail", status: "unsafe-lock", path: shared, code: "browser-controller-unsafe-install-lock" };
+    expect(byId((await install(through(link, "--dry-run"), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(byId((await install(through(link), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(fs.readdirSync(manifests)).toEqual([]);
+    // The manifest is current when read through the real directory; through the symlink it is still refused.
+    expect(byId((await install(through(manifests), env, deps)).steps).manifest).toMatchObject({ level: "ok", status: "created" });
+    const installed = snapshotTree(root);
+    expect(byId((await install(through(link), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(byId((await install(through(link, "--dry-run"), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(snapshotTree(root)).toEqual(installed);
+  });
+
+  it("writes the wrapper, the snippets and the manifest with the canonical path of a socket reached through a symlink", async () => {
+    const { root, env: base, assets, flags, state } = setup();
+    const sockets = path.join(root, "sockets");
+    fs.mkdirSync(sockets, { mode: 0o700 });
+    fs.symlinkSync(sockets, path.join(root, "slink"));
+    const env = { ...base, BROWSER_CONTROL_HOST_SOCKET: path.join(root, "slink/user.sock") };
+    const canonical = path.join(sockets, "user.sock");
+    const out = sink();
+    await runInstall([...flags, "--json"], { stdout: out, stderr: sink(), env }, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    const report = JSON.parse(out.text);
+    expect(statuses(report.steps)).toMatchObject({ wrapper: "created", manifest: "created" });
+    expect(readText(path.join(state, "hosts/user/browser-control-host"))).toContain(`export BROWSER_CONTROL_HOST_SOCKET='${canonical}'\n`);
+    expect(JSON.parse(report.snippets["OpenCode (opencode.jsonc):"]).mcp["browser-control"].environment).toEqual({ BROWSER_CONTROL_STATE_DIR: state, BROWSER_CONTROL_HOST_SOCKET: canonical });
+    expect(mcpSnippet("codex", { ...env, BROWSER_CONTROL_STATE_DIR: state })).toContain(`BROWSER_CONTROL_HOST_SOCKET = "${canonical}"\n`);
+  });
+
   it("creates a missing manifest directory with mode 0755 under a group-writable umask, so its lock is accepted", async () => {
     const { root, env, assets, manifests, flags } = setup();
     const previous = process.umask(0o002);

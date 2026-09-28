@@ -8,8 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
-  acquireInstallLock, acquireInstallLockSync, checkDirectory, InstallLockBusy, InstallLockUnsafe, manifestLockPath, type InstallLock
+  acquireInstallLock, acquireInstallLockSync, InstallLockBusy, InstallLockUnsafe, manifestLockPath, type InstallLock
 } from "../../src/shared/install-lock";
+import { trustedPath } from "../../src/shared/trusted-path";
 import { childPath } from "../server/support/children";
 import { realDefaultPaths, snapshotTree } from "../server/support/packaging";
 import { privateTemp, removeTempRoots, testEnv } from "../server/support/temp";
@@ -319,6 +320,60 @@ describe("the zip installer and browser-control install on one manifest", () => 
     expect(JSON.parse(npmResult.stdout).steps.find((item: { id: string }) => item.id === "manifest"))
       .toMatchObject({ level: "fail", status: "unsafe-lock", path: directory, code: UNSAFE_CODE });
     expect(fs.readdirSync(directory)).toEqual([]);
+  }, 30000);
+});
+
+describe("a manifest directory reached through a symlink", () => {
+  /** `manifests` is a real 0755 directory; `link` leads to it from `holder`. */
+  function linked(holderMode: number | null) {
+    const context = setup();
+    const manifests = path.dirname(context.manifest);
+    fs.mkdirSync(manifests);
+    fs.chmodSync(manifests, 0o755);
+    const holder = holderMode === null ? context.root : path.join(context.root, "shared");
+    if (holderMode !== null) {
+      fs.mkdirSync(holder);
+      fs.chmodSync(holder, holderMode);
+    }
+    const link = path.join(holder, "link");
+    fs.symlinkSync(manifests, link);
+    const given = path.join(link, "com.opzero.chrome.json");
+    return {
+      ...context, manifests, holder, given,
+      zipThrough: (file: string) => start([zipInstaller, "--extension-id", "testextensionid", "--manifest-path", file], { ...context.env, BROWSER_CONTROL_STATE_DIR: context.state }),
+      npmThrough: (directory: string) => start([cli, "install", "--state-dir", context.state, "--chrome-manifest-dir", directory, "--json"], context.env)
+    };
+  }
+
+  it.each([["0770", 0o770], ["0777", 0o777]])("is refused by both installers when the symlink is in a directory with mode %s, and nothing is written", async (_mode, mode) => {
+    const { manifests, holder, given, zipThrough, npmThrough } = linked(mode);
+    expect(await zipThrough(given).done).toMatchObject({ code: 1, stderr: `${directoryMessage(manifestLockPath(given), holder)}\n` });
+    const npmResult = await npmThrough(path.dirname(given)).done;
+    expect(npmResult.code).toBe(1);
+    expect(JSON.parse(npmResult.stdout).steps.find((item: { id: string }) => item.id === "manifest"))
+      .toMatchObject({ level: "fail", status: "unsafe-lock", path: holder, code: UNSAFE_CODE });
+    expect(fs.readdirSync(manifests)).toEqual([]);
+    expect(fs.readdirSync(holder)).toEqual(["link"]);
+  }, 30000);
+
+  it("is written in its real directory by both installers when the symlink is in a trusted directory, as macOS /var is", async () => {
+    const { root, manifests, given, zipThrough, npmThrough, zipWrapper, npmWrapper } = linked(null);
+    // The same symlink, reached through the unresolved temporary directory (/var/folders on macOS).
+    const lexical = path.join(process.env.BROWSER_CONTROL_TEST_TMPDIR || path.join(os.tmpdir(), "opencode"), path.basename(root), "link/com.opzero.chrome.json");
+    for (const file of [given, lexical]) {
+      const zipResult = await zipThrough(file).done;
+      expect(zipResult, zipResult.stderr).toMatchObject({ code: 0, stderr: "" });
+      expect(zipResult.stdout).toContain(`Installed native messaging manifest:\n${file}\n`);
+      expect(JSON.parse(fs.readFileSync(path.join(manifests, "com.opzero.chrome.json"), "utf8")).path).toBe(zipWrapper);
+      expect(fs.readdirSync(manifests)).toEqual(["com.opzero.chrome.json"]);
+      fs.rmSync(path.join(manifests, "com.opzero.chrome.json"));
+      const npmResult = await npmThrough(path.dirname(file)).done;
+      expect(JSON.parse(npmResult.stdout).steps.find((item: { id: string }) => item.id === "manifest"))
+        .toMatchObject({ level: "ok", status: "created", path: file });
+      expect(JSON.parse(fs.readFileSync(path.join(manifests, "com.opzero.chrome.json"), "utf8")).path).toBe(npmWrapper);
+      expect(fs.readdirSync(manifests)).toEqual(["com.opzero.chrome.json"]);
+      fs.rmSync(path.join(manifests, "com.opzero.chrome.json"));
+    }
   }, 30000);
 });
 
@@ -735,7 +790,7 @@ describe("the directories above the installers' lock", () => {
     expect(fs.readdirSync(parent)).toEqual([]);
   });
 
-  it("are the ones a symlink resolves to, and the lock stays in them when the symlink is repointed", async () => {
+  it("are the ones on the given path and the ones its symlink resolves to, and the lock stays in the resolved ones when the symlink is repointed", async () => {
     const root = privateTemp("il-");
     const open = path.join(root, "open");
     const real = path.join(open, "manifests");
@@ -758,8 +813,10 @@ describe("the directories above the installers' lock", () => {
     };
     const lock = await acquireInstallLock(lockPath, 1000, { lstat });
     expect(lock.directory.path).toBe(real);
-    expect(checked.slice(0, chain(real).length)).toEqual(chain(real));
-    expect(checked.filter((file) => file === link || file.startsWith(`${link}${path.sep}`))).toEqual([]);
+    // The given path up to the symlink, then the path it resolves to; nothing is looked up through the symlink.
+    const walked = [...chain(root), link, ...chain(real)];
+    expect(checked.slice(0, walked.length)).toEqual(walked);
+    expect(checked.filter((file) => file === link || file.startsWith(`${link}${path.sep}`))).toEqual([link]);
     expect(fs.readdirSync(real)).toEqual(["x.lock"]);
 
     // Repointed after the check, the symlink redirects nothing: release removes the lock it made, and only it.
@@ -787,7 +844,7 @@ describe("the directories above the installers' lock", () => {
   it.runIf(process.platform === "darwin")("include a macOS home directory and Chrome's NativeMessagingHosts in it (read only)", () => {
     const home = os.userInfo().homedir;
     for (const directory of [home, path.join(home, "Library/Application Support/Google/Chrome/NativeMessagingHosts")]) {
-      if (fs.existsSync(directory)) expect(checkDirectory(directory), directory).toMatchObject({ path: fs.realpathSync(directory) });
+      if (fs.existsSync(directory)) expect(trustedPath(directory), directory).toMatchObject({ path: fs.realpathSync(directory) });
     }
   });
 });
