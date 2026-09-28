@@ -2,7 +2,7 @@
 
 This skill ships the Browser Control native host and its scripts next to `SKILL.md`: `native-host/client.js`, `native-host/host.js`, the `native-host/browser-control-host` wrapper, and `scripts/`. They need Node 18 or later and no repo checkout. Run the commands from the skill directory, the one that contains `SKILL.md`, unless an absolute path is clearer.
 
-Use them to check the extension connection, to install or repair the host from the release zip, and for raw client calls. The MCP server's `npx -y @op1/browser-control install` also writes the `com.opzero.chrome` manifest for the user's Chrome. Use one installer per Chrome profile: the last one run owns the manifest.
+Use them to check the extension connection, to install or repair the host from the release zip, and for raw client calls. Once the MCP server package is published, its `npx -y @op1/browser-control install` also writes the `com.opzero.chrome` manifest for the user's Chrome. Use one installer per Chrome profile: the last one run owns the manifest.
 
 The safety rules in [SKILL.md](../SKILL.md) apply to every raw client call. If the extension stays unreachable after the checks below, do not fall back to AppleScript, profile-store scraping, cookie inspection, or another browser-control mechanism.
 
