@@ -61,17 +61,20 @@ it.skipIf(!executablePath || process.platform !== "darwin")("connects the real M
       .toContain(ISOLATED_EXTENSION_ID);
     await expect.poll(() => fs.existsSync(socket), { timeout: 15000 }).toBe(true);
     // The host binds its socket before the extension finishes the protocol handshake.
-    let ready: Connection | undefined;
-    await expect.poll(async () => {
+    // expect.poll would also retry other errors, so only these two gates are retried until the deadline.
+    const deadline = Date.now() + 30000;
+    let connection: Connection;
+    for (;;) {
       try {
-        ready = await Connection.open(socket, 5);
-        return true;
+        connection = await Connection.open(socket, 5);
+        break;
       } catch (error) {
-        if (error instanceof Gate && ["browser-control-unavailable", "browser-control-protocol-mismatch"].includes(error.code)) return false;
-        throw error;
+        const pending = error instanceof Gate
+          && ["browser-control-unavailable", "browser-control-protocol-mismatch"].includes(error.code);
+        if (!pending || Date.now() > deadline) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
-    }, { timeout: 30000, interval: 250 }).toBe(true);
-    const connection = ready!;
+    }
     try {
       expect(await connection.call("host.info")).toMatchObject({ protocolVersion: 2, extensionProtocol: "ready" });
       expect(await connection.call("getInfo")).toMatchObject({ protocolVersion: 2, pageProtocolVersion: 2, version: assets.version });
