@@ -38,7 +38,7 @@
       <li>macOS or Linux, with Google Chrome™ 106 or later (<code>minimum_chrome_version</code> in <code>manifest.json</code>). Use one Chrome profile with Browser Control turned on. All profiles share one host socket, so a second profile cannot connect at the same time.</li>
       <li>Node.js 18 or later on the <code>PATH</code>. Check with <code>node --version</code>. The host is a Node.js program.</li>
       <li><code>curl</code> and <code>unzip</code>. Both come with macOS. On Debian or Ubuntu: <code>sudo apt-get install curl unzip</code>.</li>
-      <li>Internet access to <code>browser-control.pages.dev</code> (to download the helper) and to <code>https://example.com/</code> (for the demo page).</li>
+      <li>Internet access to <code>browser-control.pages.dev</code> (to download the helper and to open the demo page).</li>
       <li>No account, sign-in, API key or server is needed. <code>ffmpeg</code> is not needed.</li>
       <li>Windows is not covered by these steps. A host started by Chrome on Windows needs a private token file that the installer does not create.</li>
     </ul>
@@ -97,8 +97,8 @@ const socket = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir()
 (async () =&gt; {
   const browser = await ChromeTransport.connect(socket);
   try {
-    const page = await browser.open("https://example.com/");
-    const snapshot = await browser.waitFor(page, { text: "Example Domain" }, 15000);
+    const page = await browser.open("https://browser-control.pages.dev/");
+    const snapshot = await browser.waitFor(page, { text: "Browser Control lets an AI agent" }, 15000);
     console.log(JSON.stringify({ url: snapshot.url, title: snapshot.title, text: snapshot.text.slice(0, 200), actions: snapshot.actions }, null, 2));
     console.log("The tab stays open for 20 seconds. Click it in the \"Browser Control\" tab group to watch.");
     await new Promise((resolve) =&gt; setTimeout(resolve, 20000));
@@ -115,10 +115,10 @@ const socket = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir()
     <ol>
       <li>A new background tab opens in a tab group named <strong>Browser Control</strong>.</li>
       <li>Chrome shows its notice that Browser Control is debugging the browser.</li>
-      <li>The script prints JSON with <code>"url": "https://example.com/"</code>, the page title, the start of the visible text, and an <code>actions</code> list with the page's link.</li>
+      <li>The script prints JSON with <code>"url": "https://browser-control.pages.dev/"</code>, the page title, the start of the visible text, and an <code>actions</code> list with the page's links.</li>
       <li>After 20 seconds the script ends and the extension closes the tab that it opened. Your own tabs stay as they were.</li>
     </ol>
-    <p>This uses the same client library (<code>native-host/transport.js</code>) that agent tools use. It opens the tab, attaches the debugger, binds the tab to <code>https://example.com</code>, navigates, and reads the page.</p>
+    <p>This uses the same client library (<code>native-host/transport.js</code>) that agent tools use. It opens the tab, attaches the debugger, binds the tab to <code>https://browser-control.pages.dev</code>, navigates, and reads the page.</p>
     <h3 id="step-8">8. Pause and resume</h3>
     <ol>
       <li>In the popup, click <strong>Pause host</strong>. The popup shows <strong>Paused</strong>, and the button changes to <strong>Resume host</strong>.</li>
