@@ -1,5 +1,5 @@
 {
-  "source": "~/.config/opencode/mcp/fast-chrome (read-only AST scan; case counts from pytest --collect-only)",
+  "source": "the fast-chrome Python reference (read-only AST scan; case counts from pytest --collect-only)",
   "collected": 556,
   "functions": [
     {

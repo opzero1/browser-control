@@ -6,16 +6,16 @@ import path from "node:path";
 import { packageAssets, type PackageAssets } from "../assets";
 import { HOST_WRAPPER_NAME, nodeExecutable, resolveCuaDriver, statePaths, STORE_EXTENSION_ID, type Env } from "../config";
 import { childDirectory, existingDirectory, openDirectory, writePrivate } from "../fs-private";
+import { BUNDLE } from "../pool/start";
 import { buildClipboardGuard } from "../private/clipboard-guard";
-import { clipboardGuardBinary, ensureStableHost } from "../stable-copy";
+import { clipboardGuardBinary, ensureStableHost, publishTree, stableHostPlan, treeMatches } from "../stable-copy";
 import { mcpSnippets } from "./config";
 import { checkExtensionInstalled } from "./extension";
 import {
-  bundledSkills, CHROME_FOR_TESTING_BUNDLE, CHROME_FOR_TESTING_EXECUTABLE, CHROME_FOR_TESTING_INSTALL_COMMAND, chromeManifestDirectory,
-  commandEnv, CUA_INSTALL_COMMAND, exists, expectedStableHost, expectedWrapper, failed, formatSteps, gateCode, launchServicesApp,
-  MANIFEST_FILE, manifestState, manifestText, nodeStep, parseOptions, readLink, readRegular, skillFiles, skillsDirectories,
-  stableSkillDir, step, STORE_URL, treeMatches, trustedGuard, UsageError, userWrapperPath, XCODE_TOOLS_COMMAND, xcodeToolsSelected,
-  type CommandIo, type Options, type Step
+  bundledSkills, CHROME_FOR_TESTING_EXECUTABLE, CHROME_FOR_TESTING_INSTALL_COMMAND, chromeManifestDirectory, commandEnv, CUA_INSTALL_COMMAND,
+  exists, expectedWrapper, failed, formatSteps, gateCode, launchServicesApp, MANIFEST_FILE, manifestState, manifestText, nodeStep, parseOptions,
+  readLink, readRegular, skillFiles, skillsDirectories, stableSkillDir, step, STORE_URL, trustedGuard, UsageError, userWrapperPath,
+  XCODE_TOOLS_COMMAND, xcodeToolsSelected, type CommandIo, type Options, type Step
 } from "./shared";
 
 export interface CommandDeps {
@@ -52,7 +52,7 @@ function stateStep(env: Env, dryRun: boolean): Step {
 
 async function hostSteps(env: Env, assets: PackageAssets, dryRun: boolean): Promise<Step[]> {
   const node = nodeExecutable();
-  const planned = expectedStableHost(env, assets);
+  const planned = stableHostPlan(env, assets);
   const hostCurrent = readRegular(planned.hostScript, planned.data.length)?.equals(planned.data) ?? false;
   let hostScript = planned.hostScript;
   const steps: Step[] = [];
@@ -163,7 +163,7 @@ export async function chromeForTestingStep(deps: CommandDeps): Promise<Step> {
   if (deps.platform !== "darwin") {
     return step("chrome-for-testing", "warn", "unsupported", "Isolated browsers need macOS; claim_browser is unavailable on this platform.");
   }
-  const app = await deps.locateApp(CHROME_FOR_TESTING_BUNDLE);
+  const app = await deps.locateApp(BUNDLE);
   if (!app) {
     return step("chrome-for-testing", "warn", "missing",
       "Chrome for Testing is not registered with macOS. claim_browser needs it. Install it, then open it once so macOS registers com.google.chrome.for.testing.",
@@ -204,27 +204,6 @@ async function clipboardStep(env: Env, deps: CommandDeps, dryRun: boolean): Prom
   return step("clipboard-guard", "ok", "built", "Built and verified the clipboard guard.", { path: binary });
 }
 
-/** Copy a skill to its stable directory: a private temporary tree, then one rename. */
-function publishSkill(target: string, files: ReadonlyMap<string, Uint8Array>) {
-  if (treeMatches(target, files)) return;
-  const parent = openDirectory(path.dirname(target));
-  const temporary = `.tmp-${randomUUID()}`;
-  const staging = childDirectory(parent, temporary);
-  try {
-    for (const [relative, data] of [...files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-      let directory = staging;
-      const parts = relative.split("/");
-      for (const part of parts.slice(0, -1)) directory = childDirectory(directory, part);
-      writePrivate(directory, parts[parts.length - 1], data, 0o600, ".write-");
-    }
-    fs.rmSync(target, { recursive: true, force: true });
-    fs.renameSync(staging.path, target);
-  } finally {
-    fs.rmSync(path.join(parent.path, temporary), { recursive: true, force: true });
-  }
-  if (!treeMatches(target, files)) throw new Error("skill copy does not match");
-}
-
 /** Point `link` at `target` atomically: a temporary symlink beside it, then rename over the old entry. */
 function linkSkill(link: string, target: string) {
   fs.mkdirSync(path.dirname(link), { recursive: true });
@@ -246,11 +225,15 @@ function lstat(file: string): fs.Stats | null {
 }
 
 /**
- * Link each bundled skill into each skills directory. Links point at a stable copy under the state root, never
+ * Link each bundled skill into each --skills-dir. Links point at a stable copy under the state root, never
  * into the npx cache. An older version's link is ours to move; anything else needs --force, and a real
- * directory is never removed.
+ * directory is never removed. Without --skills-dir nothing is linked.
  */
 function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
+  const directories = skillsDirectories(options);
+  if (!directories.length) {
+    return [step("skills", "ok", "skipped", "No skills directory was given, so no skill was linked. Pass --skills-dir <dir> to link the bundled skills.")];
+  }
   const steps: Step[] = [];
   for (const name of bundledSkills(assets)) {
     const id = `skill:${name}`;
@@ -261,7 +244,7 @@ function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
     }
     const target = stableSkillDir(env, assets, name, files);
     const copyCurrent = treeMatches(target, files);
-    for (const directory of skillsDirectories(env, options)) {
+    for (const directory of directories) {
       const link = path.join(directory, name);
       const stats = lstat(link);
       const previous = stats?.isSymbolicLink() ? readLink(link) : null;
@@ -286,7 +269,7 @@ function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
         else steps.push(step(id, "ok", "would-replace", "Would replace the link to another skill with this name.", { path: link, previous }));
         continue;
       }
-      publishSkill(target, files);
+      publishTree(openDirectory(path.dirname(target)), path.basename(target), files);
       if (previous !== target) linkSkill(link, target);
       if (!stats) steps.push(step(id, "ok", "linked", "Linked the skill.", { path: link }));
       else if (ours) steps.push(step(id, "ok", "updated", "Linked the skill to this version.", { path: link }));

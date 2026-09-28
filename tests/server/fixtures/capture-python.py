@@ -8,7 +8,7 @@ Run once with the reference venv's Python, from a private temporary directory:
       <reference>/.native-venv/bin/python -B <repo>/tests/server/fixtures/capture-python.py <reference> <repo>
 
 The reference directory is only read. Registry, profile and socket roots are patched to the temporary
-directory before any call, so nothing is written under ~/.local/state/opencode or ~/.config/opencode.
+directory before any call, so nothing is written under the real home directory.
 Outputs: tests/server/fixtures/python-*.json and src/server/unicode/*-table(s).ts.
 """
 
@@ -259,11 +259,11 @@ URLS = [
     "https://xn--münchen.de/", "https://\u2028.com/", "https://\ufffd.com/", "https://\U0001f600.com/",
     "https://" + "a" * 63 + ".com/", "https://" + "a" * 64 + ".com/", "https://" + "a." * 126 + "com/",
     "https://" + "a." * 127 + "com/", "https://" + "é" * 30 + ".com/", "https://" + "é" * 60 + ".com/",
-    "https://deploy-preview-1704--reapdirect.netlify.app/login", "https://netlify.app/", "https://a.b.example.co.uk/",
+    "https://deploy-preview-1704--example.netlify.app/login", "https://netlify.app/", "https://a.b.example.co.uk/",
     "https://foo.github.io/", "https://github.io/", "https://a.unlisted-tld/", "https://intranet/",
     "https://a.b.ck/", "https://b.ck/", "https://www.ck/", "https://x.www.ck/", "https://ck/",
     "https://x.y.kawasaki.jp/", "https://city.kawasaki.jp/", "https://a.city.kawasaki.jp/",
-    "https://staging.dashboard.reap.global/", "https://STAGING.Dashboard.REAP.global.:443/",
+    "https://staging.dashboard.example.global/", "https://STAGING.Dashboard.EXAMPLE.global.:443/",
     "https://s3.amazonaws.com/", "https://bucket.s3.amazonaws.com/", "https://a.blogspot.com/",
     "https://com/", "https://co.uk/", "https://uk/", "https://example.xn--p1ai/", "https://пример.рф/",
     "https://sub.пример.рф/", "https://a.b.c.d.e.example.com/", "https://1.example.com/",
@@ -294,13 +294,13 @@ URLS = [
 ]
 
 HOSTS = [
-    "example.com", "EXAMPLE.COM", "example.com.", "example.com..", ".example.com", "reap.global", "Reap.Global",
-    "staging.reap.global", "staging.dashboard.reap.global.", "localhost", "LOCALHOST", "localhost.", "127.0.0.1",
+    "example.com", "EXAMPLE.COM", "example.com.", "example.com..", ".example.com", "example.global", "Example.Global",
+    "staging.example.global", "staging.dashboard.example.global.", "localhost", "LOCALHOST", "localhost.", "127.0.0.1",
     "127.0.0.1.", "::1", "[::1]", "[::1", "::1]", "2001:DB8::1", "[2001:DB8::1]", "::ffff:1.2.3.4",
     "fe80::1%eth0", "fe80::1%ETH0", "1.2.3", "01.2.3.4", "1.2.3.256", "münchen.de", "straße.de", "公司.cn",
     "www.公司.cn", "ａｂｃ.com", "abc。com", "a..b", "-a.com", "a-.com", "_a.com", "a_b.com", "ex ample.com",
     "a.com\\@b.com", "", "a" * 63 + ".com", "a" * 64 + ".com", "a." * 126 + "com", "a." * 127 + "com", "x" * 9000,
-    "netlify.app", "deploy-preview-1704--reapdirect.netlify.app", "a.b.ck", "www.ck", "x.www.ck", "city.kawasaki.jp",
+    "netlify.app", "deploy-preview-1704--example.netlify.app", "a.b.ck", "www.ck", "x.www.ck", "city.kawasaki.jp",
     "a.city.kawasaki.jp", "com", "co.uk", "github.io", "foo.github.io", "intranet", "a.unlisted-tld", "xn--",
     "xn--mnchen-3ya.de", "XN--MNCHEN-3YA.DE", "ΣΑΣ.gr", "İ.com", "user@example.com", "example.com:443",
     "example.com:x", "https://", "//example.com", "a.b", "a..", "..", ".", "0", "1", "a", "1e1", "0x7f.0.0.1",
@@ -791,7 +791,7 @@ def inventory():
     if counts or any(item["cases"] == 0 for item in functions):
         raise SystemExit(f"collection and AST scan disagree: {sorted(counts)}")
     write_json("../parity/python-inventory.json", {
-        "source": "~/.config/opencode/mcp/fast-chrome (read-only AST scan; case counts from pytest --collect-only)",
+        "source": "the fast-chrome Python reference (read-only AST scan; case counts from pytest --collect-only)",
         "collected": sum(item["cases"] for item in functions),
         "functions": functions,
     })

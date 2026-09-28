@@ -141,7 +141,7 @@ async function smokeRun(mode: string, overrides: { reap?: boolean; server?: stri
   const { root, env, flags, deps } = setup();
   const log = path.join(root, "calls.jsonl");
   // The shared private test temp root, so the smoke's socket paths fit like a real run's.
-  const base = fs.realpathSync(process.env.OPZERO_TEST_TMPDIR || path.join(os.tmpdir(), "opencode"));
+  const base = fs.realpathSync(process.env.BROWSER_CONTROL_TEST_TMPDIR || path.join(os.tmpdir(), "opencode"));
   const earlier = new Set(smokeRoots(base));
   const reaps: SmokeRun["reaps"] = [];
   deps.smoke = {

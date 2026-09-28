@@ -3,22 +3,19 @@
 // fixture (FAST_CHROME_ALLOW_LOOPBACK=1) takes one act_steps batch; then the tab, the lease and the temporary
 // Chrome for Testing profile are released.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { ReadBuffer, serializeMessage } from "@modelcontextprotocol/sdk/shared/stdio.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
-import { spawn, type ChildProcessByStdio } from "node:child_process";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { Writable, type Readable } from "node:stream";
+import { Writable } from "node:stream";
 import type { PackageAssets } from "../assets";
 import { HOST_SOCKET_ENV, type Env } from "../config";
 import { runPoolCommand } from "../pool/operator";
+import { SOCKET_PATH_LIMIT } from "../pool/provision";
+import { HARD_CAP, metadata, poolContext } from "../pool/registry";
 import { step, type Step } from "./shared";
 
-/** sockaddr_un.sun_path on macOS, without its NUL. */
-const SOCKET_PATH_LIMIT = 103;
 export const SMOKE_FILL_TEXT = "browser-control";
 export const SMOKE_DONE_TEXT = "Smoke check passed";
 const CLAIM_TIMEOUT_SECONDS = 60;
@@ -32,9 +29,10 @@ export interface SmokeDeps {
   tempBase: () => string;
 }
 
-/** The temporary state root is <base>/bcs-XXXXXX; its longest controller socket must fit sun_path. */
+/** The temporary state root is <base>/bcs-XXXXXX; its last controller's socket must fit sun_path. */
 function fits(base: string): boolean {
-  return Buffer.byteLength(path.join(base, "bcs-XXXXXX/sockets/isolated-8.sock")) <= SOCKET_PATH_LIMIT;
+  const ctx = poolContext({ BROWSER_CONTROL_STATE_DIR: path.join(base, "bcs-XXXXXX") });
+  return Buffer.byteLength(metadata(`isolated-${HARD_CAP}`, ctx).socket) <= SOCKET_PATH_LIMIT;
 }
 
 export function defaultSmokeDeps(): SmokeDeps {
@@ -123,81 +121,6 @@ export function smokeEnv(env: Env, state: string, socket: string): Record<string
   return { ...result, BROWSER_CONTROL_STATE_DIR: state, [HOST_SOCKET_ENV]: socket, OPZERO_CHROME_HOST_SOCKET: socket, FAST_CHROME_ALLOW_LOOPBACK: "1" };
 }
 
-/**
- * The client side of MCP over a child's stdio, like the SDK's StdioClientTransport (EOF, then SIGTERM after 2 s,
- * then SIGKILL) but spawning through node:child_process, so the bundle needs no cross-spawn.
- */
-class ChildStdioTransport implements Transport {
-  onclose?: () => void;
-  onerror?: (error: Error) => void;
-  onmessage?: (message: JSONRPCMessage) => void;
-  private child: ChildProcessByStdio<Writable, Readable, null> | null = null;
-  private readonly buffer = new ReadBuffer();
-
-  constructor(private readonly command: string, private readonly args: string[], private readonly env: Record<string, string>) {}
-
-  start(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const child = spawn(this.command, this.args, { env: this.env, stdio: ["pipe", "pipe", "ignore"] });
-      this.child = child;
-      child.once("error", (error) => {
-        reject(error);
-        this.onerror?.(error);
-      });
-      child.once("spawn", () => resolve());
-      child.once("close", () => {
-        this.child = null;
-        this.onclose?.();
-      });
-      child.stdin.on("error", (error) => this.onerror?.(error));
-      child.stdout.on("data", (chunk: Buffer) => {
-        try {
-          this.buffer.append(chunk);
-        } catch (error) {
-          this.onerror?.(error as Error);
-          void this.close();
-          return;
-        }
-        while (true) {
-          let message: JSONRPCMessage | null;
-          try {
-            message = this.buffer.readMessage();
-          } catch (error) {
-            this.onerror?.(error as Error);
-            continue;
-          }
-          if (message === null) break;
-          this.onmessage?.(message);
-        }
-      });
-    });
-  }
-
-  send(message: JSONRPCMessage): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const stdin = this.child?.stdin;
-      if (!stdin) return reject(new Error("not connected"));
-      if (stdin.write(serializeMessage(message))) resolve();
-      else stdin.once("drain", () => resolve());
-    });
-  }
-
-  async close(): Promise<void> {
-    const child = this.child;
-    if (!child) return;
-    const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
-    const wait = () => Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 2000).unref())]);
-    child.stdin.end();
-    await wait();
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill("SIGTERM");
-      await wait();
-    }
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-    this.buffer.clear();
-  }
-}
-
 type Called = { ok: true; value: Record<string, unknown> } | { ok: false; code: string };
 
 async function callTool(client: Client, name: string, args: Record<string, unknown>, timeoutMs: number): Promise<Called> {
@@ -250,7 +173,8 @@ export async function smoke(env: Env, assets: PackageAssets, deps: SmokeDeps = d
   let tabId: string | null = null;
   try {
     try {
-      await client.connect(new ChildStdioTransport(server.command, server.args, serverEnv), { timeout: 30000 });
+      // The SDK transport ends stdin on close, then sends SIGTERM and SIGKILL 2 s apart; the server's stderr is discarded.
+      await client.connect(new StdioClientTransport({ command: server.command, args: server.args, env: serverEnv, stderr: "ignore" }), { timeout: 30000 });
       const names = new Set((await client.listTools(undefined, { timeout: 30000 })).tools.map((tool) => tool.name));
       started = ["claim_browser", "open_tab", "act_steps", "release", "release_browser"].every((name) => names.has(name));
     } catch {

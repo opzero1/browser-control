@@ -12,10 +12,10 @@ import { operate, poolContext, type PoolContext } from "../../../src/server/pool
 import { startChild } from "../support/children";
 import { privateTemp, testEnv } from "../support/temp";
 
-export const P1 = "https://deploy-preview-1--reapdirect.netlify.app/login";
-export const P2 = "https://deploy-preview-2--reapdirect.netlify.app/login";
-export const P3 = "https://deploy-preview-3--reapdirect.netlify.app/login";
-export const STAGING = "https://staging.dashboard.reap.global/";
+export const P1 = "https://deploy-preview-1--example.netlify.app/login";
+export const P2 = "https://deploy-preview-2--example.netlify.app/login";
+export const P3 = "https://deploy-preview-3--example.netlify.app/login";
+export const STAGING = "https://staging.dashboard.example.global/";
 
 /**
  * Run this file's suite while no other pool suite runs. The registry fsyncs every record (about 9 ms per write on

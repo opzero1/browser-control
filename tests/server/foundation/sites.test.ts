@@ -26,11 +26,11 @@ function refused(body: () => unknown, code: string) {
 
 describe("cookie sites (test_sites.py)", () => {
   const REGISTRABLE: Array<[string, string]> = [
-    ["https://deploy-preview-1704--reapdirect.netlify.app/login", "deploy-preview-1704--reapdirect.netlify.app"],
-    ["https://deploy-preview-1705--reapdirect.netlify.app/", "deploy-preview-1705--reapdirect.netlify.app"],
-    ["https://staging.dashboard.reap.global/", "reap.global"],
-    ["https://dashboard.reap.global/x?y=1", "reap.global"],
-    ["reap.global", "reap.global"],
+    ["https://deploy-preview-1704--example.netlify.app/login", "deploy-preview-1704--example.netlify.app"],
+    ["https://deploy-preview-1705--example.netlify.app/", "deploy-preview-1705--example.netlify.app"],
+    ["https://staging.dashboard.example.global/", "example.global"],
+    ["https://dashboard.example.global/x?y=1", "example.global"],
+    ["example.global", "example.global"],
     ["https://netlify.app/", "netlify.app"],
     ["https://a.b.example.co.uk/", "example.co.uk"],
     ["https://foo.github.io/", "foo.github.io"],
@@ -81,9 +81,9 @@ describe("cookie sites (test_sites.py)", () => {
     expect(cookieSite(value)).toBe(site);
   });
 
-  const NORMALIZED = ["https://STAGING.Dashboard.REAP.global.:443/", "staging.dashboard.reap.global.", "https://staging.dashboard.reap.global:8443/"];
+  const NORMALIZED = ["https://STAGING.Dashboard.EXAMPLE.global.:443/", "staging.dashboard.example.global.", "https://staging.dashboard.example.global:8443/"];
   it.each(NORMALIZED)("ignores case, a trailing dot and the port in %s", (value) => {
-    expect(cookieSite(value)).toBe("reap.global");
+    expect(cookieSite(value)).toBe("example.global");
   });
 
   const INVALID: unknown[] = [null, 5, "", "https://", "https://a..b/", "https://-a.com/", "https://ex ample.com/",
@@ -94,9 +94,9 @@ describe("cookie sites (test_sites.py)", () => {
   });
 
   it("accepts only canonical keys as valid sites", () => {
-    expect(validSite("reap.global") && validSite("::1") && validSite("localhost")).toBe(true);
-    expect(validSite("staging.reap.global") || validSite("[::1]")).toBe(false);
-    expect(validSite("Reap.Global") || validSite(null)).toBe(false);
+    expect(validSite("example.global") && validSite("::1") && validSite("localhost")).toBe(true);
+    expect(validSite("staging.example.global") || validSite("[::1]")).toBe(false);
+    expect(validSite("Example.Global") || validSite(null)).toBe(false);
   });
 
   it("vendors a list that matches its pin", () => {

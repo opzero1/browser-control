@@ -7,12 +7,12 @@ import { nodeExecutable, statePaths, userSocket, whichExecutable, type Env } fro
 import { existingDirectory } from "../fs-private";
 import { isGate } from "../gate";
 import { Connection, type Connect } from "../host-connection";
-import { clipboardGuardBinary } from "../stable-copy";
+import { clipboardGuardBinary, stableHostPlan, treeMatches } from "../stable-copy";
 import { chromeForTestingStep, cuaStep, defaultDeps, extensionStep, type CommandDeps } from "./install";
 import {
-  bundledSkills, chromeManifestDirectory, commandEnv, exists, expectedStableHost, expectedWrapper, failed, formatSteps, gateCode,
-  MANIFEST_FILE, manifestState, nodeStep, parseOptions, readLink, readRegular, skillFiles, skillsDirectories, stableSkillDir, step,
-  treeMatches, trustedGuard, UsageError, userWrapperPath, type CommandIo, type Options, type Step
+  bundledSkills, chromeManifestDirectory, commandEnv, exists, expectedWrapper, failed, formatSteps, gateCode, MANIFEST_FILE, manifestState,
+  nodeStep, parseOptions, readLink, readRegular, skillFiles, skillsDirectories, stableSkillDir, step, trustedGuard, UsageError,
+  userWrapperPath, type CommandIo, type Options, type Step
 } from "./shared";
 import { defaultSmokeDeps, smoke, type SmokeDeps } from "./smoke";
 
@@ -40,7 +40,7 @@ function stateStep(env: Env): Step {
 }
 
 function hostStep(env: Env, assets: PackageAssets): { step: Step; hostScript: string } {
-  const { hostScript, data } = expectedStableHost(env, assets);
+  const { hostScript, data } = stableHostPlan(env, assets);
   const current = readRegular(hostScript, 256 * 1024 * 1024);
   if (!current) {
     return { hostScript, step: step("host", "fail", "missing", "The native host copy for this version is missing. Run browser-control install.",
@@ -121,6 +121,10 @@ function clipboardStep(env: Env, deps: CommandDeps): Step {
 }
 
 function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
+  const directories = skillsDirectories(options);
+  if (!directories.length) {
+    return [step("skills", "ok", "skipped", "No skills directory was given, so no skill link was checked. Pass --skills-dir <dir> to check one.")];
+  }
   const steps: Step[] = [];
   for (const name of bundledSkills(assets)) {
     const id = `skill:${name}`;
@@ -130,7 +134,7 @@ function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
       continue;
     }
     const target = stableSkillDir(env, assets, name, files);
-    for (const directory of skillsDirectories(env, options)) {
+    for (const directory of directories) {
       const link = path.join(directory, name);
       const previous = readLink(link);
       if (previous === target && treeMatches(target, files)) {

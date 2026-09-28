@@ -130,7 +130,8 @@ test_controller_factory.py::test_capture_directory_uses_the_given_root_before_th
 test_controller_factory.py::test_cli_commands_and_flags_use_home_paths -> tests/server/pool/controller-factory.test.ts::runs its commands and flags on the home state root (C4, D1, D15)
 
 Adaptations:
-- The two `reap_global` tests set `FAST_CHROME_UNSHARED_SITES=reap.global` (C5: the default is none). New tests cover
+- The two unshared-site tests set `FAST_CHROME_UNSHARED_SITES=example.global` (C5: the default is none), and their
+  synthetic sites replace the organization-specific ones. New tests cover
   the empty default and the fail-closed `browser-controller-invalid-unshared-sites` (D8).
 - `test_hard_cap_is_eight_controllers` expected `fast-chrome` and `fast-chrome-isolated-1`; every controller now
   reports `browser-control` (D6).

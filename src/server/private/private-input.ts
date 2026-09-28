@@ -1,7 +1,7 @@
 // The private transfer (private_input.py): bind an owned tab's exact URL and document, read one field through
 // the private source, and send it once with privateFill, then submit the observed sign-in once.
 //
-// The Direct account-pool lease is gone (C6, Q2): no lease_id and no pool-account branch. Tab ownership stays
+// The account-pool lease is gone (C6, Q2): no lease_id and no pool-account branch. Tab ownership stays
 // the session guard, checked here as well as by the server before any page call or vault read.
 import type { Env } from "../config";
 import { allowLoopback } from "../config";

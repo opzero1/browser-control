@@ -23,8 +23,8 @@ afterEach(() => {
 
 const AFTER_INPUT = "observe; do not replay";
 const BEFORE_INPUT = "choose from final.actions; do not replay completed steps";
-const P1 = "https://deploy-preview-1--reapdirect.netlify.app/login";
-const P2 = "https://deploy-preview-2--reapdirect.netlify.app/login";
+const P1 = "https://deploy-preview-1--example.netlify.app/login";
+const P2 = "https://deploy-preview-2--example.netlify.app/login";
 const OTHER = "https://other.example/";
 const SECRET = "synthetic-shutdown-secret";
 

@@ -22,11 +22,11 @@ afterEach(() => {
   removeTempRoots();
 });
 
-const P1 = "https://deploy-preview-1--reapdirect.netlify.app/login";
-const P2 = "https://deploy-preview-2--reapdirect.netlify.app/login";
+const P1 = "https://deploy-preview-1--example.netlify.app/login";
+const P2 = "https://deploy-preview-2--example.netlify.app/login";
 const OTHER = "https://other.example/";
-const SITE1 = "deploy-preview-1--reapdirect.netlify.app";
-const SITE2 = "deploy-preview-2--reapdirect.netlify.app";
+const SITE1 = "deploy-preview-1--example.netlify.app";
+const SITE2 = "deploy-preview-2--example.netlify.app";
 const USER_PAGE = "https://user.example/";
 
 interface Shared extends Fixture {
@@ -116,7 +116,7 @@ describe("routes", () => {
     const s = await shared();
     try {
       const userTab = (await s.server.openTab({ url: "https://example.test/" }, meta("ses_three"))).tab_id as string;
-      const opened = await s.server.openTab({ url: P1, group_title: "agent1 · Preview 1" }, meta("ses_one"));
+      const opened = await s.server.openTab({ url: P1, group_title: "Tester · Preview 1" }, meta("ses_one"));
       expect(opened.outcome).toBe("opened");
       expect(opened.site).toBe(SITE1);
       expect(opened.site_state).toBe("fresh");
@@ -166,14 +166,14 @@ describe("routes", () => {
     try {
       expect((await s.server.openTab({ url: P1 }, meta("ses_one"))).outcome).toBe("opened");
       const calls = s.chrome.calls.length;
-      expect(await refusal(s.server.openTab({ url: "https://deploy-preview-1--reapdirect.netlify.app/other" }, meta("ses_two")))).toBe("browser-controller-site-conflict");
-      // FAST_CHROME_UNSHARED_SITES=reap.global keeps Python's unshared site (C5).
-      expect(await refusal(s.server.openTab({ url: "https://staging.dashboard.reap.global/" }, meta("ses_two")))).toBe("browser-controller-site-conflict");
+      expect(await refusal(s.server.openTab({ url: "https://deploy-preview-1--example.netlify.app/other" }, meta("ses_two")))).toBe("browser-controller-site-conflict");
+      // FAST_CHROME_UNSHARED_SITES=example.global keeps Python's unshared site (C5).
+      expect(await refusal(s.server.openTab({ url: "https://staging.dashboard.example.global/" }, meta("ses_two")))).toBe("browser-controller-site-conflict");
       expect(s.chrome.calls.slice(calls)).toEqual([]);
       expect(s.chrome.connections).toBe(3);
       expect((await s.server.status({}, meta("ses_two"))).pending_tabs).toBe(0);
       expect((await leaseRow(s, "ses_two")).sites).toEqual([SITE2]);
-      const second = await s.server.openTab({ url: "https://deploy-preview-1--reapdirect.netlify.app/next" }, meta("ses_one"));
+      const second = await s.server.openTab({ url: "https://deploy-preview-1--example.netlify.app/next" }, meta("ses_one"));
       expect(second.outcome).toBe("opened");
       expect((await leaseRow(s, "ses_one")).sites).toEqual([SITE1]);
       expect((await s.server.openTab({ url: P2 }, meta("ses_two"))).site_state).toBe("fresh");
@@ -452,7 +452,7 @@ describe("browser leases", () => {
     expect(second.controller_id).toBe("isolated-1");
     expect(second.ready).toBe(true);
     expect(second.launched).toBe(false);
-    const again = await f.server.claimBrowser({ site: "https://deploy-preview-1--reapdirect.netlify.app/x" }, meta("ses_one"));
+    const again = await f.server.claimBrowser({ site: "https://deploy-preview-1--example.netlify.app/x" }, meta("ses_one"));
     expect(again.lease_id).toBe(first.lease_id);
     expect(again.launched).toBe(false);
     expect(runtime.launches).toEqual(["isolated-1"]);

@@ -428,11 +428,11 @@ describe("tab ownership without the account-pool lease (C6)", () => {
   });
 
   it("transfers for the owning session with any account and no lease", async () => {
-    const body = request("password", { email: "agent1@example.test" });
+    const body = request("password", { email: "tester@example.test" });
     expect("leaseId" in body).toBe(false);
     const result = await paste(t.tab, body, read, refuse, t.env);
     expect(result).toEqual({ outcome: "submitted", tab_id: "1", field: "password", retry: false });
-    expect(t.reads).toEqual([["agent1@example.test", "password"]]);
+    expect(t.reads).toEqual([["tester@example.test", "password"]]);
   });
 });
 

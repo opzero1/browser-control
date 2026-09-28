@@ -14,7 +14,7 @@
 npx -y @op1/browser-control install
 ```
 
-`install` copies a stable, versioned native host into the state root and writes a wrapper that runs it with the current Node. It writes the Chrome native-messaging manifest for `com.opzero.chrome`, which points at that stable copy and never at the npx cache. The manifest allows the Web Store extension. Pass `--extension-id <id>` (repeatable) to also allow an unpacked build, or `--manifest-path <file>` to write the manifest elsewhere. On macOS with `xcrun`, it also builds the clipboard guard that the private transfer uses.
+`install` copies a stable, versioned native host into the state root and writes a wrapper that runs it with the current Node. It writes the Chrome native-messaging manifest for `com.opzero.chrome`, which points at that wrapper and never at the npx cache. The manifest allows the Web Store extension and the copy that isolated profiles load (`mpodnojmjjafgogldgieimgbmfhhknbe`). Pass `--chrome-manifest-dir <dir>` to write the manifest elsewhere. Without `--force`, install never replaces a manifest that points at another host. On macOS with the Xcode Command Line Tools, it also builds the clipboard guard that the private transfer uses. `install --dry-run` reports each step and writes nothing.
 
 Reload the extension in `chrome://extensions` after the first install. The `mcp` command never writes Chrome manifests; only `install` does. Isolated-profile manifests are written when `claim_browser` provisions a profile.
 
@@ -44,13 +44,13 @@ OpenCode sends a session ID with each request. Clients that send none get one ra
 
 ## Install the skills
 
-The package ships these skills under `skills/`. Copy the `browser-control` and `onepassword-session` directories into your agent's skills directory, such as `~/.config/opencode/skills/` for OpenCode or `~/.claude/skills/` for Claude Code, then restart the client:
+The package ships the `browser-control`, `onepassword-session`, and `create-verification-skill` skills. Link them into your agent's skills directory with `--skills-dir`, repeated for each directory, then restart the client:
 
 ```sh
-npm pack @op1/browser-control
-tar -xzf op1-browser-control-*.tgz package/skills
-cp -R package/skills/browser-control package/skills/onepassword-session ~/.claude/skills/
+npx -y @op1/browser-control install --skills-dir ~/.claude/skills
 ```
+
+Use the skills directory that your client documents, such as `~/.claude/skills` for Claude Code or `~/.agents/skills`. Install copies each skill to a versioned directory in the state root and links it there, so an upgrade or an npx cache eviction never breaks the link. It never replaces another skill with the same name without `--force`, and never removes a real directory. Without `--skills-dir`, install links no skill.
 
 ## Run doctor
 
@@ -59,7 +59,7 @@ npx -y @op1/browser-control doctor
 npx -y @op1/browser-control doctor --json
 ```
 
-`doctor` is read-only. It checks the Node version, the state root's permissions, the stable host, its wrapper, and the manifest target, the handshake with the user's Chrome, cua-driver resolution, the Chrome for Testing bundle, the clipboard guard, and FFmpeg (optional).
+`doctor` is read-only. It checks the Node version, the state root's permissions, the stable host, its wrapper, and the manifest target, the handshake with the user's Chrome, cua-driver resolution, the Chrome for Testing bundle, the clipboard guard, and FFmpeg (optional). Pass the same `--skills-dir` as install to check the skill links. `doctor --smoke` also runs one end-to-end check in a temporary isolated profile that never reaches the user's Chrome.
 
 ## Know the state root
 

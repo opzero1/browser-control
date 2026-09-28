@@ -57,7 +57,9 @@ Adaptations:
   with the same gate, and that a failed load is retried instead of cached.
 - `test_standard_library_only` ran under two interpreters (2 cases). Its intent is that site code needs no
   third-party packages; the port walks `sites.ts` imports and requires Node built-ins only (1 case).
-- The `reap.global` cases stay: they test Public Suffix List lookups, not the retired unshared-site default (C5).
+- The Python site cases keep their Public Suffix List shape with synthetic names: `example.global` under an ICANN
+  suffix and `deploy-preview-1704--example.netlify.app` under a private suffix. They test lookups, not the
+  retired unshared-site default (C5).
 
 ## Foundation tests without a Python counterpart
 

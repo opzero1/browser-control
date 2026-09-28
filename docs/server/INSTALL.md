@@ -40,7 +40,8 @@ Install is idempotent. Run it again after each upgrade. It does these steps:
    `mpodnojmjjafgogldgieimgbmfhhknbe` (the copy that isolated profiles load).
 4. Checks that Chrome has the extension, that cua-driver resolves, and that Chrome for Testing is registered.
 5. On macOS, builds the clipboard guard with `xcrun swiftc` into `<state>/bin/`, with mode 0700, and verifies it.
-6. Copies the bundled skills to `<state>/skills/` and links them into the skills directory.
+6. With `--skills-dir`, copies the bundled skills (`browser-control`, `onepassword-session` and
+   `create-verification-skill`) to `<state>/skills/` and links them into each given skills directory.
 7. Prints the MCP configuration for OpenCode, Claude Code and Codex.
 
 Chrome manifests and skill links point only at copies under the state directory, never into the npx cache.
@@ -54,7 +55,7 @@ also holds the isolated profiles, the pool registry, sockets, locks and artifact
 |---|---|
 | `--state-dir <dir>` | Use this state directory. Give the server the same directory (the printed configuration includes it). |
 | `--chrome-manifest-dir <dir>` | Write the manifest here. The default is `~/Library/Application Support/Google/Chrome/NativeMessagingHosts` on macOS and `~/.config/google-chrome/NativeMessagingHosts` on Linux. |
-| `--skills-dir <dir>` | Link the skills here. Repeat it for more directories, for example `~/.claude/skills` or `~/.agents/skills`. The default is `~/.config/opencode/skills`. |
+| `--skills-dir <dir>` | Link the skills here. Repeat it for more directories, for example `~/.claude/skills` or `~/.agents/skills`. There is no default: without this option, install links no skill. |
 | `--dry-run` | Report what install would do and write nothing. |
 | `--force` | Replace a manifest or skill link that belongs to another host or skill. The report names the old path. A real directory is never removed. |
 | `--json` | Print the report as JSON. |
@@ -115,7 +116,8 @@ npx -y @op1/browser-control doctor
 ```
 
 Doctor reads the same locations as install and changes nothing. It accepts `--state-dir`,
-`--chrome-manifest-dir`, `--skills-dir` and `--json`. Each line starts with `ok`, `warn` or `FAIL`, and names
+`--chrome-manifest-dir`, `--skills-dir` and `--json`. It checks skill links only in the directories given
+with `--skills-dir`. Each line starts with `ok`, `warn` or `FAIL`, and names
 the command that fixes the problem. Doctor exits with status 1 when a line is `FAIL`. Warnings cover optional
 parts: a closed Chrome, cua-driver, Chrome for Testing, the clipboard guard, skills and ffmpeg.
 

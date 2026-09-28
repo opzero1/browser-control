@@ -116,7 +116,6 @@ export function realDefaultPaths(): Record<string, string> {
     "Library/Application Support/Google/Chrome/NativeMessagingHosts/com.opzero.chrome.json",
     "Library/Application Support/Google/Chrome for Testing/NativeMessagingHosts/com.opzero.chrome.json",
     ".config/google-chrome/NativeMessagingHosts/com.opzero.chrome.json",
-    ".config/opencode/skills/browser-control",
     ".claude/skills/browser-control",
     ".agents/skills/browser-control"
   ];

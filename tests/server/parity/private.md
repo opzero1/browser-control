@@ -9,7 +9,7 @@ guardian, `FakeCua` (tests/server/private/fake-cua.ts) stands in for Cua Driver,
 connection stands in for the extension. Python's asyncio cancellation is an AbortSignal: `task.cancel()`
 becomes `controller.abort()`, and `asyncio.wait_for` on a read becomes `withDeadline`. Monkeypatched module
 constants become `VAULT_TIMING`, and the patched `time.monotonic` becomes a `vi.mock` of `src/server/time`.
-Synthetic URLs, emails and window titles replace the Reap and Direct ones.
+Synthetic URLs, emails and window titles replace the organization-specific ones.
 
 ## test_clipboard_guard.py -> private/clipboard-guard.ts (5 functions, 6 of 6 cases)
 
@@ -102,7 +102,7 @@ test_private_input.py::PrivateInputTests::test_shutdown_ends_the_otp_field_wait_
 test_private_input.py::PrivateInputTests::test_shutdown_before_the_submit_is_prepared_sends_and_consumes_nothing -> tests/server/private/private-input.test.ts::sends and consumes nothing when shutdown begins before the submit is prepared
 test_private_input.py::PrivateInputTests::test_shutdown_during_private_fill_is_unknown_and_never_submits -> tests/server/private/private-input.test.ts::reports shutdown during the private fill as unknown and never submits
 test_private_input.py::PrivateInputTests::test_extension_refusal_to_bind_submit_refuses_before_private_dispatch -> tests/server/private/private-input.test.ts::refuses before any private dispatch when the extension will not bind the submit
-test_private_input.py::PoolBindingTests::test_account_requires_exact_owned_lease -> not ported: direct-pool removed (C6; Q2 drops lease_id and the pool-account branch, so no lease is read, held or matched). Tab ownership stays the session guard; see "tab ownership without the account-pool lease (C6)" in tests/server/private/private-input.test.ts.
+test_private_input.py::PoolBindingTests::test_account_requires_exact_owned_lease -> not ported: the account pool is removed (C6; Q2 drops lease_id and the pool-account branch, so no lease is read, held or matched). Tab ownership stays the session guard; see "tab ownership without the account-pool lease (C6)" in tests/server/private/private-input.test.ts.
 
 Replaced guard: the Python setUp patched `account_claim` to a no-op; the port has no `account_claim`. Its
 session check (`ses_other` could not use another session's lease) becomes an ownership check in `paste`:

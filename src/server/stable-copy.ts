@@ -5,10 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { packageAssets, type PackageAssets } from "./assets";
 import { HOST_SOCKET_ENV, ISOLATED_EXTENSION_ID, ISOLATED_EXTENSION_KEY, statePaths, type Env } from "./config";
-import { childDirectory, io, openDirectory, readPrivate, syncDirectory, verified, writePrivate, type PrivateDir } from "./fs-private";
+import { childDirectory, existingDirectory, io, openDirectory, readPrivate, syncDirectory, verified, writePrivate, type PrivateDir } from "./fs-private";
 import { Gate } from "./gate";
 
-function sha256(data: Uint8Array | string): string {
+export function sha256(data: Uint8Array | string): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
@@ -31,9 +31,9 @@ export function extensionIdFromKey(key: string): string {
  * Publish `files` as <parent>/<name>/ atomically: build a private temporary directory beside it, fsync, then
  * rename. An existing copy whose files differ is replaced the same way.
  */
-function publish(parent: PrivateDir, name: string, files: ReadonlyMap<string, Uint8Array>): string {
+export function publishTree(parent: PrivateDir, name: string, files: ReadonlyMap<string, Uint8Array>): string {
   const target = path.join(verified(parent), name);
-  if (matches(target, files)) return target;
+  if (treeMatches(target, files)) return target;
   const temporary = `.tmp-${randomUUID()}`;
   const staging = childDirectory(parent, temporary);
   try {
@@ -48,17 +48,18 @@ function publish(parent: PrivateDir, name: string, files: ReadonlyMap<string, Ui
       io(() => fs.renameSync(staging.path, target));
     } catch (error) {
       // Another process published the same name first.
-      if (!matches(target, files)) throw error;
+      if (!treeMatches(target, files)) throw error;
     }
     syncDirectory(parent);
   } finally {
     fs.rmSync(path.join(parent.path, temporary), { recursive: true, force: true });
   }
-  if (!matches(target, files)) throw new Gate("browser-controller-unsafe-directory");
+  if (!treeMatches(target, files)) throw new Gate("browser-controller-unsafe-directory");
   return target;
 }
 
-function matches(target: string, files: ReadonlyMap<string, Uint8Array>): boolean {
+/** Read-only: `target` is a private directory holding exactly `files`, each an owner-only regular file. */
+export function treeMatches(target: string, files: ReadonlyMap<string, Uint8Array>): boolean {
   let stats: fs.Stats;
   try {
     stats = fs.lstatSync(target);
@@ -66,14 +67,19 @@ function matches(target: string, files: ReadonlyMap<string, Uint8Array>): boolea
     return false;
   }
   if (!stats.isDirectory() || stats.uid !== process.getuid?.() || stats.mode & 0o077) return false;
-  const present = listFiles(target);
+  let present: string[];
+  try {
+    present = listFiles(target);
+  } catch {
+    return false;
+  }
   if (present.length !== files.size) return false;
   for (const relative of present) {
     const expected = files.get(relative);
     if (!expected) return false;
-    const directory = openDirectory(path.dirname(path.join(target, relative)));
     try {
-      const data = readPrivate(directory, path.basename(relative), 256 * 1024 * 1024, "browser-controller-unsafe-directory");
+      const directory = existingDirectory(path.dirname(path.join(target, relative)));
+      const data = directory && readPrivate(directory, path.basename(relative), 256 * 1024 * 1024, "browser-controller-unsafe-directory");
       if (!data || !data.equals(Buffer.from(expected))) return false;
     } catch {
       return false;
@@ -92,7 +98,8 @@ function listFiles(root: string, prefix = ""): string[] {
   return result.sort();
 }
 
-function treeDigest(files: ReadonlyMap<string, Uint8Array>): string {
+/** A digest of relative paths and contents, in path order; stable copies are named by its first 12 digits. */
+export function treeDigest(files: ReadonlyMap<string, Uint8Array>): string {
   const hash = createHash("sha256");
   for (const [relative, data] of [...files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     hash.update(`${relative}\0${data.length}\0`);
@@ -103,13 +110,20 @@ function treeDigest(files: ReadonlyMap<string, Uint8Array>): string {
 
 export interface StableHost { dir: string; hostScript: string; version: string; digest: string }
 
-/** <hosts>/<version>-<sha12>/native-host.js: an idempotent, verified copy of the bundled native host. */
-export async function ensureStableHost(env: Env = process.env, assets: PackageAssets = packageAssets()): Promise<StableHost> {
+/** Where ensureStableHost puts this package's native host, and its bytes, computed without writing anything. */
+export function stableHostPlan(env: Env = process.env, assets: PackageAssets = packageAssets()): StableHost & { data: Buffer } {
   const data = io(() => fs.readFileSync(assets.nativeHost));
   const digest = sha256(data);
-  const hosts = openDirectory(statePaths(env).hosts);
-  const dir = publish(hosts, `${assets.version}-${digest.slice(0, 12)}`, new Map([["native-host.js", data]]));
-  return { dir, hostScript: path.join(dir, "native-host.js"), version: assets.version, digest };
+  const dir = path.join(statePaths(env).hosts, `${assets.version}-${digest.slice(0, 12)}`);
+  return { dir, hostScript: path.join(dir, "native-host.js"), version: assets.version, digest, data };
+}
+
+/** <hosts>/<version>-<sha12>/native-host.js: an idempotent, verified copy of the bundled native host. */
+export async function ensureStableHost(env: Env = process.env, assets: PackageAssets = packageAssets()): Promise<StableHost> {
+  const { dir: planned, version, digest, data } = stableHostPlan(env, assets);
+  const hosts = openDirectory(path.dirname(planned));
+  const dir = publishTree(hosts, path.basename(planned), new Map([["native-host.js", data]]));
+  return { dir, hostScript: path.join(dir, "native-host.js"), version, digest };
 }
 
 export interface StableExtension { dir: string; id: string; origin: string }
@@ -126,7 +140,7 @@ export async function ensureStableExtension(env: Env = process.env, assets: Pack
   const parsed = JSON.parse(Buffer.from(manifest).toString("utf8")) as Record<string, unknown>;
   files.set("manifest.json", Buffer.from(`${JSON.stringify({ ...parsed, key: ISOLATED_EXTENSION_KEY }, null, 2)}\n`));
   const extensions = openDirectory(statePaths(env).extensions);
-  const dir = publish(extensions, `${assets.version}-${treeDigest(files).slice(0, 12)}`, files);
+  const dir = publishTree(extensions, `${assets.version}-${treeDigest(files).slice(0, 12)}`, files);
   const id = extensionIdFromKey(ISOLATED_EXTENSION_KEY);
   if (id !== ISOLATED_EXTENSION_ID) throw new Error("isolated extension key and ID disagree");
   return { dir, id, origin: `chrome-extension://${id}/` };

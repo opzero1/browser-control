@@ -78,7 +78,7 @@ describe("host connection (test_opchrome.py)", () => {
   it("allowlists nameSession as a display method", async () => {
     const host = await hostFactory({ handler: (socket, request) => result(socket, request, { name: request.params.name, confirmed: true }) });
     const connection = await open(host.path);
-    expect(await connection.call("nameSession", { name: "agent2 · Preview 1704" })).toEqual({ name: "agent2 · Preview 1704", confirmed: true });
+    expect(await connection.call("nameSession", { name: "Tester · Preview 1704" })).toEqual({ name: "Tester · Preview 1704", confirmed: true });
   });
 
   const HANDSHAKES: Array<{ name: string; hostInfo?: unknown; extensionInfo?: unknown }> = [

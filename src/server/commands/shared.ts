@@ -1,16 +1,18 @@
 // Shared pieces of `browser-control install`, `doctor` and `config`: options, default locations, step reports
-// and the read-only checks both commands run.
-import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
+// and the read-only checks both commands run. Paths, stable copies and trust rules come from the server's own
+// modules, so the commands check exactly what the server and the pool use.
 import fs from "node:fs";
 import path from "node:path";
 import type { PackageAssets } from "../assets";
 import {
-  HOST_WRAPPER_NAME, homeDirectory, ISOLATED_EXTENSION_ID, NATIVE_HOST_NAME, nodeExecutable, PACKAGE_NAME, statePaths, STORE_EXTENSION_ID,
-  userSocket, whichExecutable, type Env
+  HOST_WRAPPER_NAME, homeDirectory, NATIVE_HOST_NAME, nodeExecutable, PACKAGE_NAME, statePaths, STORE_EXTENSION_ID, userSocket, whichExecutable,
+  type Env
 } from "../config";
 import { isGate } from "../gate";
-import { hostWrapper } from "../stable-copy";
+import { runProcess } from "../pool/cua-cli";
+import { ISOLATED_EXTENSION_ORIGIN, MANIFEST } from "../pool/provision";
+import { guardianTrusted } from "../private/clipboard-guard";
+import { hostWrapper, treeDigest } from "../stable-copy";
 
 export type Level = "ok" | "warn" | "fail";
 
@@ -83,11 +85,11 @@ export function commandEnv(env: Env, options: Options): Env {
   return options.stateDir ? { ...env, BROWSER_CONTROL_STATE_DIR: options.stateDir } : env;
 }
 
-export const MANIFEST_FILE = `${NATIVE_HOST_NAME}.json`;
+/** The user Chrome's manifest has the same file name as each isolated profile's. */
+export const MANIFEST_FILE = MANIFEST;
 export const MANIFEST_DESCRIPTION = "Browser Control native messaging host";
 export const STORE_URL = `https://chromewebstore.google.com/detail/${STORE_EXTENSION_ID}`;
 export const CUA_INSTALL_COMMAND = '/bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"';
-export const CHROME_FOR_TESTING_BUNDLE = "com.google.chrome.for.testing";
 export const CHROME_FOR_TESTING_EXECUTABLE = "Contents/MacOS/Google Chrome for Testing";
 export const CHROME_FOR_TESTING_INSTALL_COMMAND = "npx @puppeteer/browsers install chrome@stable --path ~/Applications/ChromeForTesting";
 export const XCODE_TOOLS_COMMAND = "xcode-select --install";
@@ -101,8 +103,12 @@ export function chromeManifestDirectory(env: Env, platform: NodeJS.Platform, opt
   return null;
 }
 
-export function skillsDirectories(env: Env, options: Options): string[] {
-  return options.skillsDirs.length ? [...new Set(options.skillsDirs)] : [path.join(homeDirectory(env), ".config/opencode/skills")];
+/**
+ * The skills directories named with --skills-dir. There is no default: agent clients keep skills in different
+ * places, and install writes into a client's configuration only where the user points it.
+ */
+export function skillsDirectories(options: Options): string[] {
+  return [...new Set(options.skillsDirs)];
 }
 
 /** The user route's wrapper, which the user Chrome manifest names. It stays put across upgrades. */
@@ -110,24 +116,14 @@ export function userWrapperPath(env: Env): string {
   return path.join(statePaths(env).hosts, "user", HOST_WRAPPER_NAME);
 }
 
+/** The Web Store extension and the isolated profiles' copy (Q1). */
 export function allowedOrigins(): string[] {
-  return [`chrome-extension://${STORE_EXTENSION_ID}/`, `chrome-extension://${ISOLATED_EXTENSION_ID}/`];
+  return [`chrome-extension://${STORE_EXTENSION_ID}/`, ISOLATED_EXTENSION_ORIGIN];
 }
 
 export function manifestText(wrapper: string): string {
   const manifest = { name: NATIVE_HOST_NAME, description: MANIFEST_DESCRIPTION, path: wrapper, type: "stdio", allowed_origins: allowedOrigins() };
   return `${JSON.stringify(manifest, null, 2)}\n`;
-}
-
-export function sha256(data: Uint8Array | string): string {
-  return createHash("sha256").update(data).digest("hex");
-}
-
-/** Where ensureStableHost puts this package's native host, computed without writing anything. */
-export function expectedStableHost(env: Env, assets: PackageAssets): { hostScript: string; data: Buffer } {
-  const data = fs.readFileSync(assets.nativeHost);
-  const dir = path.join(statePaths(env).hosts, `${assets.version}-${sha256(data).slice(0, 12)}`);
-  return { hostScript: path.join(dir, "native-host.js"), data };
 }
 
 export function expectedWrapper(env: Env, hostScript: string, node: string): string {
@@ -209,50 +205,9 @@ export function skillFiles(assets: PackageAssets, name: string): Map<string, Buf
   return files;
 }
 
-export function treeDigest(files: ReadonlyMap<string, Uint8Array>): string {
-  const hash = createHash("sha256");
-  for (const [relative, data] of [...files].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    hash.update(`${relative}\0${data.length}\0`);
-    hash.update(data);
-  }
-  return hash.digest("hex");
-}
-
 /** <state>/skills/<name>/<version>-<sha12>: the stable copy a skills directory links to. */
 export function stableSkillDir(env: Env, assets: PackageAssets, name: string, files: ReadonlyMap<string, Uint8Array>): string {
   return path.join(statePaths(env).root, "skills", name, `${assets.version}-${treeDigest(files).slice(0, 12)}`);
-}
-
-/** True when `dir` holds exactly `files`. */
-export function treeMatches(dir: string, files: ReadonlyMap<string, Uint8Array>): boolean {
-  const present: string[] = [];
-  const walk = (prefix: string): boolean => {
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(path.join(dir, prefix), { withFileTypes: true });
-    } catch {
-      return false;
-    }
-    for (const entry of entries) {
-      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        if (!walk(relative)) return false;
-      } else if (entry.isFile()) present.push(relative);
-      else return false;
-    }
-    return true;
-  };
-  try {
-    if (!fs.lstatSync(dir).isDirectory()) return false;
-  } catch {
-    return false;
-  }
-  if (!walk("") || present.length !== files.size) return false;
-  return present.every((relative) => {
-    const expected = files.get(relative);
-    const actual = expected ? readRegular(path.join(dir, relative), expected.length) : null;
-    return !!expected && !!actual && actual.equals(Buffer.from(expected));
-  });
 }
 
 export function readLink(file: string): string | null {
@@ -263,12 +218,11 @@ export function readLink(file: string): string | null {
   }
 }
 
-/** Python's trust rule for the guard (regular, ours, not group/other writable, executable), plus mode 0700 and Mach-O. */
+/** The trust rule the private transfer applies before it runs the guard, plus the mode 0700 install sets and Mach-O. */
 export function trustedGuard(file: string): boolean {
+  if (!guardianTrusted(file)) return false;
   try {
-    const stats = fs.lstatSync(file);
-    if (!stats.isFile() || stats.uid !== process.getuid?.() || (stats.mode & 0o777) !== 0o700) return false;
-    fs.accessSync(file, fs.constants.X_OK);
+    if ((fs.lstatSync(file).mode & 0o777) !== 0o700) return false;
     const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
       const magic = Buffer.alloc(4);
@@ -283,12 +237,14 @@ export function trustedGuard(file: string): boolean {
   }
 }
 
-export function run(file: string, args: readonly string[], timeoutMs: number): Promise<{ ok: boolean; stdout: string }> {
-  return new Promise((resolve) => {
-    execFile(file, [...args], { timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 1024 * 1024, encoding: "utf8" }, (error, stdout) => {
-      resolve({ ok: !error, stdout: typeof stdout === "string" ? stdout : "" });
-    });
-  });
+/** A read-only probe: exit status 0 and its stdout, or not ok on any failure or timeout (SIGKILL). */
+export async function run(file: string, args: readonly string[], timeoutMs: number): Promise<{ ok: boolean; stdout: string }> {
+  try {
+    const result = await runProcess(file, args, timeoutMs);
+    return { ok: result.status === 0, stdout: result.stdout.toString("utf8") };
+  } catch {
+    return { ok: false, stdout: "" };
+  }
 }
 
 const LAUNCH_SERVICES_SCRIPT = 'function run(argv) { ObjC.import("AppKit"); var u = $.NSWorkspace.sharedWorkspace.URLForApplicationWithBundleIdentifier(argv[0]); return u.isNil() ? "" : u.path.js }';

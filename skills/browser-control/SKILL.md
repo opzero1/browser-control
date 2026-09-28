@@ -1,6 +1,6 @@
 ---
 name: browser-control
-description: "Operate Chrome through the Browser Control MCP server: inspect pages, click controls, fill public fields, navigate, capture evidence, lease an isolated Chrome for Testing profile, and fall back to native control. Use for browser automation, Browser Control setup and doctor checks, and whenever the server's instructions say to load chrome-control."
+description: "Operate Chrome through the Browser Control MCP server: inspect pages, click controls, fill public fields, navigate, capture evidence, lease an isolated Chrome for Testing profile, and fall back to native control. Use for browser automation, Browser Control setup and doctor checks, and whenever the server's instructions say to load browser-control."
 ---
 
 # Browser Control

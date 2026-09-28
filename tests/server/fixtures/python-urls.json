@@ -3838,29 +3838,29 @@
       "ip_address": null
     },
     {
-      "input": "https://deploy-preview-1704--reapdirect.netlify.app/login",
+      "input": "https://deploy-preview-1704--example.netlify.app/login",
       "urlsplit": {
         "scheme": "https",
-        "netloc": "deploy-preview-1704--reapdirect.netlify.app",
+        "netloc": "deploy-preview-1704--example.netlify.app",
         "path": "/login",
         "query": "",
         "fragment": "",
         "username": null,
         "password": null,
-        "hostname": "deploy-preview-1704--reapdirect.netlify.app",
+        "hostname": "deploy-preview-1704--example.netlify.app",
         "port": null
       },
       "origin": {
-        "ok": "https://deploy-preview-1704--reapdirect.netlify.app"
+        "ok": "https://deploy-preview-1704--example.netlify.app"
       },
       "origin_loopback": {
-        "ok": "https://deploy-preview-1704--reapdirect.netlify.app"
+        "ok": "https://deploy-preview-1704--example.netlify.app"
       },
       "ascii_host": {
-        "ok": "deploy-preview-1704--reapdirect.netlify.app"
+        "ok": "deploy-preview-1704--example.netlify.app"
       },
       "cookie_site": {
-        "ok": "deploy-preview-1704--reapdirect.netlify.app"
+        "ok": "deploy-preview-1704--example.netlify.app"
       },
       "valid_site": false,
       "ip_literal": null,
@@ -4273,58 +4273,58 @@
       "ip_address": null
     },
     {
-      "input": "https://staging.dashboard.reap.global/",
+      "input": "https://staging.dashboard.example.global/",
       "urlsplit": {
         "scheme": "https",
-        "netloc": "staging.dashboard.reap.global",
+        "netloc": "staging.dashboard.example.global",
         "path": "/",
         "query": "",
         "fragment": "",
         "username": null,
         "password": null,
-        "hostname": "staging.dashboard.reap.global",
+        "hostname": "staging.dashboard.example.global",
         "port": null
       },
       "origin": {
-        "ok": "https://staging.dashboard.reap.global"
+        "ok": "https://staging.dashboard.example.global"
       },
       "origin_loopback": {
-        "ok": "https://staging.dashboard.reap.global"
+        "ok": "https://staging.dashboard.example.global"
       },
       "ascii_host": {
-        "ok": "staging.dashboard.reap.global"
+        "ok": "staging.dashboard.example.global"
       },
       "cookie_site": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "valid_site": false,
       "ip_literal": null,
       "ip_address": null
     },
     {
-      "input": "https://STAGING.Dashboard.REAP.global.:443/",
+      "input": "https://STAGING.Dashboard.EXAMPLE.global.:443/",
       "urlsplit": {
         "scheme": "https",
-        "netloc": "STAGING.Dashboard.REAP.global.:443",
+        "netloc": "STAGING.Dashboard.EXAMPLE.global.:443",
         "path": "/",
         "query": "",
         "fragment": "",
         "username": null,
         "password": null,
-        "hostname": "staging.dashboard.reap.global.",
+        "hostname": "staging.dashboard.example.global.",
         "port": 443
       },
       "origin": {
-        "ok": "https://staging.dashboard.reap.global."
+        "ok": "https://staging.dashboard.example.global."
       },
       "origin_loopback": {
-        "ok": "https://staging.dashboard.reap.global."
+        "ok": "https://staging.dashboard.example.global."
       },
       "ascii_host": {
-        "ok": "staging.dashboard.reap.global"
+        "ok": "staging.dashboard.example.global"
       },
       "cookie_site": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "valid_site": false,
       "ip_literal": null,
@@ -7607,11 +7607,11 @@
       "ip_address": null
     },
     {
-      "input": "reap.global",
+      "input": "example.global",
       "urlsplit": {
         "scheme": "",
         "netloc": "",
-        "path": "reap.global",
+        "path": "example.global",
         "query": "",
         "fragment": "",
         "username": null,
@@ -7626,21 +7626,21 @@
         "gate": "fast-chrome-approved-web-url-required"
       },
       "ascii_host": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "cookie_site": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "valid_site": true,
       "ip_literal": null,
       "ip_address": null
     },
     {
-      "input": "Reap.Global",
+      "input": "Example.Global",
       "urlsplit": {
         "scheme": "",
         "netloc": "",
-        "path": "Reap.Global",
+        "path": "Example.Global",
         "query": "",
         "fragment": "",
         "username": null,
@@ -7655,21 +7655,21 @@
         "gate": "fast-chrome-approved-web-url-required"
       },
       "ascii_host": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "cookie_site": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "valid_site": false,
       "ip_literal": null,
       "ip_address": null
     },
     {
-      "input": "staging.reap.global",
+      "input": "staging.example.global",
       "urlsplit": {
         "scheme": "",
         "netloc": "",
-        "path": "staging.reap.global",
+        "path": "staging.example.global",
         "query": "",
         "fragment": "",
         "username": null,
@@ -7684,21 +7684,21 @@
         "gate": "fast-chrome-approved-web-url-required"
       },
       "ascii_host": {
-        "ok": "staging.reap.global"
+        "ok": "staging.example.global"
       },
       "cookie_site": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "valid_site": false,
       "ip_literal": null,
       "ip_address": null
     },
     {
-      "input": "staging.dashboard.reap.global.",
+      "input": "staging.dashboard.example.global.",
       "urlsplit": {
         "scheme": "",
         "netloc": "",
-        "path": "staging.dashboard.reap.global.",
+        "path": "staging.dashboard.example.global.",
         "query": "",
         "fragment": "",
         "username": null,
@@ -7713,10 +7713,10 @@
         "gate": "fast-chrome-approved-web-url-required"
       },
       "ascii_host": {
-        "ok": "staging.dashboard.reap.global"
+        "ok": "staging.dashboard.example.global"
       },
       "cookie_site": {
-        "ok": "reap.global"
+        "ok": "example.global"
       },
       "valid_site": false,
       "ip_literal": null,
@@ -8796,11 +8796,11 @@
       "ip_address": null
     },
     {
-      "input": "deploy-preview-1704--reapdirect.netlify.app",
+      "input": "deploy-preview-1704--example.netlify.app",
       "urlsplit": {
         "scheme": "",
         "netloc": "",
-        "path": "deploy-preview-1704--reapdirect.netlify.app",
+        "path": "deploy-preview-1704--example.netlify.app",
         "query": "",
         "fragment": "",
         "username": null,
@@ -8815,10 +8815,10 @@
         "gate": "fast-chrome-approved-web-url-required"
       },
       "ascii_host": {
-        "ok": "deploy-preview-1704--reapdirect.netlify.app"
+        "ok": "deploy-preview-1704--example.netlify.app"
       },
       "cookie_site": {
-        "ok": "deploy-preview-1704--reapdirect.netlify.app"
+        "ok": "deploy-preview-1704--example.netlify.app"
       },
       "valid_site": true,
       "ip_literal": null,

@@ -217,14 +217,18 @@ describe("browser-control install", () => {
   it.each([
     ["darwin", "Library/Application Support/Google/Chrome/NativeMessagingHosts"],
     ["linux", ".config/google-chrome/NativeMessagingHosts"]
-  ] as const)("defaults to paths under HOME on %s", async (platform, manifestDir) => {
+  ] as const)("defaults to paths under HOME on %s and links skills only into a flagged directory", async (platform, manifestDir) => {
     const { root, env, assets } = setup();
     const home = env.HOME as string;
     const report = await install(options([]), env, fakeDeps(assets, { platform, app: fakeChromeForTesting(root) }));
     const state = path.join(home, ".local/state/browser-control");
     expect(byId(report.steps).state.path).toBe(state);
     expect(byId(report.steps).manifest.path).toBe(path.join(home, manifestDir, "com.opzero.chrome.json"));
-    expect(byId(report.steps)["skill:browser-control"].path).toBe(path.join(home, ".config/opencode/skills/browser-control"));
+    // No agent client's configuration directory is a default target (C4).
+    expect(byId(report.steps).skills).toMatchObject({ level: "ok", status: "skipped" });
+    expect(report.steps.filter((item) => item.id.startsWith("skill:"))).toEqual([]);
+    expect(fs.readdirSync(home).sort()).toEqual(platform === "darwin" ? [".local", "Library"] : [".config", ".local"]);
+    expect(fs.readdirSync(state).includes("skills")).toBe(false);
     expect(JSON.parse(readText(path.join(home, manifestDir, "com.opzero.chrome.json"))).path).toBe(path.join(state, "hosts/user/browser-control-host"));
     expect(byId(report.steps)["clipboard-guard"].status).toBe(platform === "darwin" ? "built" : "skipped");
     expect(Object.values(report.snippets).join("")).not.toContain("BROWSER_CONTROL_STATE_DIR");

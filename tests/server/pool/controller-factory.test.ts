@@ -28,8 +28,8 @@ function claim(target: Pool, owner: string, options: { site?: string | null; exc
   return poolClaim(owner, { ...options, ctx: target.ctx });
 }
 
-/** FAST_CHROME_UNSHARED_SITES=reap.global keeps the unshared-site tests' intent (C5: the default is none). */
-const UNSHARED = { FAST_CHROME_UNSHARED_SITES: "reap.global" };
+/** FAST_CHROME_UNSHARED_SITES=example.global keeps the unshared-site tests' intent (C5: the default is none). */
+const UNSHARED = { FAST_CHROME_UNSHARED_SITES: "example.global" };
 
 describe("allocation", () => {
   it("gives concurrent shared claims their own Chrome first", async () => {
@@ -151,13 +151,13 @@ describe("allocation", () => {
     const target = withEnv(pool(), { FAST_CHROME_MAX_CONTROLLERS: "1", ...UNSHARED });
     await running(target, "isolated-1");
     const staging = await claim(target, "ses_a", { site: STAGING });
-    expect(staging.sites).toEqual(["reap.global"]);
+    expect(staging.sites).toEqual(["example.global"]);
     expect(staging.mode).toBe("shared");
     expect(await gate(claim(target, "ses_b", { site: P1 }))).toBe("browser-controller-busy");
     expect(await gate(claim(target, "ses_b"))).toBe("browser-controller-busy");
     await release("ses_a", staging.lease_id, target.ctx);
     await claim(target, "ses_b", { site: P1 });
-    expect(await gate(claim(target, "ses_c", { site: "https://dashboard.reap.global/" }))).toBe("browser-controller-busy");
+    expect(await gate(claim(target, "ses_c", { site: "https://dashboard.example.global/" }))).toBe("browser-controller-busy");
   });
 
   it("refuses a shared tenant adding an unshared site beside another tenant", async () => {
@@ -177,7 +177,7 @@ describe("allocation", () => {
     await release("ses_a", first.lease_id, target.ctx);
     pin = await Pin.open("isolated-1", "ses_b", second.lease_id, target.ctx);
     try {
-      expect(await pin.beginTab(STAGING)).toEqual({ site: "reap.global", site_state: "fresh" });
+      expect(await pin.beginTab(STAGING)).toEqual({ site: "example.global", site_state: "fresh" });
       pin.confirmed();
     } finally {
       pin.close();
@@ -202,7 +202,7 @@ describe("unshared sites (C5, D8)", () => {
   });
 
   it("fails closed on an invalid FAST_CHROME_UNSHARED_SITES entry", async () => {
-    const target = withEnv(pool(), { FAST_CHROME_UNSHARED_SITES: "reap.global, dashboard.reap.global" });
+    const target = withEnv(pool(), { FAST_CHROME_UNSHARED_SITES: "example.global, dashboard.example.global" });
     expect(await gate(claim(target, "ses_a", { site: P1 }))).toBe("browser-controller-invalid-unshared-sites");
     expect(await gate(claim(target, "ses_a", { exclusive: true }))).toBe("browser-controller-invalid-unshared-sites");
   });
@@ -259,7 +259,7 @@ describe("site gates and pins", () => {
     await running(target, "isolated-1");
     const first = await claim(target, "ses_a", { site: P1 });
     const second = await claim(target, "ses_b", { site: P2 });
-    await child(target, ["begin", "isolated-1", "ses_b", second.lease_id, "https://deploy-preview-2--reapdirect.netlify.app/next"]);
+    await child(target, ["begin", "isolated-1", "ses_b", second.lease_id, "https://deploy-preview-2--example.netlify.app/next"]);
     expect((await call(target, "release", { owner: "ses_b", lease_id: second.lease_id })).error).toBe("browser-controller-cleanup-unconfirmed");
     expect((await call(target, "release", { owner: "ses_a", lease_id: first.lease_id })).released).toBe(true);
     const row = (await rows(target))["isolated-1"];
@@ -288,7 +288,7 @@ describe("site gates and pins", () => {
     const found = await leaseFor("ses_a", target.ctx);
     expect(found?.lease_id).toBe(shared.lease_id);
     expect(found?.mode).toBe("shared");
-    expect(found?.sites).toEqual(["deploy-preview-1--reapdirect.netlify.app"]);
+    expect(found?.sites).toEqual(["deploy-preview-1--example.netlify.app"]);
     expect(found?.artifacts).toBe(path.join(target.ctx.controllers, "isolated-1/artifacts", shared.lease_id));
     expect(fs.existsSync(found?.artifacts as string)).toBe(false);
     for (const controller of ["isolated-2", "isolated-3"]) await operate("claim", { controller, owner: "ses_setup", ctx: target.ctx });

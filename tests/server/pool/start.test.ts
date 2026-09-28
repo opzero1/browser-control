@@ -321,11 +321,11 @@ describe("receipts and sharing", () => {
 
   it("omits profile-wide native and download fields from a shared receipt", async () => {
     const target = pool();
-    const result = await start(target, new FakeRuntime(), { exclusive: false, site: "https://deploy-preview-1704--reapdirect.netlify.app/login" });
+    const result = await start(target, new FakeRuntime(), { exclusive: false, site: "https://deploy-preview-1704--example.netlify.app/login" });
     expect(result.ready).toBe(true);
     expect(result.mode).toBe("shared");
     expect(result.server).toBe("browser-control");
-    expect(result.sites).toEqual(["deploy-preview-1704--reapdirect.netlify.app"]);
+    expect(result.sites).toEqual(["deploy-preview-1704--example.netlify.app"]);
     expect(result.site_state).toBe("fresh");
     for (const key of ["pid", "windows", "downloads", "profile", "socket"]) expect(result).not.toHaveProperty(key);
     expect(fs.statSync(result.artifacts as string).isDirectory()).toBe(true);
@@ -339,9 +339,9 @@ describe("receipts and sharing", () => {
     let first: Record<string, unknown>;
     let second: Record<string, unknown>;
     try {
-      first = await start(target, runtime, { exclusive: false, site: "https://deploy-preview-1--reapdirect.netlify.app/" });
-      second = await start(target, runtime, { owner: "ses_two", exclusive: false, site: "https://deploy-preview-2--reapdirect.netlify.app/" });
-      expect(await gate(start(target, runtime, { owner: "ses_three", exclusive: false, site: "https://deploy-preview-1--reapdirect.netlify.app/" }))).toBe("browser-controller-busy");
+      first = await start(target, runtime, { exclusive: false, site: "https://deploy-preview-1--example.netlify.app/" });
+      second = await start(target, runtime, { owner: "ses_two", exclusive: false, site: "https://deploy-preview-2--example.netlify.app/" });
+      expect(await gate(start(target, runtime, { owner: "ses_three", exclusive: false, site: "https://deploy-preview-1--example.netlify.app/" }))).toBe("browser-controller-busy");
     } finally {
       await runtime.close();
     }
@@ -392,10 +392,10 @@ describe("receipts and sharing", () => {
     fs.mkdirSync(profile, { recursive: true, mode: 0o700 });
     fs.writeFileSync(path.join(profile, "Preferences"), "{}");
     const result = await start(target, new FakeRuntime(), { exclusive: false, site: STAGING });
-    expect(result.sites).toEqual(["reap.global"]);
+    expect(result.sites).toEqual(["example.global"]);
     expect(result.site_state).toBe("previously-used");
     const seen = JSON.parse(fs.readFileSync(path.join(target.ctx.registry, "isolated-1/sites-seen.json"), "utf8"));
-    expect(seen).toEqual({ complete: false, sites: { "reap.global": null } });
+    expect(seen).toEqual({ complete: false, sites: { "example.global": null } });
   });
 
   it("starts a new profile's history complete before the first launch", async () => {

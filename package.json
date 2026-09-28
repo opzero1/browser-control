@@ -12,8 +12,11 @@
     "data/README.md",
     "native/clipboard-guard/",
     "skills/browser-control/",
+    "skills/onepassword-session/",
+    "skills/create-verification-skill/",
     "README.md",
-    "docs/PRIVACY.md"
+    "docs/PRIVACY.md",
+    "docs/server/INSTALL.md"
   ],
   "packageManager": "pnpm@10.33.2",
   "scripts": {

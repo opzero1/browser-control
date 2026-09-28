@@ -10,7 +10,7 @@ module function becomes an assignment on the `BrowserControl` instance (`registe
 `readField`, `connect`) or a `vi.spyOn` (`Pin.prototype.beginTab`, `Pin.open`). Python's module-level
 `TABS` and `SHUTDOWN` are per-instance (`server.registry`, `server.shutdown`), so each test builds a fresh server
 over a private state root. Expected codes are Python's after the D19 rename (`opchrome-*` becomes
-`browser-control-*`); `FAST_CHROME_UNSHARED_SITES=reap.global` keeps the Python unshared-site intent (C5).
+`browser-control-*`); `FAST_CHROME_UNSHARED_SITES=example.global` keeps the Python unshared-site intent (C5).
 
 ## test_native_server.py -> app.ts, args.ts, page.ts, tabs.ts, route.ts (110 functions; 104 ported, 6 not ported)
 

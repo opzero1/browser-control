@@ -3,7 +3,7 @@
 The parser below is copied verbatim from browser_pool.main, including `migrate`, which the port refuses as an
 invalid choice (D15). It never imports browser_pool, so nothing touches the real registry.
 
-    cd <temp dir> && HOME=<temp dir> ~/.config/opencode/mcp/fast-chrome/.native-venv/bin/python -B \
+    cd <temp dir> && HOME=<temp dir> <reference>/.native-venv/bin/python -B \
         <repo>/tests/server/pool/fixtures/capture-argparse.py > <repo>/tests/server/pool/fixtures/python-argparse.json
 """
 import argparse

@@ -1,7 +1,6 @@
 // `browser-control config <client>`: the MCP configuration snippet for each supported client. install prints
 // the same snippets. A non-default state directory is passed to the server through its environment.
-import path from "node:path";
-import { BIN_NAME, homeDirectory, statePaths, type Env } from "../config";
+import { BIN_NAME, statePaths, type Env } from "../config";
 import { isGate } from "../gate";
 import { commandEnv, PACKAGE_COMMAND, parseOptions, UsageError, type CommandIo } from "./shared";
 
@@ -18,7 +17,7 @@ const TITLES: Record<Client, string> = {
 /** The server environment a snippet must carry: only a state directory other than the default. */
 function serverEnvironment(env: Env): Record<string, string> {
   const root = statePaths(env).root;
-  return root === path.join(homeDirectory(env), ".local/state/browser-control") ? {} : { BROWSER_CONTROL_STATE_DIR: root };
+  return root === statePaths({ ...env, BROWSER_CONTROL_STATE_DIR: undefined }).root ? {} : { BROWSER_CONTROL_STATE_DIR: root };
 }
 
 /** JSON with two-space indentation and arrays of strings kept on one line, as people write config files. */

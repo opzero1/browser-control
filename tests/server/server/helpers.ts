@@ -161,14 +161,14 @@ export interface Fixture {
 
 /**
  * A server over a fresh private state root. The user socket is <root>/sockets/default.sock; connect() goes to
- * `connect` when given, else fails the test. FAST_CHROME_UNSHARED_SITES=reap.global keeps the Python pool intent (C5).
+ * `connect` when given, else fails the test. FAST_CHROME_UNSHARED_SITES=example.global keeps the Python pool intent (C5).
  */
 export function fixture(options: Partial<AppOptions> & { extraEnv?: Record<string, string | undefined> } = {}): Fixture {
   const root = privateTemp();
   const sockets = path.join(root, "sockets");
   fs.mkdirSync(sockets, { recursive: true, mode: 0o700 });
   const userSocket = path.join(sockets, "default.sock");
-  const env = testEnv(root, { BROWSER_CONTROL_STATE_DIR: root, BROWSER_CONTROL_HOST_SOCKET: userSocket, FAST_CHROME_UNSHARED_SITES: "reap.global", ...options.extraEnv });
+  const env = testEnv(root, { BROWSER_CONTROL_STATE_DIR: root, BROWSER_CONTROL_HOST_SOCKET: userSocket, FAST_CHROME_UNSHARED_SITES: "example.global", ...options.extraEnv });
   const shutdown = options.shutdown ?? new Shutdown();
   const server = new BrowserControl({ connect: async () => { throw new Error("unexpected connect"); }, ...options, env, shutdown });
   return { server, env, root, shutdown, ctx: poolContext(env), sockets, userSocket, connections: [] };

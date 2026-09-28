@@ -45,7 +45,8 @@ describe("names and state paths", () => {
       userArtifacts: "/srv/state/artifacts/user", locks: "/srv/state/locks", bin: "/srv/state/bin"
     });
     expect(gateCode(() => statePaths({ BROWSER_CONTROL_STATE_DIR: "relative/state" }))).toBe("browser-control-invalid-state-dir");
-    for (const value of Object.values(paths)) expect(value.includes(".config/opencode") || value.includes("state/opencode")).toBe(false);
+    // Every path lives under the one state root, so nothing lands in an agent client's configuration (C4).
+    for (const value of Object.values(paths)) expect(value.startsWith(paths.root)).toBe(true);
     expect(SERVER_NAME).toBe("browser-control");
   });
 
@@ -63,8 +64,8 @@ describe("names and state paths", () => {
   it("reads unshared sites from FAST_CHROME_UNSHARED_SITES, default none, failing closed", () => {
     expect([...unsharedSites({})]).toEqual([]);
     expect([...unsharedSites({ FAST_CHROME_UNSHARED_SITES: "" })]).toEqual([]);
-    expect([...unsharedSites({ FAST_CHROME_UNSHARED_SITES: " reap.global , ,example.co.uk" })]).toEqual(["reap.global", "example.co.uk"]);
-    for (const bad of ["staging.reap.global", "Reap.Global", "https://reap.global/", "a..b", "[::1]"]) {
+    expect([...unsharedSites({ FAST_CHROME_UNSHARED_SITES: " example.global , ,example.co.uk" })]).toEqual(["example.global", "example.co.uk"]);
+    for (const bad of ["staging.example.global", "Example.Global", "https://example.global/", "a..b", "[::1]"]) {
       expect(gateCode(() => unsharedSites({ FAST_CHROME_UNSHARED_SITES: bad }))).toBe("browser-controller-invalid-unshared-sites");
     }
   });
@@ -198,8 +199,10 @@ describe("packaged assets and stable copies (C3, Q1)", () => {
   });
 
   it("computes Chrome's unpacked extension ID like extension-id.py", () => {
-    // The ID the Python install path produced; unpacked IDs depend on the absolute path.
-    expect(unpackedExtensionId("/Users/afif.alauddin/.config/opencode/mcp/fast-chrome/op-chrome/dist/extension")).toBe("pncpgnbanebkeopjghjleodgmphmmmcp");
+    // Chrome hashes the absolute path. This rule reproduced pncpgnbanebkeopjghjleodgmphmmmcp, the ID Chrome gave the
+    // Python server's unpacked install (DESIGN.md Q1). These synthetic paths' IDs were computed with Python's hashlib.
+    expect(unpackedExtensionId("/opt/example/fast-chrome/op-chrome/dist/extension")).toBe("njadkfllbdcoolfneagencmbnffkfobb");
+    expect(unpackedExtensionId("/home/tester/.local/state/browser-control/extensions/0.2.1-000000000000")).toBe("omiglbfgkbgjgddlnfmnpnnkmfmbmhlk");
   });
 
   it("writes the host wrapper text and refuses unsafe paths", () => {

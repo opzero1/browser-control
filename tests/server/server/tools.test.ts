@@ -39,7 +39,7 @@ describe("session identity", () => {
 
 describe("group titles", () => {
   it("uses the label or the session fallback", () => {
-    expect(validatedGroupTitle("ses_3689d0e1629a", "agent2 · Preview 1704")).toBe("agent2 · Preview 1704");
+    expect(validatedGroupTitle("ses_3689d0e1629a", "Tester · Preview 1704")).toBe("Tester · Preview 1704");
     expect(validatedGroupTitle("ses_3689d0e1629a", null)).toBe("OpenCode · 3689d0e1");
     for (const label of ["", "  ", "bad\nlabel", "bad\x85label", "bad\u202elabel", "bad\u200blabel", "bad\u200elabel", "bad\u2060label",
       "bad\ufefflabel", "😀".repeat(41), "x".repeat(81), 123, "bad\ud800label"]) {
@@ -49,37 +49,37 @@ describe("group titles", () => {
 
   it("renames an existing owned tab without a reclaim", async () => {
     const { f, conn } = setup();
-    conn.sideEffect = [{ name: "agent2 · Preview 1704", confirmed: true }, page()];
-    const result = await f.server.claimTab({ tab_id: "1", group_title: "agent2 · Preview 1704" }, meta());
-    expect(result.group_title).toBe("agent2 · Preview 1704");
+    conn.sideEffect = [{ name: "Tester · Preview 1704", confirmed: true }, page()];
+    const result = await f.server.claimTab({ tab_id: "1", group_title: "Tester · Preview 1704" }, meta());
+    expect(result.group_title).toBe("Tester · Preview 1704");
     expect(result.group_title_confirmed).toBe(true);
     expect(conn.methods()).toEqual(["nameSession", "observePage"]);
   });
 
-  const REQUIRES_THE_EXACT_EXTENSION_CASES = [[{ name: "Wrong title", confirmed: true }], [{ name: "agent2 · Preview 1704", confirmed: false }]];
+  const REQUIRES_THE_EXACT_EXTENSION_CASES = [[{ name: "Wrong title", confirmed: true }], [{ name: "Tester · Preview 1704", confirmed: false }]];
   it.each(REQUIRES_THE_EXACT_EXTENSION_CASES)(
     "requires the exact extension readback for name_group: %j", async (result) => {
       const { f, conn } = setup();
       conn.returnValue = result;
-      expect(await refusal(f.server.nameGroup({ tab_id: "1", title: "agent2 · Preview 1704" }, meta()))).toBe("fast-chrome-group-title-unconfirmed");
+      expect(await refusal(f.server.nameGroup({ tab_id: "1", title: "Tester · Preview 1704" }, meta()))).toBe("fast-chrome-group-title-unconfirmed");
     });
 
   it("names the created group before claiming success", async () => {
     const f = fixture();
     const conn = new FakeConnection();
-    conn.sideEffect = [{ id: 1, active: false, url: "about:blank" }, { name: "agent2 · Preview 1704", confirmed: true }, { attached: true },
+    conn.sideEffect = [{ id: 1, active: false, url: "about:blank" }, { name: "Tester · Preview 1704", confirmed: true }, { attached: true },
       { bound: true }, { status: "dispatched" }, page()];
     setConnect(f.server, () => conn);
-    const result = await f.server.openTab({ url: "https://example.test/", group_title: "agent2 · Preview 1704" }, meta());
+    const result = await f.server.openTab({ url: "https://example.test/", group_title: "Tester · Preview 1704" }, meta());
     expect(result.group_title_confirmed).toBe(true);
     expect(conn.methods().slice(0, 2)).toEqual(["createTab", "nameSession"]);
   });
 
   it("keeps the confirmed title on an existing claim without a label", async () => {
     const { f, tab, conn } = setup();
-    tab.groupTitle = "agent2 · Preview 1704";
+    tab.groupTitle = "Tester · Preview 1704";
     const result = await f.server.claimTab({ tab_id: "1" }, meta());
-    expect(result.group_title).toBe("agent2 · Preview 1704");
+    expect(result.group_title).toBe("Tester · Preview 1704");
     expect(result.group_title_confirmed).toBe(false);
     expect(conn.methods()).toEqual(["observePage"]);
   });
@@ -162,9 +162,9 @@ describe("actions", () => {
   it("accepts a same-origin path expectation", async () => {
     const { f, conn } = setup();
     const observed = await f.server.observe({ tab_id: "1" }, meta());
-    const destination = { ...page(), url: "https://example.test/direct-fe/dashboard" };
+    const destination = { ...page(), url: "https://example.test/app/dashboard" };
     conn.sideEffect = [{ status: "executed" }, destination];
-    const result = await f.server.act({ tab_id: "1", snapshot_id: observed.snapshot_id, action_id: "0", expect: new PageExpectation({ url: "/direct-fe/dashboard" }) }, meta());
+    const result = await f.server.act({ tab_id: "1", snapshot_id: observed.snapshot_id, action_id: "0", expect: new PageExpectation({ url: "/app/dashboard" }) }, meta());
     expect(result.outcome).toBe("executed");
     expect(result.wait).toBe("matched");
     expect(result.url).toBe(destination.url);
@@ -172,8 +172,8 @@ describe("actions", () => {
 
   it("binds a wait_for path to the claimed origin", async () => {
     const { f, conn } = setup();
-    conn.returnValue = { ...page(), url: "https://other.test/direct-fe/dashboard" };
-    const result = await f.server.waitFor({ tab_id: "1", expect: new PageExpectation({ url: "/direct-fe/dashboard" }), timeout_ms: 1 }, meta());
+    conn.returnValue = { ...page(), url: "https://other.test/app/dashboard" };
+    const result = await f.server.waitFor({ tab_id: "1", expect: new PageExpectation({ url: "/app/dashboard" }), timeout_ms: 1 }, meta());
     expect(result).toEqual({ outcome: "read_failed", error: "fast-chrome-origin-changed" });
   });
 

@@ -2,13 +2,13 @@
 // pasteboard item and representation before the copy and restores them afterwards; the value copied in
 // between never passes through this module. Its pipe carries fixed status lines only.
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { packageAssets, type PackageAssets } from "../assets";
 import { statePaths, whichExecutable, type Env } from "../config";
 import { io, openDirectory, syncDirectory, verified } from "../fs-private";
-import { clipboardGuardBinary } from "../stable-copy";
+import { clipboardGuardBinary, sha256 } from "../stable-copy";
 
 export const START_SECONDS = 3;
 export const RESTORE_SECONDS = 3;
@@ -222,7 +222,7 @@ export async function buildClipboardGuard(env: Env = process.env, assets: Packag
   } catch {
     throw new ClipboardError("clipboard-unavailable");
   }
-  if (path.basename(target) !== `clipboard-guard-${createHash("sha256").update(source).digest("hex").slice(0, 12)}`) {
+  if (path.basename(target) !== `clipboard-guard-${sha256(source).slice(0, 12)}`) {
     throw new ClipboardError("clipboard-unavailable");
   }
   if (guardianTrusted(target)) return { path: target, built: false };

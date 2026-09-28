@@ -161,7 +161,7 @@ describe("MCP calls", () => {
     const { client, close } = await mcpClient(f.server);
     try {
       const tools = Object.fromEntries((await client.listTools()).tools.map((tool) => [tool.name, tool.inputSchema as any]));
-      const claimed = await client.callTool({ name: "claim_browser", arguments: { site: "https://deploy-preview-1--reapdirect.netlify.app/login", timeout_seconds: 5 }, _meta: sessionMeta });
+      const claimed = await client.callTool({ name: "claim_browser", arguments: { site: "https://deploy-preview-1--example.netlify.app/login", timeout_seconds: 5 }, _meta: sessionMeta });
       const refused = [];
       for (const args of [{ timeout_seconds: "5" }, { timeout_seconds: 121 }, { session: "ses_x" }]) {
         refused.push(await client.callTool({ name: "claim_browser", arguments: args, _meta: sessionMeta }));

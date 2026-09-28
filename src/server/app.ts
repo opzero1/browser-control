@@ -900,7 +900,7 @@ export class BrowserControl implements App {
   }
 
   /**
-   * Privately copy from the unlocked desktop Login into the exact owned URL. Returns status only. The Direct
+   * Privately copy from the unlocked desktop Login into the exact owned URL. Returns status only. The
    * account-pool lease is gone (C6, Q2); tab ownership and every other guard stay.
    */
   paste1PasswordField(args: PasteArgs, meta: unknown): Promise<Dict> {
