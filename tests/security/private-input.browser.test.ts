@@ -7,7 +7,7 @@ import { background } from "../support/background";
 import { testTemp } from "../support/temp";
 import { pageControl } from "../../src/extension/page-control";
 
-const executablePath = process.env.OPZERO_SYNTHETIC_CHROME;
+const executablePath = process.env.BROWSER_CONTROL_SYNTHETIC_CHROME;
 describe.skipIf(!executablePath)("private guard in disposable headless Chrome (loopback only)", () => {
   let browser: BrowserContext;
   let page: Page;

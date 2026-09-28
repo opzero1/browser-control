@@ -75,29 +75,29 @@ describe("Browser Control distribution", () => {
 
   it("packages an installable skill with native host and helper scripts", () => {
     const files = [
-      "dist/skill/chrome-control/SKILL.md",
-      "dist/skill/chrome-control/native-host/client.js",
-      "dist/skill/chrome-control/native-host/host.js",
-      "dist/skill/chrome-control/native-host/opzero-chrome-host",
-      "dist/skill/chrome-control/chunks",
-      "dist/skill/chrome-control/scripts/install-native-host.js",
-      "dist/skill/chrome-control/scripts/check-native-host-manifest.js",
+      "dist/skill/browser-control/SKILL.md",
+      "dist/skill/browser-control/native-host/client.js",
+      "dist/skill/browser-control/native-host/host.js",
+      "dist/skill/browser-control/native-host/browser-control-host",
+      "dist/skill/browser-control/chunks",
+      "dist/skill/browser-control/scripts/install-native-host.js",
+      "dist/skill/browser-control/scripts/check-native-host-manifest.js",
       "dist/release/browser-control-extension.zip",
-      "dist/release/chrome-control-skill.zip"
+      "dist/release/browser-control-skill.zip"
     ];
     for (const file of files) {
       expect(fs.existsSync(path.join(root, file)), file).toBe(true);
     }
-    const skill = fs.readFileSync(path.join(root, "dist/skill/chrome-control/SKILL.md"), "utf8");
+    const skill = fs.readFileSync(path.join(root, "dist/skill/browser-control/SKILL.md"), "utf8");
     expect(skill).toContain("node native-host/client.js ping");
-    expect(skill).toContain("@chrome-control");
+    expect(skill).toContain("@browser-control");
     expect(skill).not.toContain("pnpm run client");
-    expect(readJson("dist/skill/chrome-control/scripts/extension-id.json")).toEqual({
+    expect(readJson("dist/skill/browser-control/scripts/extension-id.json")).toEqual({
       extensionId: "dcnjjnecbhipdbngkhjppkckpkellmld",
       extensionHostName: "com.opzero.chrome"
     });
 
-    const zippedSkill = spawn("unzip", ["-l", "dist/release/chrome-control-skill.zip"], {
+    const zippedSkill = spawn("unzip", ["-l", "dist/release/browser-control-skill.zip"], {
       cwd: root,
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -114,19 +114,19 @@ describe("Browser Control distribution", () => {
 
   it("keeps the GitHub skill path installable by skill-installer", () => {
     const files = [
-      "skills/chrome-control/SKILL.md",
-      "skills/chrome-control/native-host/client.js",
-      "skills/chrome-control/native-host/host.js",
-      "skills/chrome-control/native-host/opzero-chrome-host",
-      "skills/chrome-control/chunks",
-      "skills/chrome-control/scripts/install-native-host.js",
-      "skills/chrome-control/scripts/check-native-host-manifest.js",
-      "skills/chrome-control/scripts/extension-id.json"
+      "skills/browser-control/SKILL.md",
+      "skills/browser-control/native-host/client.js",
+      "skills/browser-control/native-host/host.js",
+      "skills/browser-control/native-host/browser-control-host",
+      "skills/browser-control/chunks",
+      "skills/browser-control/scripts/install-native-host.js",
+      "skills/browser-control/scripts/check-native-host-manifest.js",
+      "skills/browser-control/scripts/extension-id.json"
     ];
     for (const file of files) {
       expect(fs.existsSync(path.join(root, file)), file).toBe(true);
     }
-    expect(readJson("skills/chrome-control/scripts/extension-id.json")).toEqual({
+    expect(readJson("skills/browser-control/scripts/extension-id.json")).toEqual({
       extensionId: "dcnjjnecbhipdbngkhjppkckpkellmld",
       extensionHostName: "com.opzero.chrome"
     });
@@ -134,10 +134,10 @@ describe("Browser Control distribution", () => {
 
   it("installs and validates a native host manifest using the packaged skill", async () => {
     const tempDir = testTemp();
-    const skillDir = path.join(tempDir, "chrome-control");
-    copyDir(path.join(root, "dist/skill/chrome-control"), skillDir);
+    const skillDir = path.join(tempDir, "browser-control");
+    copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
-    const socketPath = path.join(tempDir, "opzero-chrome.sock");
+    const socketPath = path.join(tempDir, "browser-control.sock");
 
     const install = await runNode([
       path.join(skillDir, "scripts/install-native-host.js"),
@@ -155,7 +155,7 @@ describe("Browser Control distribution", () => {
     expect(manifest.name).toBe("com.opzero.chrome");
     expect(manifest.allowed_origins).toContain("chrome-extension://testextensionid/");
     expect(fs.existsSync(manifest.path)).toBe(true);
-    expect(fs.readFileSync(manifest.path, "utf8")).toContain(`OPZERO_CHROME_HOST_SOCKET="${socketPath}"`);
+    expect(fs.readFileSync(manifest.path, "utf8")).toContain(`BROWSER_CONTROL_HOST_SOCKET="${socketPath}"`);
     expect(JSON.parse(fs.readFileSync(path.join(skillDir, "scripts/extension-id.json"), "utf8")).extensionId).toBe("testextensionid");
 
     const check = await runNode([
@@ -171,8 +171,8 @@ describe("Browser Control distribution", () => {
 
   it("reports a repair command for an invalid native host manifest", async () => {
     const tempDir = testTemp();
-    const skillDir = path.join(tempDir, "chrome-control");
-    copyDir(path.join(root, "dist/skill/chrome-control"), skillDir);
+    const skillDir = path.join(tempDir, "browser-control");
+    copyDir(path.join(root, "dist/skill/browser-control"), skillDir);
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
     fs.writeFileSync(manifestPath, `${JSON.stringify({
       name: "com.opzero.chrome",
@@ -227,7 +227,7 @@ describe("Browser Control distribution", () => {
       "testextensionid",
       "--json"
     ], {
-      OPZERO_CHROME_USER_DATA_DIR: tempDir
+      BROWSER_CONTROL_USER_DATA_DIR: tempDir
     });
     expect(check.stderr).toBe("");
     expect(check.code).toBe(0);
@@ -243,7 +243,7 @@ describe("Browser Control distribution", () => {
     const tempDir = testTemp();
     const child = spawn(process.execPath, ["dist/native-host/host.js"], {
       cwd: root,
-      env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: path.join(tempDir, "s") },
+      env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: path.join(tempDir, "s") },
       stdio: ["pipe", "pipe", "pipe"]
     });
 
@@ -312,7 +312,7 @@ describe("Browser Control distribution", () => {
     });
 
     const client = await runNode(["dist/native-host/client.js", "--", "ping"], {
-      OPZERO_CHROME_HOST_SOCKET: socketPath
+      BROWSER_CONTROL_HOST_SOCKET: socketPath
     });
     const request = await received;
     server.close();

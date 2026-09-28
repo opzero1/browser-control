@@ -24,6 +24,18 @@ Open the extension popup and click **Reload host** after you install the native 
 
 The installer writes `com.opzero.chrome.json` into Chrome's per-user `NativeMessagingHosts` directory, and it saves the extension ID to `dist/scripts/extension-id.json` so follow-up checks can run without `--extension-id`. Pass `--socket-path <path>` to give the host a private socket other than `~/.opzero-chrome/default.sock`.
 
+The host and client read these variables. They replaced the `OPZERO_CHROME_*` names, which are no longer read:
+
+| Variable | Use |
+| --- | --- |
+| `BROWSER_CONTROL_HOST_SOCKET` | Unix socket path. Default `~/.opzero-chrome/default.sock`. The installer's `--socket-path` writes it into the wrapper. |
+| `BROWSER_CONTROL_HOST_TRANSPORT` | `tcp` selects the loopback TCP transport, which Windows always uses. |
+| `BROWSER_CONTROL_HOST_PORT` | TCP port. Default `17365`. |
+| `BROWSER_CONTROL_HOST_TOKEN_FILE` | File that holds the TCP connection token. |
+| `BROWSER_CONTROL_REQUEST_TIMEOUT_MS` | Host request timeout. Default `30000`. |
+| `BROWSER_CONTROL_EXTENSION_ID` | Extension ID for the installer and checks, in place of `--extension-id`. |
+| `BROWSER_CONTROL_USER_DATA_DIR`, `BROWSER_CONTROL_PREFERENCES_PATH` | Chrome profile that `check-extension` inspects. |
+
 For a disposable Chrome for Testing profile, write the host manifest to `<user-data-dir>/NativeMessagingHosts/` instead, so the default Chrome profile keeps its own host. `store/capture/launch.sh` shows the full sequence.
 
 ## Host controls
@@ -50,8 +62,8 @@ pnpm run client -- ping
 pnpm run client -- getInfo
 ```
 
-To also run the headless-browser private-input tests, point `OPZERO_SYNTHETIC_CHROME` at a Chrome for Testing binary:
+To also run the headless-browser private-input tests, point `BROWSER_CONTROL_SYNTHETIC_CHROME` at a Chrome for Testing binary:
 
 ```sh
-OPZERO_SYNTHETIC_CHROME="/path/to/Google Chrome for Testing" pnpm exec vitest run tests/security/private-input.browser.test.ts
+BROWSER_CONTROL_SYNTHETIC_CHROME="/path/to/Google Chrome for Testing" pnpm exec vitest run tests/security/private-input.browser.test.ts
 ```

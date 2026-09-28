@@ -1,19 +1,19 @@
 ---
-name: chrome-control
-description: "Use for Chrome/browser automation through the Opzero Chrome extension: Chrome setup checks, extension connection checks, native host repair, tab/session control, CDP transport, and safe browser automation."
+name: browser-control
+description: "Use for Chrome/browser automation through the Browser Control extension: Chrome setup checks, extension connection checks, native host repair, tab/session control, CDP transport, and safe browser automation."
 ---
 
-# Chrome Control
+# Browser Control
 
-Use this skill when the user mentions `@chrome-control`, `@opzero-chrome`, `@op-chrome`, `Chrome Control`, `Opzero Chrome`, browser automation, Chrome setup, native host repair, or this repository's Chrome extension.
+Use this skill when the user mentions `@browser-control`, `Browser Control`, browser automation, Chrome setup, native host repair, or this repository's Chrome extension.
 
-Opzero Chrome is the routing touchpoint for the Opzero Chrome extension. Prefer the bundled scripts that live next to this `SKILL.md`; a release install does not require a repo checkout.
+This skill is the routing touchpoint for the Browser Control extension. Prefer the bundled scripts that live next to this `SKILL.md`; a release install does not require a repo checkout.
 
 Run commands from the directory containing this `SKILL.md` unless an absolute path is clearer.
 
-- Use Opzero Chrome directly for browser automation requests and for Chrome setup, detection, repair, or profile checks.
-- For bare or general Opzero Chrome requests, avoid unnecessary clarification. Start with connection checks, then proceed with the browser workflow.
-- If communication with the Opzero Chrome extension fails after the checks below, do not fall back to AppleScript, profile-store scraping, cookie inspection, or unrelated browser-control mechanisms.
+- Use Browser Control directly for browser automation requests and for Chrome setup, detection, repair, or profile checks.
+- For bare or general Browser Control requests, avoid unnecessary clarification. Start with connection checks, then proceed with the browser workflow.
+- If communication with the Browser Control extension fails after the checks below, do not fall back to AppleScript, profile-store scraping, cookie inspection, or unrelated browser-control mechanisms.
 - Do not inspect browser cookies, local storage, profiles, passwords, or session stores. Keep browser discovery read-only.
 
 ## Extension Checks
@@ -38,14 +38,14 @@ node scripts/check-native-host-manifest.js --json
 The extension ID comes from one of these sources:
 
 - `--extension-id <id>`
-- `OPZERO_CHROME_EXTENSION_ID`
+- `BROWSER_CONTROL_EXTENSION_ID`
 - `scripts/extension-id.json`
 
 For Chrome Web Store builds, `scripts/extension-id.json` should already contain the stable published extension ID: `dcnjjnecbhipdbngkhjppkckpkellmld`. For unpacked local builds, read the generated ID from `chrome://extensions` and pass it once to the native-host installer.
 
 ### Chrome Is Not Installed
 
-Tell the user that Opzero Chrome requires Google Chrome or Chromium.
+Tell the user that Browser Control requires Google Chrome or Chromium.
 
 ### Chrome Is Not Running
 
@@ -117,7 +117,7 @@ node native-host/client.js executeCdp '{"session_id":"task","turn_id":"turn-1","
 - Choose the target by visible title, URL, recency, and tab group.
 - Claim only tab IDs returned by the current `getUserTabs` response.
 - Do not guess tab IDs.
-- Claimed tabs move into the active Opzero Chrome tab group and become controllable session tabs.
+- Claimed tabs move into the active Browser Control tab group and become controllable session tabs.
 
 Example:
 
@@ -133,7 +133,7 @@ Treat finalization as the final browser action for that turn. If more browser wo
 
 Omit tabs by default. A tab is worth keeping only when the user needs that live page after the turn.
 
-Keep a tab with `status: "deliverable"` when the tab itself is a user-facing output or requested open page. Deliverable tabs move to the shared `✅ Opzero Chrome` tab group.
+Keep a tab with `status: "deliverable"` when the tab itself is a user-facing output or requested open page. Deliverable tabs move to the shared `✅ Browser Control` tab group.
 
 Keep a tab with `status: "handoff"` only when the task is still in progress and the user or a later turn should continue from the current task tab group.
 
@@ -145,7 +145,7 @@ node native-host/client.js finalizeTabs '{"session_id":"task","turn_id":"turn-1"
 
 ## Cursor Overlay
 
-Use `moveMouse` to render the Opzero cursor overlay in a session tab:
+Use `moveMouse` to render the Browser Control cursor overlay in a session tab:
 
 ```sh
 node native-host/client.js moveMouse '{"session_id":"task","turn_id":"turn-1","tabId":123,"x":100,"y":200,"waitForArrival":true}'
@@ -160,7 +160,7 @@ When browser automation includes local file upload:
 - Prefer the page's actual `input[type="file"]` or upload control.
 - Use absolute local paths.
 - Confirm with the user before uploading personal or sensitive files.
-- If Chrome blocks file URL access, ask the user to open `chrome://extensions`, open Opzero Chrome details, and enable file URL access.
+- If Chrome blocks file URL access, ask the user to open `chrome://extensions`, open Browser Control details, and enable file URL access.
 
 ## Browser Safety
 

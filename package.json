@@ -1,5 +1,5 @@
 {
-  "name": "opzero-chrome",
+  "name": "@op1/browser-control",
   "version": "0.2.1",
   "private": true,
   "description": "Browser Control extension with native messaging and CDP bridge.",

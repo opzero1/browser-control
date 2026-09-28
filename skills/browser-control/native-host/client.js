@@ -25,8 +25,8 @@ if (args.length > 1 || !streaming && ![
 	node_process.default.stderr.write("Payloads are accepted only through --stdio JSONL; never pass private values in argv\n");
 	node_process.default.exit(1);
 }
-var useTcp = node_process.default.platform === "win32" || node_process.default.env.OPZERO_CHROME_HOST_TRANSPORT === "tcp";
-var socket = useTcp ? node_net.default.connect(Number(node_process.default.env.OPZERO_CHROME_HOST_PORT || 17365), "127.0.0.1") : node_net.default.connect(node_process.default.env.OPZERO_CHROME_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock"));
+var useTcp = node_process.default.platform === "win32" || node_process.default.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
+var socket = useTcp ? node_net.default.connect(Number(node_process.default.env.BROWSER_CONTROL_HOST_PORT || 17365), "127.0.0.1") : node_net.default.connect(node_process.default.env.BROWSER_CONTROL_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock"));
 var pending = /* @__PURE__ */ new Map();
 var ready = false;
 var inputEnded = false;
@@ -88,7 +88,7 @@ socket.on("connect", () => {
 		return;
 	}
 	try {
-		const file = node_process.default.env.OPZERO_CHROME_HOST_TOKEN_FILE;
+		const file = node_process.default.env.BROWSER_CONTROL_HOST_TOKEN_FILE;
 		if (!file) throw new Error();
 		socket.write(`${JSON.stringify({
 			jsonrpc: "2.0",
