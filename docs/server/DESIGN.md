@@ -576,3 +576,13 @@ Follow-ups:
 - Doctor reports a wrapper that differs from the expected one only in its socket as `wrapper: socket-mismatch`, with `previous` set to the wrapper's socket, in place of `stale`.
 - `references/browser-pool.md` names `pool reap [controller] [--dry-run]`.
 - Residual risk: a SIGKILL between the two renames that replace a damaged copy leaves its name empty until the next install, while the displaced copy remains beside it. A lock whose holder died is held for as long as another process reuses that pid; the installer then stops after 10 s and names the lock to remove. A killed installer can leave a `.tmp` directory beside a lock or copy.
+
+## Install lock trust round
+
+- `src/shared/install-lock.ts` checks the file system before it creates or deletes anything. The parent must be a directory owned by the current uid that group and others cannot write, unless it has the sticky bit. The lock path is `lstat`ed: a symlink, a non-directory, a lock owned by another uid, or a group- or world-writable lock is refused with `InstallLockUnsafe` (`browser-controller-unsafe-install-lock`), which names the path. `browser-control install` reports it as `manifest: fail / unsafe-lock`.
+- The lock directory's `dev` and `ino` are recorded when it is created or first checked, and verified again before each stale entry is deleted, before `rmdir`, and at release. Only regular files named exactly `<pid>-<uuid>` are deleted. A changed identity during cleanup deletes nothing and restarts the check; at release it deletes nothing and throws.
+- A missing manifest directory is created with mode `0o755`, so a umask of 002 cannot make the installers refuse their own directory.
+- The checks use Node 18 APIs only and share no code with `fs-private.ts`, so the zip installer bundle gains no chunk.
+- Tests: 18 acceptance tests cover a symlinked lock (the outside file survives), a writable, sticky or foreign parent, a foreign or writable lock, an identity change during cleanup and at release, and a two-waiter stale cleanup ordered through an injected `readdir`. 15 of them fail against the previous lock. The built zip installer also ran on Node 18.20.8.
+- Residual risk: only the lock and its immediate parent are checked. Node has no `unlinkat`, so a small window remains between the identity check and the delete, which only the same user or root can use. A group-writable NativeMessagingHosts directory made by another installer is now refused until `chmod g-w`. Windows skips the owner and mode checks.
+- The `act` wait-timeout test scripts twenty `Loading` pages instead of one. A 1 ms deadline can allow a second poll, which previously ran out of scripted responses; the assertions are unchanged.

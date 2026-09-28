@@ -185,7 +185,7 @@ describe("actions", () => {
   it("never replays or returns a token after a wait timeout", async () => {
     const { f, tab, conn } = setup();
     const observed = await f.server.observe({ tab_id: "1" }, meta());
-    conn.sideEffect = [{ status: "executed" }, page("Loading")];
+    conn.sideEffect = [{ status: "executed" }, ...Array.from({ length: 20 }, () => page("Loading"))];
     const result = await f.server.act({
       tab_id: "1", snapshot_id: observed.snapshot_id, action_id: "0", expect: new PageExpectation({ text: "Ready later" }), timeout_ms: 1
     }, meta());
