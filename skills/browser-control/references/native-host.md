@@ -81,24 +81,26 @@ node native-host/client.js ping
 
 The native host exposes newline-delimited JSON-RPC to local clients and forwards requests to the extension through Chrome native messaging.
 
-Use:
+`client.js` takes only `ping`, `getInfo`, `host.ping` and `host.info` as an argument. Send every other call, and every call with parameters, as one JSON-RPC 2.0 request per line on stdin with `--stdio`. Never pass private values in arguments.
 
 ```sh
 node native-host/client.js getInfo
-node native-host/client.js getUserTabs
+echo '{"jsonrpc":"2.0","id":1,"method":"getUserTabs","params":{}}' | node native-host/client.js --stdio
 ```
 
 Session-scoped calls require both `session_id` and `turn_id`:
 
 ```sh
-node native-host/client.js createTab '{"session_id":"task","turn_id":"turn-1"}'
+echo '{"jsonrpc":"2.0","id":1,"method":"createTab","params":{"session_id":"task","turn_id":"turn-1"}}' | node native-host/client.js --stdio
 ```
 
-Attach CDP before executing CDP commands:
+Attach CDP before executing CDP commands. Send both requests on one `--stdio` stream, with distinct IDs:
 
 ```sh
-node native-host/client.js attach '{"session_id":"task","turn_id":"turn-1","tabId":123}'
-node native-host/client.js executeCdp '{"session_id":"task","turn_id":"turn-1","target":{"tabId":123},"method":"Runtime.evaluate","commandParams":{"expression":"location.href"}}'
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"attach","params":{"session_id":"task","turn_id":"turn-1","tabId":123}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"executeCdp","params":{"session_id":"task","turn_id":"turn-1","target":{"tabId":123},"method":"Runtime.evaluate","commandParams":{"expression":"location.href"}}}' \
+  | node native-host/client.js --stdio
 ```
 
 ## User Tab Claiming
@@ -112,7 +114,7 @@ node native-host/client.js executeCdp '{"session_id":"task","turn_id":"turn-1","
 Example:
 
 ```sh
-node native-host/client.js claimUserTab '{"session_id":"task","turn_id":"turn-1","tabId":123}'
+echo '{"jsonrpc":"2.0","id":1,"method":"claimUserTab","params":{"session_id":"task","turn_id":"turn-1","tabId":123}}' | node native-host/client.js --stdio
 ```
 
 ## Tab Cleanup
@@ -130,7 +132,7 @@ Keep a tab with `status: "handoff"` only when the task is still in progress and 
 Example:
 
 ```sh
-node native-host/client.js finalizeTabs '{"session_id":"task","turn_id":"turn-1","keep":[{"tabId":123,"status":"deliverable"}]}'
+echo '{"jsonrpc":"2.0","id":1,"method":"finalizeTabs","params":{"session_id":"task","turn_id":"turn-1","keep":[{"tabId":123,"status":"deliverable"}]}}' | node native-host/client.js --stdio
 ```
 
 ## Cursor Overlay
@@ -138,7 +140,7 @@ node native-host/client.js finalizeTabs '{"session_id":"task","turn_id":"turn-1"
 Use `moveMouse` to render the Browser Control cursor overlay in a session tab:
 
 ```sh
-node native-host/client.js moveMouse '{"session_id":"task","turn_id":"turn-1","tabId":123,"x":100,"y":200,"waitForArrival":true}'
+echo '{"jsonrpc":"2.0","id":1,"method":"moveMouse","params":{"session_id":"task","turn_id":"turn-1","tabId":123,"x":100,"y":200,"waitForArrival":true}}' | node native-host/client.js --stdio
 ```
 
 The extension injects `content-scripts/opzero-chrome.js` at runtime when the tab belongs to the active session.
