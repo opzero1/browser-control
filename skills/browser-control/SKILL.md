@@ -27,7 +27,7 @@ Page tools stay in the background and never launch a browser. Only `claim_browse
 The server takes the session owner from the MCP request metadata: `_meta["ai.opencode/sessionID"]`, else `_meta["sessionID"]`. No tool accepts a session ID argument. When the client sends neither key, the server uses one random `ses_…` ID for the life of its process.
 
 - Every conversation served by one server process then shares tab ownership and one browser lease. Keep independent tasks on separate server processes when they rely on lease separation.
-- On exit, the server releases its tabs, but a browser lease stays registered. A restarted server has a new owner. Record `owner` and `lease_id` from each `claim_browser` receipt, so an operator can release an orphaned lease with the [pool CLI](references/browser-pool.md#operate-the-pool-from-the-cli).
+- On exit, the server releases its tabs, but a browser lease stays registered. A restarted server has a new owner. Record `controller_id` and `lease_id` from each `claim_browser` receipt. The receipt has no owner field; an operator finds the owner in `pool status` and releases the orphaned lease with the [pool CLI](references/browser-pool.md#release-an-orphaned-lease).
 - A present but empty or non-string identity fails with `fast-chrome-session-required`.
 
 For an isolated run, call `claim_browser({site: targetUrl})` in the driving session and require `ready: true`. Request `exclusive: true` for downloads, native input, or profile-wide settings. Follow the [browser-pool procedure](references/browser-pool.md) for receipts, site rules, and cleanup.

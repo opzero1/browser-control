@@ -16,7 +16,7 @@ The owner comes from MCP request metadata or the server's per-process fallback I
 
 `claim_browser({site?, exclusive?, timeout_seconds?})` defaults to shared mode and a 30-second startup budget. The timeout must be greater than zero and at most 120 seconds, so set your client's tool timeout above that (Codex: `tool_timeout_sec = 150`). The call reuses the session's lease, provisions the profile, and may launch isolated Chrome through cua-driver with background activation suppressed. It never launches the user's Chrome.
 
-Require `ready: true` before opening tabs. Retain `owner`, `controller_id`, `lease_id`, `mode`, `sites`, `site_state`, and `artifacts`. `launched` distinguishes cold startup from reuse; `elapsed_seconds` measures setup. Successful receipts also confirm `password_saving_disabled` and `downloads_configured`.
+Require `ready: true` before opening tabs. Retain `controller_id`, `lease_id`, `mode`, `sites`, `site_state`, and `artifacts`. The receipt does not include the owner; `pool status` shows it (see [release an orphaned lease](#release-an-orphaned-lease)). `launched` distinguishes cold startup from reuse; `elapsed_seconds` measures setup. Successful receipts also confirm `password_saving_disabled` and `downloads_configured`.
 
 Use `exclusive: true` for downloads, native input, profile-wide settings, or extension reloads. Exclusive receipts add `pid`, `windows`, `downloads`, `profile`, and `socket`. Shared receipts omit those fields.
 
@@ -95,8 +95,27 @@ npx -y @op1/browser-control pool reset isolated-1 --confirm
 ```
 
 - CLI `ensure` defaults to exclusive; `--shared` opts in. CLI `claim` is exclusive and ownership-only.
-- CLI `release` works after tab cleanup. Use it for a lease left behind by a restarted server process, with the `owner` and `lease_id` from its receipt.
+- CLI `release` works after tab cleanup. Use it for a lease left behind by a restarted server process; see [release an orphaned lease](#release-an-orphaned-lease).
 - The CLI also stops an idle controller's Chrome. That command requires no leases, pins, cleanup markers, startup record, or open HTTP(S) tabs; kept deliverables block it. It sends SIGTERM only to the exact profile process and verifies exit, and a dry-run option reads tabs and processes without writing an intent or sending a signal. If exit is unconfirmed, its record remains and blocks allocation until a later run confirms cleanup. It keeps the profile.
 - `reset --confirm` requires an idle, stopped controller and no live endpoint. It deletes and re-provisions only the profile and site history; downloads and artifacts remain.
 
 Neither stopping nor resetting runs automatically.
+
+### Release an orphaned lease
+
+A lease outlives the server process that claimed it. When that process used its fallback `ses_…` ID, a restarted server has a new owner and cannot release the old lease. The `claim_browser` receipt has no owner field, so recover the owner from the registry:
+
+1. Run the CLI with the same state root as the server (`BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`):
+
+   ```sh
+   npx -y @op1/browser-control pool status
+   ```
+
+2. In `controllers[].leases`, find the entry whose `lease_id` equals the receipt's `lease_id`. Read its `owner`. Shared and exclusive leases are both listed there.
+3. Confirm that no running session still uses the lease. Then release it:
+
+   ```sh
+   npx -y @op1/browser-control pool release --owner <owner from pool status> --lease <lease_id from the receipt>
+   ```
+
+4. Require `released: true`. A different owner fails with `browser-controller-lease-not-owned`.
