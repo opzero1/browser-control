@@ -1,12 +1,12 @@
 // The stdio MCP server. Stdin EOF (or close) and SIGTERM start one bounded shutdown (design 4.8).
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Readable, Writable } from "node:stream";
 import { createApp, type App, type AppOptions } from "./app";
 import type { Env } from "./config";
 import { gateResult } from "./gate";
 import { SHUTDOWN_SECONDS, Shutdown } from "./runtime/shutdown";
+import { StdioTransport } from "./stdio-transport";
 
 /** Extra time after the cleanup deadline before the backstop forces exit. */
 const BACKSTOP_SECONDS = 0.3;
@@ -49,7 +49,7 @@ export async function runStdioServer(options: StdioServerOptions = {}): Promise<
     if (shutdown.isSet) return gateResult(request.params.name, "fast-chrome-shutting-down");
     return app.callTool(request.params.name, request.params.arguments ?? {}, request.params._meta);
   });
-  const transport = new StdioServerTransport(stdin as Readable, stdout as Writable);
+  const transport = new StdioTransport(stdin, stdout);
 
   return new Promise<number>((resolve) => {
     let finishing = false;
