@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  acquireInstallLock, created as createdEntry, InstallLockBusy, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves,
-  type Created, type InstallLock, type TrustedDirectory
+  acquireInstallLock, created as createdEntry, createdLink, InstallLockBusy, InstallLockUnsafe, manifestLockPath, removeCreated, removeCreatedLink,
+  stillResolves, type Created, type InstallLock, type TrustedDirectory
 } from "../../shared/install-lock";
 import { mayReplace } from "../../shared/manifest-file";
 import { checkedSocketPath, trustedPath } from "../../shared/trusted-path";
@@ -337,18 +337,19 @@ async function clipboardStep(env: Env, deps: CommandDeps, dryRun: boolean): Prom
 /**
  * Point <directory>/<name> at `target` atomically: a temporary symlink beside it in the canonical skills
  * directory, then a rename over the old entry, which replaces a link or file and fails on a directory. The
- * temporary link is removed only if the rename failed, and only while it is still the link made here.
+ * temporary link is removed only if the rename failed, and only while it is still the link made here: the same
+ * link identity, directly in `directory`, which must still be the directory that was checked.
  */
 function linkSkill(directory: TrustedDirectory, name: string, target: string) {
   const temporary = path.join(directory.path, `.${name}.${randomUUID()}.tmp`);
   fs.symlinkSync(target, temporary);
-  const made = createdEntry(temporary, fs.lstatSync(temporary));
+  const made = createdLink(temporary, fs.lstatSync(temporary));
   let placed = false;
   try {
     fs.renameSync(temporary, path.join(directory.path, name));
     placed = true;
   } finally {
-    if (!placed) removeCreated([made], directory);
+    if (!placed) removeCreatedLink(made, directory);
   }
 }
 

@@ -1,10 +1,10 @@
 // fs-private.ts and lock.ts: the dir_fd registry model and the SQLite replacement for fcntl.flock (design 4.4).
 import fs from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkFileStats, childDirectory, existingDirectory, fixedErrors, FsError, openDirectory, readJson, readPrivate, removeFile,
-  writeJson, writePrivate
+  syncDirectory, writeJson, writePrivate
 } from "../../../src/server/fs-private";
 import { Gate } from "../../../src/server/gate";
 import { lockNow, lockUntil, lockWait } from "../../../src/server/lock";
@@ -13,6 +13,7 @@ import { killChildren, startChild } from "../support/children";
 import { privateTemp, removeTempRoots } from "../support/temp";
 
 afterEach(() => {
+  vi.restoreAllMocks();
   killChildren();
   removeTempRoots();
 });
@@ -124,6 +125,33 @@ describe("private registry directories and files", () => {
     fs.renameSync(dir.path, path.join(root, "moved"));
     fs.mkdirSync(dir.path, { mode: 0o700 });
     expect(gateCode(() => writeJson(dir, "claim.json", null))).toBe("browser-controller-unsafe-registry");
+  });
+
+  it("fsyncs a directory without following a symlink put in its place after it was verified", () => {
+    const root = privateTemp();
+    const dir = openDirectory(path.join(root, "registry"));
+    const elsewhere = openDirectory(path.join(root, "elsewhere"));
+    const open = fs.openSync;
+    const swapped: string[] = [];
+    vi.spyOn(fs, "openSync").mockImplementation(((file: fs.PathLike, flags?: fs.OpenMode, mode?: fs.Mode | null) => {
+      if (String(file) === dir.path && !swapped.length) {
+        // verified() has just passed the directory; only the uid or root could make this swap.
+        fs.renameSync(dir.path, path.join(root, "moved"));
+        fs.symlinkSync(elsewhere.path, dir.path);
+        swapped.push(String(file));
+      }
+      return open(file, flags, mode);
+    }) as typeof fs.openSync);
+    let thrown: unknown = null;
+    try {
+      syncDirectory(dir);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(swapped).toEqual([dir.path]);
+    // macOS reports the symlink as ENOTDIR under O_DIRECTORY, Linux as ELOOP.
+    expect(thrown).toBeInstanceOf(FsError);
+    expect(["ELOOP", "ENOTDIR"]).toContain((thrown as FsError).errno);
   });
 });
 

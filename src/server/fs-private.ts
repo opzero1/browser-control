@@ -135,8 +135,9 @@ export function syncDirectory(dir: PrivateDir): void {
   fsyncDirectory(dir);
 }
 
+/** A symlink put in the directory's place after verified() is not followed: the open fails instead. */
 function fsyncDirectory(dir: PrivateDir) {
-  const fd = io(() => fs.openSync(verified(dir), O_RDONLY | O_DIRECTORY));
+  const fd = io(() => fs.openSync(verified(dir), O_RDONLY | O_DIRECTORY | O_NOFOLLOW));
   try {
     io(() => fs.fsyncSync(fd));
   } finally {

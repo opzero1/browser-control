@@ -106,8 +106,9 @@ function created(file, stats) {
 }
 /**
 * Remove `items` in order, each only while `within` (when given) and the item's own path are still what was
-* recorded: a file is unlinked, and a directory removed with rmdir, which fails unless it is empty. The first
-* mismatch or failure stops the removal and leaves the rest, which is harmless. Returns whether all were removed.
+* recorded: a file is unlinked, and a directory removed with rmdir, which fails unless it is empty. A symlink is
+* never removed here (see removeCreatedLink). The first mismatch or failure stops the removal and leaves the
+* rest, which is harmless. Returns whether all were removed.
 */
 function removeCreated(items, within, calls = {}) {
 	for (const item of items) try {

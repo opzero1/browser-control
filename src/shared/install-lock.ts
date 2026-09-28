@@ -9,8 +9,8 @@
 // (src/shared/trusted-path.ts), and the lock works in the parent's canonical path from then on. The lock itself
 // must be a real directory owned by this user that group and others cannot write to. Node has no unlinkat, so,
 // as in src/server/fs-private.ts, a directory is a path plus the (dev, ino) it had when it was checked, and
-// nothing is removed through that path until it is checked again. Nothing here removes recursively: a file is
-// unlinked and a directory removed with rmdir, which fails on one that is not empty.
+// nothing is removed through that path until it is checked again. Nothing here removes recursively: a file, or a
+// symlink this process made, is unlinked, and a directory removed with rmdir, which fails on one that is not empty.
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -132,8 +132,9 @@ export function created(file: string, stats: fs.Stats): Created {
 
 /**
  * Remove `items` in order, each only while `within` (when given) and the item's own path are still what was
- * recorded: a file is unlinked, and a directory removed with rmdir, which fails unless it is empty. The first
- * mismatch or failure stops the removal and leaves the rest, which is harmless. Returns whether all were removed.
+ * recorded: a file is unlinked, and a directory removed with rmdir, which fails unless it is empty. A symlink is
+ * never removed here (see removeCreatedLink). The first mismatch or failure stops the removal and leaves the
+ * rest, which is harmless. Returns whether all were removed.
  */
 export function removeCreated(items: readonly Created[], within?: TrustedDirectory, calls: Partial<InstallLockFs> = {}): boolean {
   for (const item of items) {
@@ -147,6 +148,38 @@ export function removeCreated(items: readonly Created[], within?: TrustedDirecto
     }
   }
   return true;
+}
+
+/** A symlink this process made, with the identity lstat gave the link itself, not its target, when it was made. */
+export interface CreatedLink extends Identity {
+  readonly path: string;
+  readonly symlink: true;
+}
+
+/** What `stats`, from lstat, says the symlink this process just made at `file` is; anything else there is refused. */
+export function createdLink(file: string, stats: fs.Stats): CreatedLink {
+  if (!stats.isSymbolicLink()) throw new Error(`${file} is not the symlink this process made.`);
+  return { path: file, dev: stats.dev, ino: stats.ino, symlink: true };
+}
+
+/**
+ * Unlink `link` only while it sits directly in `within`, `within` is still the directory that was checked, and
+ * lstat still finds a symlink there with the identity recorded when it was made. unlink removes the link itself
+ * and never follows it. Any other entry, including a symlink this process did not make, is left in place.
+ * Returns whether the link was removed.
+ */
+export function removeCreatedLink(link: CreatedLink, within: TrustedDirectory, calls: Partial<InstallLockFs> = {}): boolean {
+  if (path.dirname(link.path) !== within.path) return false;
+  try {
+    if (!unchangedAt(within.path, within, calls)) return false;
+    const stats = (calls.lstat ?? nodeFs.lstat)(link.path);
+    if (!stats.isSymbolicLink() || stats.dev !== link.dev || stats.ino !== link.ino) return false;
+    fs.unlinkSync(link.path);
+    return true;
+  } catch (error) {
+    if (codeOf(error) === undefined) throw error;
+    return false;
+  }
 }
 
 /** The identity of the lock directory, or null when nothing is at its path; anything unsafe there is refused. */

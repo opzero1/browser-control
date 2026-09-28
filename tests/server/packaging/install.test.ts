@@ -351,6 +351,63 @@ describe("browser-control install", () => {
     expect(fs.readdirSync(opencode)).toEqual(["browser-control"]);
   });
 
+  /**
+   * A second run that also links into a new, empty skills directory, where renaming the temporary link into place
+   * fails with EXDEV. `during` runs just before that failure, with the temporary link's path and the test's root.
+   */
+  async function failedLink(during: (temporary: string, root: string) => void = () => {}) {
+    const { root, env, assets, flags } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    expect(byId((await install(options(flags), env, deps)).steps)["skill:browser-control"].status).toBe("linked");
+    const fresh = path.join(root, "fresh-skills");
+    fs.mkdirSync(fresh, { mode: 0o755 });
+    const before = snapshotTree(root);
+    const rename = fs.renameSync;
+    const temporaries: string[] = [];
+    vi.spyOn(fs, "renameSync").mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      if (String(to) !== path.join(fresh, "browser-control")) return rename(from, to);
+      temporaries.push(String(from));
+      during(String(from), root);
+      throw Object.assign(new Error("EXDEV: cross-device link not permitted"), { code: "EXDEV" });
+    }) as typeof fs.renameSync);
+    const report = await install(options([...flags, "--skills-dir", fresh]), env, deps);
+    expect(report.steps.filter((item) => item.id.startsWith("skill"))).toEqual([{ id: "skills", level: "fail", status: "error", code: "EXDEV",
+      message: "This step failed. Fix the reported code, then run browser-control install again." }]);
+    expect(temporaries).toHaveLength(1);
+    expect(path.dirname(temporaries[0])).toBe(fresh);
+    expect(path.basename(temporaries[0])).toMatch(/^\.browser-control\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/);
+    return { root, fresh, before, temporary: temporaries[0] };
+  }
+
+  it("removes its own temporary skill link when the rename fails, and touches nothing else", async () => {
+    const { root, fresh, before } = await failedLink();
+    expect(fs.readdirSync(fresh)).toEqual([]);
+    // Everything else, the stable copy the link pointed at included, is as it was. Only the new directory's
+    // mtime records the link that came and went.
+    const after = snapshotTree(root);
+    for (const tree of [before, after]) delete tree["fresh-skills"];
+    expect(after).toEqual(before);
+  });
+
+  it("leaves a link that took the temporary link's name before the failed rename, and what it points at", async () => {
+    const swaps: { original: number; swapped: number }[] = [];
+    const { root, fresh, temporary } = await failedLink((file, base) => {
+      writeFile(path.join(base, "elsewhere/SKILL.md"), "someone else's\n");
+      // The other link exists beside the temporary one before it takes that name, so the two inodes differ.
+      const other = path.join(path.dirname(file), "other");
+      fs.symlinkSync(path.join(base, "elsewhere"), other);
+      const original = fs.lstatSync(file).ino;
+      fs.renameSync(other, file);
+      swaps.push({ original, swapped: fs.lstatSync(file).ino });
+    });
+    expect(swaps).toHaveLength(1);
+    expect(swaps[0].swapped).not.toBe(swaps[0].original);
+    expect(fs.readdirSync(fresh)).toEqual([path.basename(temporary)]);
+    expect(fs.lstatSync(temporary).ino).toBe(swaps[0].swapped);
+    expect(fs.readlinkSync(temporary)).toBe(path.join(root, "elsewhere"));
+    expect(readText(path.join(root, "elsewhere/SKILL.md"))).toBe("someone else's\n");
+  });
+
   it("refuses a BROWSER_CONTROL_HOST_SOCKET under a directory another user could change: no wrapper, manifest or snippet names it", async () => {
     const { root, env: base, assets, flags, state, manifests } = setup();
     const shared = path.join(root, "shared");
