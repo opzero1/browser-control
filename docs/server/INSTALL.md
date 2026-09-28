@@ -79,7 +79,9 @@ The Browser Control helper zip ships its own installer, `scripts/install-native-
 | `node scripts/install-native-host.js` (zip) | `<state>/hosts/skill/browser-control-host` | `~/.opzero-chrome/default.sock`, or `--socket-path` or `BROWSER_CONTROL_HOST_SOCKET` as set for it |
 
 - The installer that ran last owns the manifest. Neither replaces a manifest that names another host without
-  `--force`.
+  `--force`. Both hold the lock `.com.opzero.chrome.json.lock` beside the manifest while they check and replace
+  it, so this holds when they run at the same time. A lock left by a killed installer is removed once its
+  process is gone.
 - The server's user route connects to `BROWSER_CONTROL_HOST_SOCKET` when it is set, else to
   `<state>/sockets/user.sock`. Install writes the same path into its wrapper, so run install, doctor and the
   server with the same `BROWSER_CONTROL_STATE_DIR` and `BROWSER_CONTROL_HOST_SOCKET`.

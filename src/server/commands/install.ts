@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { acquireInstallLock, InstallLockBusy, manifestLockPath, type InstallLock } from "../../shared/install-lock";
 import { packageAssets, type PackageAssets } from "../assets";
 import { HOST_WRAPPER_NAME, nodeExecutable, resolveCuaDriver, statePaths, STORE_EXTENSION_ID, type Env } from "../config";
 import { childDirectory, existingDirectory, openDirectory, writePrivate } from "../fs-private";
@@ -15,7 +16,7 @@ import {
   bundledSkills, CHROME_FOR_TESTING_EXECUTABLE, CHROME_FOR_TESTING_INSTALL_COMMAND, chromeManifestDirectory, commandEnv, CUA_INSTALL_COMMAND,
   exists, expectedWrapper, failed, formatSteps, gateCode, launchServicesApp, MANIFEST_FILE, manifestState, manifestText, nodeStep, parseOptions,
   readLink, readRegular, skillFiles, skillsDirectories, stableSkillDir, step, STORE_URL, trustedGuard, UsageError, userWrapperPath,
-  XCODE_TOOLS_COMMAND, xcodeToolsSelected, type CommandIo, type Options, type Step
+  XCODE_TOOLS_COMMAND, xcodeToolsSelected, type CommandIo, type ManifestState, type Options, type Step
 } from "./shared";
 
 export interface CommandDeps {
@@ -104,7 +105,22 @@ function writeManifest(file: string, text: string) {
   }
 }
 
-function manifestStep(env: Env, platform: NodeJS.Platform, options: Options): Step {
+/** The step for a manifest that needs no write: unchanged, a refused conflict, or what a dry run would do. */
+function manifestPlan(file: string, state: ManifestState, options: Options): Step | null {
+  if (state.kind === "current") return step("manifest", "ok", "unchanged", "The Chrome native messaging manifest is current.", { path: file });
+  if (state.kind === "foreign" && !options.force) {
+    return step("manifest", "fail", "conflict",
+      "A Chrome native messaging manifest for com.opzero.chrome already points at another host. Run browser-control install --force to replace it.",
+      { path: file, previous: state.previous });
+  }
+  if (!options.dryRun) return null;
+  if (state.kind === "absent") return step("manifest", "ok", "would-create", "Would write the Chrome native messaging manifest.", { path: file });
+  if (state.kind === "outdated") return step("manifest", "ok", "would-update", "Would update the Chrome native messaging manifest.", { path: file });
+  return step("manifest", "ok", "would-replace", "Would replace the Chrome native messaging manifest that points at another host.",
+    { path: file, previous: state.previous });
+}
+
+async function manifestStep(env: Env, platform: NodeJS.Platform, options: Options): Promise<Step> {
   const directory = chromeManifestDirectory(env, platform, options);
   if (!directory) {
     return step("manifest", "fail", "unsupported",
@@ -112,24 +128,34 @@ function manifestStep(env: Env, platform: NodeJS.Platform, options: Options): St
   }
   const file = path.join(directory, MANIFEST_FILE);
   const wrapper = userWrapperPath(env);
-  const state = manifestState(file, wrapper);
-  if (state.kind === "current") return step("manifest", "ok", "unchanged", "The Chrome native messaging manifest is current.", { path: file });
-  if (state.kind === "foreign" && !options.force) {
-    return step("manifest", "fail", "conflict",
-      "A Chrome native messaging manifest for com.opzero.chrome already points at another host. Run browser-control install --force to replace it.",
+  const planned = manifestPlan(file, manifestState(file, wrapper), options);
+  if (planned) return planned;
+  // The release zip's installer takes the same lock, so the manifest is classified again and replaced as one step.
+  fs.mkdirSync(directory, { recursive: true });
+  let lock: InstallLock;
+  try {
+    lock = await acquireInstallLock(manifestLockPath(file));
+  } catch (error) {
+    if (!(error instanceof InstallLockBusy)) throw error;
+    return step("manifest", "fail", "locked",
+      "Another installer is writing the Chrome native messaging manifest. If no installer is running, remove the lock directory, then run browser-control install again.",
+      { path: error.lockPath });
+  }
+  let state: ManifestState;
+  try {
+    state = manifestState(file, wrapper);
+    const settled = manifestPlan(file, state, options);
+    if (settled) return settled;
+    writeManifest(file, manifestText(wrapper));
+  } finally {
+    lock.release();
+  }
+  if (state.kind === "foreign") {
+    return step("manifest", "ok", "replaced", "Replaced the Chrome native messaging manifest that pointed at another host.",
       { path: file, previous: state.previous });
   }
-  if (options.dryRun) {
-    if (state.kind === "absent") return step("manifest", "ok", "would-create", "Would write the Chrome native messaging manifest.", { path: file });
-    if (state.kind === "outdated") return step("manifest", "ok", "would-update", "Would update the Chrome native messaging manifest.", { path: file });
-    return step("manifest", "ok", "would-replace", "Would replace the Chrome native messaging manifest that points at another host.",
-      { path: file, previous: state.previous });
-  }
-  writeManifest(file, manifestText(wrapper));
-  if (state.kind === "absent") return step("manifest", "ok", "created", "Wrote the Chrome native messaging manifest.", { path: file });
   if (state.kind === "outdated") return step("manifest", "ok", "updated", "Updated the Chrome native messaging manifest.", { path: file });
-  return step("manifest", "ok", "replaced", "Replaced the Chrome native messaging manifest that pointed at another host.",
-    { path: file, previous: state.previous });
+  return step("manifest", "ok", "created", "Wrote the Chrome native messaging manifest.", { path: file });
 }
 
 /** Install reports a missing extension as a warning (the user installs it from the store); doctor fails on it. */
@@ -299,7 +325,7 @@ export async function install(options: Options, env: Env, deps: CommandDeps = de
     const host = await guarded("host", () => hostSteps(scoped, deps.assets, options.dryRun));
     steps.push(...host);
     // A manifest never names a wrapper that was not written.
-    if (!failed(host)) steps.push(...await guarded("manifest", () => [manifestStep(scoped, deps.platform, options)]));
+    if (!failed(host)) steps.push(...await guarded("manifest", async () => [await manifestStep(scoped, deps.platform, options)]));
   }
   steps.push(...await guarded("extension", () => [extensionStep(scoped, deps.platform)]));
   steps.push(...await guarded("cua-driver", () => [cuaStep(scoped)]));

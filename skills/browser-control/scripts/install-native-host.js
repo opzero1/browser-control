@@ -11,12 +11,137 @@ let node_process = require("node:process");
 node_process = require_Layer.__toESM(node_process);
 let node_crypto = require("node:crypto");
 node_crypto = require_Layer.__toESM(node_crypto);
+//#region src/shared/install-lock.ts
+/** The lock stayed held until the deadline; `holder` is its live process, or null when that is unknown. */
+var InstallLockBusy = class extends Error {
+	lockPath;
+	holder;
+	constructor(lockPath, holder) {
+		super(`Another installer is using ${lockPath}${holder === null ? "" : ` (process ${holder})`}. If no installer is running, remove that directory and try again.`);
+		this.lockPath = lockPath;
+		this.holder = holder;
+		this.name = "InstallLockBusy";
+	}
+};
+/** The lock that serializes every installer's check and replacement of one native messaging manifest. */
+function manifestLockPath(manifestFile) {
+	return node_path.default.join(node_path.default.dirname(manifestFile), `.${node_path.default.basename(manifestFile)}.lock`);
+}
+var ENTRY = /^([1-9][0-9]{0,9})-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** Entries this process holds, so an entry left by a dead process that had this pid is still found stale. */
+var held = /* @__PURE__ */ new Set();
+function codeOf(error) {
+	return error?.code;
+}
+function exists(file) {
+	try {
+		node_fs.default.lstatSync(file);
+		return true;
+	} catch {
+		return false;
+	}
+}
+/** Whether a process may have this id: only ESRCH proves it gone (EPERM means another user's process). */
+function running(pid) {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return codeOf(error) !== "ESRCH";
+	}
+}
+/**
+* Remove the entries of processes that are gone, then the lock directory if that left it empty (rmdir removes
+* only an empty directory). Returns a live holder's pid, or null when none is known.
+*/
+function clearStale(lockPath) {
+	let names;
+	try {
+		names = node_fs.default.readdirSync(lockPath);
+	} catch (error) {
+		if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return null;
+		throw error;
+	}
+	let holder = null;
+	for (const name of names) {
+		const match = ENTRY.exec(name);
+		const pid = match ? Number(match[1]) : null;
+		if (pid !== null && (pid === process.pid ? !held.has(`${lockPath}\0${name}`) : !running(pid))) node_fs.default.rmSync(node_path.default.join(lockPath, name), { force: true });
+		else if (pid !== null) holder = pid;
+	}
+	try {
+		node_fs.default.rmdirSync(lockPath);
+	} catch (error) {
+		if (![
+			"ENOENT",
+			"ENOTEMPTY",
+			"EEXIST",
+			"ENOTDIR"
+		].includes(codeOf(error) ?? "")) throw error;
+	}
+	return holder;
+}
+/** One attempt: the lock, or the pid of a live holder (null when unknown). */
+function attempt(lockPath) {
+	const entry = `${process.pid}-${node_crypto.default.randomUUID()}`;
+	const staging = `${lockPath}.${node_crypto.default.randomUUID()}.tmp`;
+	node_fs.default.mkdirSync(staging, { mode: 448 });
+	try {
+		node_fs.default.closeSync(node_fs.default.openSync(node_path.default.join(staging, entry), "wx", 384));
+		try {
+			node_fs.default.renameSync(staging, lockPath);
+		} catch (error) {
+			const code = codeOf(error) ?? "";
+			if (!([
+				"EEXIST",
+				"ENOTEMPTY",
+				"ENOTDIR"
+			].includes(code) || ["EPERM", "EACCES"].includes(code) && exists(lockPath))) throw error;
+			return { holder: clearStale(lockPath) };
+		}
+	} finally {
+		node_fs.default.rmSync(staging, {
+			recursive: true,
+			force: true
+		});
+	}
+	const key = `${lockPath}\0${entry}`;
+	held.add(key);
+	let released = false;
+	return {
+		path: lockPath,
+		release() {
+			if (released) return;
+			released = true;
+			held.delete(key);
+			node_fs.default.rmSync(node_path.default.join(lockPath, entry), { force: true });
+			try {
+				node_fs.default.rmdirSync(lockPath);
+			} catch {}
+		}
+	};
+}
+var POLL_MS = 20;
+/** The same, for the zip's synchronous installer, which has nothing else to run while it waits. */
+function acquireInstallLockSync(lockPath, timeoutMs = 1e4) {
+	const deadline = performance.now() + timeoutMs;
+	const pause = new Int32Array(new SharedArrayBuffer(4));
+	while (true) {
+		const result = attempt(lockPath);
+		if ("release" in result) return result;
+		if (performance.now() >= deadline) throw new InstallLockBusy(lockPath, result.holder);
+		Atomics.wait(pause, 0, 0, POLL_MS);
+	}
+}
+//#endregion
 //#region src/scripts/install-native-host.ts
 var root = node_path.default.resolve(__dirname, "..");
 var hostName = "com.opzero.chrome";
 var hostEntry = "native-host/host.js";
 var wrapperName = node_process.default.platform === "win32" ? "browser-control-host.cmd" : "browser-control-host";
 var force = node_process.default.argv.includes("--force");
+/** Serializes this installer's publications into <state>/hosts; the server's own copies use .publish.lock there. */
+var publishLock = ".skill-publish.lock";
 /** A refusal with a message for the user; nothing is written after one. */
 var InstallError = class extends Error {};
 function chromeManifestPath() {
@@ -95,22 +220,29 @@ function listFiles(dir, prefix = "") {
 	}
 	return result;
 }
-/** `target` is a private directory holding exactly `files`, each a private regular file with the same bytes. */
-function treeMatches(target, files) {
+/**
+* Whether `target` is a private directory holding exactly `files`, each a private regular file with the same
+* bytes. An error other than a missing target is thrown, so a copy is only ever called different once it has
+* been read.
+*/
+function treeState(target, files) {
+	let stats;
 	try {
-		const stats = node_fs.default.lstatSync(target);
-		if (!stats.isDirectory() || !isPrivate(stats)) return false;
-		const present = listFiles(target);
-		if (present.length !== files.size) return false;
-		return present.every((relative) => {
-			const expected = files.get(relative);
-			const file = node_path.default.join(target, relative);
-			const entry = node_fs.default.lstatSync(file);
-			return expected !== void 0 && entry.isFile() && isPrivate(entry) && node_fs.default.readFileSync(file).equals(expected);
-		});
-	} catch {
-		return false;
+		stats = node_fs.default.lstatSync(target);
+	} catch (error) {
+		if (error.code === "ENOENT") return "absent";
+		throw error;
 	}
+	if (!stats.isDirectory() || !isPrivate(stats)) return "differs";
+	const present = listFiles(target);
+	if (present.length !== files.size) return "differs";
+	for (const relative of present) {
+		const expected = files.get(relative);
+		const file = node_path.default.join(target, relative);
+		const entry = node_fs.default.lstatSync(file);
+		if (expected === void 0 || !entry.isFile() || !isPrivate(entry) || !node_fs.default.readFileSync(file).equals(expected)) return "differs";
+	}
+	return "matches";
 }
 function writeNew(file, data, mode) {
 	const fd = node_fs.default.openSync(file, node_fs.default.constants.O_WRONLY | node_fs.default.constants.O_CREAT | node_fs.default.constants.O_EXCL, mode);
@@ -123,14 +255,37 @@ function writeNew(file, data, mode) {
 	node_fs.default.chmodSync(file, mode);
 }
 /**
-* Publish `files` as <parent>/<name>/: stage a private directory beside it, then rename it into place. A
-* matching copy is kept as it is; a damaged one is moved aside first. Returns the published directory.
+* Publish `files` as <parent>/<name>/. Publications are serialized by a lock in <parent>, and the target is
+* checked again under it, so a matching copy that another installer published (and Chrome may be running) is
+* never moved or deleted. Returns the published directory.
 */
 function publishTree(parent, name, files) {
 	const target = node_path.default.join(parent, name);
-	if (treeMatches(target, files)) return target;
+	let current = null;
+	try {
+		current = treeState(target, files);
+	} catch {}
+	if (current !== "matches") {
+		const lock = acquireInstallLockSync(node_path.default.join(parent, publishLock));
+		try {
+			const state = treeState(target, files);
+			if (state !== "matches") replaceTree(parent, target, files, state === "differs");
+		} finally {
+			lock.release();
+		}
+	}
+	if (treeState(target, files) !== "matches") throw new InstallError(`Could not verify the native host copy: ${target}`);
+	return target;
+}
+/**
+* Under the publish lock: stage a private directory beside `target`, then rename it into place. A copy that
+* differs is moved aside first and deleted only once the new copy is in place; if the new copy cannot be
+* renamed in, the old one is put back.
+*/
+function replaceTree(parent, target, files, moveAside) {
 	const staging = node_path.default.join(parent, `.tmp-${node_crypto.default.randomUUID()}`);
 	const displaced = node_path.default.join(parent, `.old-${node_crypto.default.randomUUID()}`);
+	let moved = false;
 	try {
 		node_fs.default.mkdirSync(staging, { mode: 448 });
 		for (const [relative, data] of files) {
@@ -141,24 +296,30 @@ function publishTree(parent, name, files) {
 			});
 			writeNew(file, data, 384);
 		}
-		if (node_fs.default.existsSync(target)) node_fs.default.renameSync(target, displaced);
+		if (moveAside) {
+			node_fs.default.renameSync(target, displaced);
+			moved = true;
+		}
 		try {
 			node_fs.default.renameSync(staging, target);
 		} catch (error) {
-			if (!treeMatches(target, files)) throw error;
+			const restore = moved;
+			moved = false;
+			if (restore) try {
+				node_fs.default.renameSync(displaced, target);
+			} catch {}
+			throw error;
 		}
 	} finally {
 		node_fs.default.rmSync(staging, {
 			recursive: true,
 			force: true
 		});
-		node_fs.default.rmSync(displaced, {
+		if (moved) node_fs.default.rmSync(displaced, {
 			recursive: true,
 			force: true
 		});
 	}
-	if (!treeMatches(target, files)) throw new InstallError(`Could not verify the native host copy: ${target}`);
-	return target;
 }
 /** The Node running this installer, which the wrapper execs; never a PATH lookup or a fixed location. */
 function nodeExecutable() {
@@ -211,6 +372,10 @@ function existingHost(manifestPath) {
 		return null;
 	}
 }
+function refuseForeign(manifestPath, wrapper) {
+	const previous = existingHost(manifestPath);
+	if (previous !== void 0 && previous !== wrapper && !force) throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\nPass --force to replace it: ${manifestPath}`);
+}
 function install(extensionId, manifestPath, socketPath) {
 	const node = nodeExecutable();
 	const hosts = privateDirectory(node_path.default.join(privateDirectory(stateRoot()), "hosts"));
@@ -219,8 +384,7 @@ function install(extensionId, manifestPath, socketPath) {
 	const wrapper = node_path.default.join(wrapperDir, wrapperName);
 	const copyDir = node_path.default.join(hosts, `skill-${digest(files).slice(0, 12)}`);
 	const text = launcher(node, node_path.default.join(copyDir, ...hostEntry.split("/")), socketPath);
-	const previous = existingHost(manifestPath);
-	if (previous !== void 0 && previous !== wrapper && !force) throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\nPass --force to replace it: ${manifestPath}`);
+	refuseForeign(manifestPath, wrapper);
 	publishTree(hosts, node_path.default.basename(copyDir), files);
 	privateDirectory(wrapperDir);
 	replaceFile(wrapper, text, 448);
@@ -232,7 +396,13 @@ function install(extensionId, manifestPath, socketPath) {
 		allowed_origins: [`chrome-extension://${extensionId}/`]
 	};
 	node_fs.default.mkdirSync(node_path.default.dirname(manifestPath), { recursive: true });
-	replaceFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 420);
+	const lock = acquireInstallLockSync(manifestLockPath(manifestPath));
+	try {
+		refuseForeign(manifestPath, wrapper);
+		replaceFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 420);
+	} finally {
+		lock.release();
+	}
 	return {
 		wrapper,
 		copyDir

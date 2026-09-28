@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { Effect } from "effect";
+import { acquireInstallLockSync, manifestLockPath } from "../shared/install-lock";
 import { argValue, runScript, ScriptIo } from "./effect-services";
 
 const root = path.resolve(__dirname, "..");
@@ -16,6 +17,8 @@ const hostName = "com.opzero.chrome";
 const hostEntry = "native-host/host.js";
 const wrapperName = process.platform === "win32" ? "browser-control-host.cmd" : "browser-control-host";
 const force = process.argv.includes("--force");
+/** Serializes this installer's publications into <state>/hosts; the server's own copies use .publish.lock there. */
+const publishLock = ".skill-publish.lock";
 
 /** A refusal with a message for the user; nothing is written after one. */
 class InstallError extends Error {}
@@ -98,22 +101,31 @@ function listFiles(dir: string, prefix = ""): string[] {
   return result;
 }
 
-/** `target` is a private directory holding exactly `files`, each a private regular file with the same bytes. */
-function treeMatches(target: string, files: ReadonlyMap<string, Buffer>) {
+type TreeState = "absent" | "matches" | "differs";
+
+/**
+ * Whether `target` is a private directory holding exactly `files`, each a private regular file with the same
+ * bytes. An error other than a missing target is thrown, so a copy is only ever called different once it has
+ * been read.
+ */
+function treeState(target: string, files: ReadonlyMap<string, Buffer>): TreeState {
+  let stats: fs.Stats;
   try {
-    const stats = fs.lstatSync(target);
-    if (!stats.isDirectory() || !isPrivate(stats)) return false;
-    const present = listFiles(target);
-    if (present.length !== files.size) return false;
-    return present.every((relative) => {
-      const expected = files.get(relative);
-      const file = path.join(target, relative);
-      const entry = fs.lstatSync(file);
-      return expected !== undefined && entry.isFile() && isPrivate(entry) && fs.readFileSync(file).equals(expected);
-    });
-  } catch {
-    return false;
+    stats = fs.lstatSync(target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent";
+    throw error;
   }
+  if (!stats.isDirectory() || !isPrivate(stats)) return "differs";
+  const present = listFiles(target);
+  if (present.length !== files.size) return "differs";
+  for (const relative of present) {
+    const expected = files.get(relative);
+    const file = path.join(target, relative);
+    const entry = fs.lstatSync(file);
+    if (expected === undefined || !entry.isFile() || !isPrivate(entry) || !fs.readFileSync(file).equals(expected)) return "differs";
+  }
+  return "matches";
 }
 
 function writeNew(file: string, data: string | Buffer, mode: number) {
@@ -128,14 +140,40 @@ function writeNew(file: string, data: string | Buffer, mode: number) {
 }
 
 /**
- * Publish `files` as <parent>/<name>/: stage a private directory beside it, then rename it into place. A
- * matching copy is kept as it is; a damaged one is moved aside first. Returns the published directory.
+ * Publish `files` as <parent>/<name>/. Publications are serialized by a lock in <parent>, and the target is
+ * checked again under it, so a matching copy that another installer published (and Chrome may be running) is
+ * never moved or deleted. Returns the published directory.
  */
 function publishTree(parent: string, name: string, files: ReadonlyMap<string, Buffer>) {
   const target = path.join(parent, name);
-  if (treeMatches(target, files)) return target;
+  let current: TreeState | null = null;
+  try {
+    current = treeState(target, files);
+  } catch {
+    // Read again under the lock.
+  }
+  if (current !== "matches") {
+    const lock = acquireInstallLockSync(path.join(parent, publishLock));
+    try {
+      const state = treeState(target, files);
+      if (state !== "matches") replaceTree(parent, target, files, state === "differs");
+    } finally {
+      lock.release();
+    }
+  }
+  if (treeState(target, files) !== "matches") throw new InstallError(`Could not verify the native host copy: ${target}`);
+  return target;
+}
+
+/**
+ * Under the publish lock: stage a private directory beside `target`, then rename it into place. A copy that
+ * differs is moved aside first and deleted only once the new copy is in place; if the new copy cannot be
+ * renamed in, the old one is put back.
+ */
+function replaceTree(parent: string, target: string, files: ReadonlyMap<string, Buffer>, moveAside: boolean) {
   const staging = path.join(parent, `.tmp-${crypto.randomUUID()}`);
   const displaced = path.join(parent, `.old-${crypto.randomUUID()}`);
+  let moved = false;
   try {
     fs.mkdirSync(staging, { mode: 0o700 });
     for (const [relative, data] of files) {
@@ -143,19 +181,28 @@ function publishTree(parent: string, name: string, files: ReadonlyMap<string, Bu
       fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
       writeNew(file, data, 0o600);
     }
-    if (fs.existsSync(target)) fs.renameSync(target, displaced);
+    if (moveAside) {
+      fs.renameSync(target, displaced);
+      moved = true;
+    }
     try {
       fs.renameSync(staging, target);
     } catch (error) {
-      // Another installer published the same copy first.
-      if (!treeMatches(target, files)) throw error;
+      const restore = moved;
+      moved = false;
+      if (restore) {
+        try {
+          fs.renameSync(displaced, target);
+        } catch {
+          // The old copy stays beside the target; nothing deletes it.
+        }
+      }
+      throw error;
     }
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
-    fs.rmSync(displaced, { recursive: true, force: true });
+    if (moved) fs.rmSync(displaced, { recursive: true, force: true });
   }
-  if (!treeMatches(target, files)) throw new InstallError(`Could not verify the native host copy: ${target}`);
-  return target;
 }
 
 /** The Node running this installer, which the wrapper execs; never a PATH lookup or a fixed location. */
@@ -223,6 +270,14 @@ function existingHost(manifestPath: string): string | null | undefined {
   }
 }
 
+function refuseForeign(manifestPath: string, wrapper: string) {
+  const previous = existingHost(manifestPath);
+  if (previous !== undefined && previous !== wrapper && !force) {
+    throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\n`
+      + `Pass --force to replace it: ${manifestPath}`);
+  }
+}
+
 function install(extensionId: string, manifestPath: string, socketPath: string | null) {
   const node = nodeExecutable();
   const hosts = privateDirectory(path.join(privateDirectory(stateRoot()), "hosts"));
@@ -231,13 +286,10 @@ function install(extensionId: string, manifestPath: string, socketPath: string |
   const wrapper = path.join(wrapperDir, wrapperName);
   const copyDir = path.join(hosts, `skill-${digest(files).slice(0, 12)}`);
   const text = launcher(node, path.join(copyDir, ...hostEntry.split("/")), socketPath);
-  const previous = existingHost(manifestPath);
-  if (previous !== undefined && previous !== wrapper && !force) {
-    throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\n`
-      + `Pass --force to replace it: ${manifestPath}`);
-  }
+  refuseForeign(manifestPath, wrapper);
   publishTree(hosts, path.basename(copyDir), files);
   privateDirectory(wrapperDir);
+  // The wrapper names the copy only after that copy is verified in place.
   replaceFile(wrapper, text, 0o700);
   const manifest = {
     name: hostName,
@@ -247,7 +299,14 @@ function install(extensionId: string, manifestPath: string, socketPath: string |
     allowed_origins: [`chrome-extension://${extensionId}/`]
   };
   fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-  replaceFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 0o644);
+  // `browser-control install` takes the same lock, so the manifest is classified again and replaced as one step.
+  const lock = acquireInstallLockSync(manifestLockPath(manifestPath));
+  try {
+    refuseForeign(manifestPath, wrapper);
+    replaceFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 0o644);
+  } finally {
+    lock.release();
+  }
   return { wrapper, copyDir };
 }
 
