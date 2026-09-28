@@ -75,7 +75,7 @@ function handleNative(message: JsonRpcMessage) {
   if (message.id != null) {
     if (message.method === "ping") native(result(message.id, "pong"));
     else if (message.method === "getHostInfo") native(result(message.id, {
-      name: "opzero-chrome-native-host", version: "0.2.0", protocolVersion: 2, extensionProtocol, epoch, pid: process.pid,
+      name: "opzero-chrome-native-host", version: "0.2.1", protocolVersion: 2, extensionProtocol, epoch, pid: process.pid,
       transport: useTcp ? "tcp" : "unix", endpoint: useTcp ? `127.0.0.1:${port}` : socketPath
     }));
     else native(error(message.id, "Unsupported native host method"));

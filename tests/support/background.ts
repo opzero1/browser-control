@@ -27,13 +27,11 @@ export async function background(initialStorage: Record<string, unknown> = {}) {
       query: (_: unknown, cb: Function) => cb([...tabs.values()]),
       onRemoved: event(), onReplaced: event(), onUpdated: event()
     },
-    history: { search: vi.fn((_: unknown, cb: Function) => cb([])) },
     tabGroups: {
       get: vi.fn((_: unknown, cb: Function) => cb({ ...group })),
       update: vi.fn((_: unknown, value: object, cb: Function) => { group = { ...group, ...value }; cb({ ...group }); })
     },
     debugger: { attach: vi.fn((_: unknown, __: unknown, cb: Function) => cb()), detach: (_: unknown, cb: Function) => cb(), getTargets: (cb: Function) => cb([{ tabId: 1 }, { tabId: 2 }]), sendCommand: vi.fn((_: unknown, __: unknown, ___: unknown, cb: Function) => cb({})), onEvent: event(), onDetach: event() },
-    downloads: { onCreated: event(), onChanged: event() },
     scripting: { executeScript: vi.fn((_: unknown, cb: Function) => cb([{ documentId: "doc-1", frameId: 0, result: { status: "observed", origin: "https://synthetic.invalid", url: "https://synthetic.invalid/" } }])) }
   };
   vm.runInNewContext(fs.readFileSync("dist/extension/background.js", "utf8"), { chrome, crypto: webcrypto, setTimeout, clearTimeout, console, URL, TextEncoder, TextDecoder, AbortController });

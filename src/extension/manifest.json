@@ -26,8 +26,6 @@
   "permissions": [
     "alarms",
     "debugger",
-    "downloads",
-    "history",
     "nativeMessaging",
     "scripting",
     "storage",

@@ -98,7 +98,7 @@ function handleNative(message) {
 		if (message.method === "ping") native(result(message.id, "pong"));
 		else if (message.method === "getHostInfo") native(result(message.id, {
 			name: "opzero-chrome-native-host",
-			version: "0.2.0",
+			version: "0.2.1",
 			protocolVersion: 2,
 			extensionProtocol,
 			epoch,

@@ -799,21 +799,6 @@ const api: Record<string, RpcHandler> = {
     });
   }),
 
-  getUserHistory: (params: JsonRecord = {}) => Effect.gen(function* () {
-    const chromeApi = yield* ChromeApi;
-    yield* Effect.try({ try: () => ensureSession(params), catch: toError });
-    const maxResults = Math.max(1, Math.min(Number(params.limit) || 100, 1000));
-    const from = Number(params.from);
-    const to = Number(params.to);
-    const query: chrome.history.HistoryQuery = {
-      text: typeof params.query === "string" ? params.query : "",
-      maxResults,
-      startTime: Number.isFinite(from) ? from : 0
-    };
-    if (Number.isFinite(to)) query.endTime = to;
-    return yield* chromeApi.call<chrome.history.HistoryItem[]>("history", "search", query);
-  }),
-
   createTab: (params: JsonRecord = {}) => Effect.gen(function* () {
     const chromeApi = yield* ChromeApi;
     const session = yield* Effect.try({ try: () => ensureSession(params), catch: toError });
@@ -1335,31 +1320,6 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   const session = source.tabId == null ? null : getSessionForTab(source.tabId);
   if (source.tabId != null && Number.isInteger(source.tabId)) { attachedTabs.delete(source.tabId); invalidateTab(source.tabId); }
   if (session) nativeTransport?.notify("onCDPDetach", { session_id: session.id, source, reason });
-});
-
-chrome.downloads.onCreated.addListener((item) => {
-  if (!sessions.size) return;
-  nativeTransport?.notify("onDownloadChange", {
-    id: String(item.id),
-    filename: item.filename,
-    url: item.url,
-    status: "started"
-  });
-});
-
-chrome.downloads.onChanged.addListener((delta) => {
-  if (!sessions.size) return;
-  let status = delta.state?.current;
-  if (status === "complete") status = "complete";
-  else if (status === "interrupted") status = delta.error?.current === "USER_CANCELED" ? "canceled" : "failed";
-  else if (status) status = "in_progress";
-  if (!status) return;
-  nativeTransport?.notify("onDownloadChange", {
-    id: String(delta.id),
-    filename: delta.filename?.current,
-    url: delta.url?.current,
-    status
-  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

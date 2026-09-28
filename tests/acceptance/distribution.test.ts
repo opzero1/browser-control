@@ -47,7 +47,8 @@ describe("Browser Control distribution", () => {
     expect(manifest.name).toBe("Browser Control");
     expect(manifest.background.service_worker).toBe("background.js");
     expect(manifest.permissions).toEqual(expect.arrayContaining(["nativeMessaging", "debugger", "scripting", "tabs"]));
-    expect(manifest.permissions).not.toEqual(expect.arrayContaining(["bookmarks", "downloads.ui", "favicon", "notifications", "readingList", "sessions", "topSites"]));
+    expect(manifest.permissions).toEqual(["alarms", "debugger", "nativeMessaging", "scripting", "storage", "tabGroups", "tabs"]);
+    expect(manifest.host_permissions).toEqual(["<all_urls>"]);
 
     for (const [size, file] of Object.entries({
       "16": "images/icon-16.png",
