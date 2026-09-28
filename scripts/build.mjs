@@ -91,6 +91,10 @@ if (process.env.BROWSER_CONTROL_EXTENSION_ID) {
 function syncInstallableSkill(skillDir) {
   fs.mkdirSync(skillDir, { recursive: true });
   copyFile("skills/browser-control/SKILL.md", path.join(skillDir, "SKILL.md"));
+  const references = path.join(root, "skills", "browser-control", "references");
+  if (path.resolve(skillDir) !== path.dirname(references) && fs.existsSync(references)) {
+    copyDir(references, path.join(skillDir, "references"));
+  }
   for (const generatedPath of ["native-host", "scripts", "chunks"]) {
     fs.rmSync(path.join(skillDir, generatedPath), { recursive: true, force: true });
   }

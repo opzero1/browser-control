@@ -76,6 +76,7 @@ describe("Browser Control distribution", () => {
   it("packages an installable skill with native host and helper scripts", () => {
     const files = [
       "dist/skill/browser-control/SKILL.md",
+      "dist/skill/browser-control/references/native-host.md",
       "dist/skill/browser-control/native-host/client.js",
       "dist/skill/browser-control/native-host/host.js",
       "dist/skill/browser-control/native-host/browser-control-host",
@@ -89,9 +90,12 @@ describe("Browser Control distribution", () => {
       expect(fs.existsSync(path.join(root, file)), file).toBe(true);
     }
     const skill = fs.readFileSync(path.join(root, "dist/skill/browser-control/SKILL.md"), "utf8");
-    expect(skill).toContain("node native-host/client.js ping");
-    expect(skill).toContain("@browser-control");
-    expect(skill).not.toContain("pnpm run client");
+    expect(skill).toMatch(/^---\nname: browser-control\n/);
+    expect(skill).toContain("](references/native-host.md)");
+    const hostScripts = fs.readFileSync(path.join(root, "dist/skill/browser-control/references/native-host.md"), "utf8");
+    expect(hostScripts).toContain("node native-host/client.js ping");
+    expect(hostScripts).toContain("node scripts/install-native-host.js");
+    expect(skill + hostScripts).not.toContain("pnpm run client");
     expect(readJson("dist/skill/browser-control/scripts/extension-id.json")).toEqual({
       extensionId: "dcnjjnecbhipdbngkhjppkckpkellmld",
       extensionHostName: "com.opzero.chrome"
@@ -107,6 +111,7 @@ describe("Browser Control distribution", () => {
     return new Promise<void>((resolve) => {
       zippedSkill.on("close", () => {
         expect(zipList).toContain("scripts/extension-id.json");
+        expect(zipList).toContain("references/native-host.md");
         resolve();
       });
     });
@@ -115,6 +120,7 @@ describe("Browser Control distribution", () => {
   it("keeps the GitHub skill path installable by skill-installer", () => {
     const files = [
       "skills/browser-control/SKILL.md",
+      "skills/browser-control/references/native-host.md",
       "skills/browser-control/native-host/client.js",
       "skills/browser-control/native-host/host.js",
       "skills/browser-control/native-host/browser-control-host",

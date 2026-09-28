@@ -20,6 +20,7 @@ const requiredFiles = [
   "scripts/extension-id.example.json",
   "scripts/extension-id.store.json",
   "skills/browser-control/SKILL.md",
+  "skills/browser-control/references/native-host.md",
   "skills/browser-control/native-host/client.js",
   "skills/browser-control/native-host/host.js",
   "skills/browser-control/native-host/browser-control-host",
