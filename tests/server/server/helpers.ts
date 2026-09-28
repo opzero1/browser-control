@@ -3,7 +3,10 @@
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { BrowserControl, type AppOptions } from "../../../src/server/app";
+import { mcpServer } from "../../../src/server/entry";
 import { Gate } from "../../../src/server/gate";
 import type { HostConnection } from "../../../src/server/host-connection";
 import type { JsonObject } from "../../../src/server/pyjson";
@@ -265,3 +268,22 @@ export const JPEG_4X4 = (() => {
   const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, "../fixtures/python-jpeg.json"), "utf8")) as { cases: Array<{ name: string; data: string }> };
   return (corpus.cases.find((item) => item.name === "rgb-4x4") as { data: string }).data;
 })();
+
+/** An in-memory MCP client of the server (create_connected_server_and_client_session). */
+export async function mcpClient(server: BrowserControl): Promise<{ client: Client; close: () => Promise<void> }> {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const mcp = mcpServer(server, server.shutdown);
+  await mcp.connect(serverTransport);
+  const client = new Client({ name: "browser-control-tests", version: "0" });
+  await client.connect(clientTransport);
+  return { client, close: async () => { await client.close(); await mcp.close(); } };
+}
+
+/** The JSON body of a text tool result. */
+export function body(result: { content?: unknown }): any {
+  return JSON.parse((result.content as Array<{ text: string }>)[0].text);
+}
+
+export function text(result: { content?: unknown }): string {
+  return (result.content as Array<{ text: string }>)[0].text;
+}

@@ -33,6 +33,18 @@ function flush(stream: NodeJS.WritableStream): Promise<void> {
   });
 }
 
+/** The MCP server for an app: tools only, with the app's instructions and request _meta passed through. */
+export function mcpServer(app: App, shutdown: Shutdown): Server {
+  const server = new Server(app.serverInfo, { capabilities: { tools: { listChanged: false } }, instructions: app.instructions });
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: app.listTools() }));
+  // extra.signal is ignored: a running body is never aborted, so its tab stays busy until it settles.
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (shutdown.isSet) return gateResult(request.params.name, "fast-chrome-shutting-down");
+    return app.callTool(request.params.name, request.params.arguments ?? {}, request.params._meta);
+  });
+  return server;
+}
+
 /** Serve MCP over stdio until EOF or SIGTERM, then clean up within the shutdown bound and exit 0. */
 export async function runStdioServer(options: StdioServerOptions = {}): Promise<number> {
   const stdin: NodeJS.ReadableStream = options.stdin ?? process.stdin;
@@ -42,13 +54,7 @@ export async function runStdioServer(options: StdioServerOptions = {}): Promise<
   const shutdown = new Shutdown(options.shutdownSeconds ?? SHUTDOWN_SECONDS);
   const app = (options.app ?? createApp)({ env, shutdown });
 
-  const server = new Server(app.serverInfo, { capabilities: { tools: { listChanged: false } }, instructions: app.instructions });
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: app.listTools() }));
-  // extra.signal is ignored: a running body is never aborted, so its tab stays busy until it settles.
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (shutdown.isSet) return gateResult(request.params.name, "fast-chrome-shutting-down");
-    return app.callTool(request.params.name, request.params.arguments ?? {}, request.params._meta);
-  });
+  const server = mcpServer(app, shutdown);
   const transport = new StdioTransport(stdin, stdout);
 
   return new Promise<number>((resolve) => {
