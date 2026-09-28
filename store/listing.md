@@ -1,6 +1,6 @@
-# Chrome Web Store listing: Browser Control 0.2.1
+# Chrome Web Store listing: Browser Control 0.2.2
 
-Paste-ready values for every Chrome Web Store developer dashboard field. The values come from an audit of `src/` at extension version 0.2.1, including commit a88821b, which dropped the `history` and `downloads` permissions. The manifest now requests exactly `alarms`, `debugger`, `nativeMessaging`, `scripting`, `storage`, `tabGroups`, `tabs` and the host permission `<all_urls>`. See [Source audit](#source-audit) for the code behind each claim.
+Paste-ready values for every Chrome Web Store developer dashboard field. The extension code in 0.2.2 is identical to 0.2.1 apart from the version number. The only change under `src/extension` since the 0.2.1 submission (extension source at `5717395`) is `version` in `manifest.json`, and a build of that source differs from the 0.2.2 package only in that line. So the values still come from an audit of `src/` at extension version 0.2.1, including commit a88821b, which dropped the `history` and `downloads` permissions. The manifest requests exactly `alarms`, `debugger`, `nativeMessaging`, `scripting`, `storage`, `tabGroups`, `tabs` and the host permission `<all_urls>`. See [Source audit](#source-audit) for the code behind each claim.
 
 Character counts are JavaScript string lengths (UTF-16 code units) of the text inside each block. For every field here that equals the number of Unicode code points. Paste the text inside the block, not the fence.
 
@@ -101,7 +101,7 @@ Google Chrome is a trademark of Google LLC.
 
 ### Additional instructions for reviewers
 
-The dashboard field holds 500 characters at most. This text is 468 characters with LF line breaks, or 473 if each line break counts as CRLF. It is plain ASCII. It is copied from `store/reviewer-test-instructions.md`, and it links to the full steps on <https://browser-control.pages.dev/support/reviewers/>.
+The dashboard field holds 500 characters at most. This text is 468 characters with LF line breaks, or 473 if each line break counts as CRLF. It is plain ASCII. It is copied from `store/reviewer-test-instructions.md`, and it links to the full steps on <https://browser-control.pages.dev/support/reviewers/>. The text is the same as for 0.2.1, because the Chrome Web Store API cannot change this field. Its download link uses `chrome-control-skill.zip`, the helper's name before 0.2.2. The website serves the 0.2.2 `browser-control-skill.zip` at that path too, so the text stays valid.
 
 ```text
 Idle until its local native messaging host is installed (popup: Disconnected). No account or server is needed.
@@ -209,11 +209,11 @@ Google: "Extensions are required to disclose how they handle user data, even whe
 | Personally identifiable information | **Checked** | Private fill passes a user name or email address from a local program into a verified sign-in field, without storing or logging it (`private-input.ts` accepts text and email fields). The agent can also type names, addresses and similar details into form fields (`actPage`). Details that only appear on a page are handled as Website content. |
 | Health information | Unchecked | No code reads health data. Health details that appear on a page are handled only as Website content. |
 | Financial and payment information | Unchecked | No code reads payment, card or transaction data. Financial details that appear on a page are handled only as Website content. |
-| Authentication information | **Checked** | Private fill passes passwords and one-time codes from a local program into verified sign-in fields, without storing or logging them (`privateFill`, `background.ts:972-998`; `private-input.ts:25-56`). The `executeCdp` relay (`background.ts:906-926`) can return the cookies of agent tabs. |
+| Authentication information | **Checked** | Private fill passes passwords and one-time codes from a local program into verified sign-in fields, without storing or logging them (`privateFill`, `background.ts:1007-1033`; `private-input.ts:25-56`). The `executeCdp` relay (`background.ts:941-961`) can return the cookies of agent tabs. |
 | Personal communications | Unchecked | No code reads mail, chat or messaging data. Messages that are visible on a page are handled only as Website content. |
 | Location | Unchecked | No code uses geolocation or looks up IP addresses. Location details that a page shows are handled only as Website content. |
-| Web history | **Checked** | `getUserTabs` (`background.ts:791-800`) returns the URLs and titles of the user's open tabs. `getTabs`, `createTab` and `claimUserTab` return the URL and title of agent tabs. DevTools events from agent tabs can carry the addresses of pages that the tab loads. |
-| User activity | **Checked** | Network and other DevTools events from agent tabs go to the owning local session when the local agent turns those DevTools domains on (`onCDPEvent`, `background.ts:1314-1317`). The extension's own code does not listen to the user's clicks, keystrokes or scrolling. |
+| Web history | **Checked** | `getUserTabs` (`background.ts:826-835`) returns the URLs and titles of the user's open tabs. `getTabs`, `createTab` and `claimUserTab` return the URL and title of agent tabs. DevTools events from agent tabs can carry the addresses of pages that the tab loads. |
+| User activity | **Checked** | Network and other DevTools events from agent tabs go to the owning local session when the local agent turns those DevTools domains on (`onCDPEvent`, `background.ts:1349-1352`). The extension's own code does not listen to the user's clicks, keystrokes or scrolling. |
 | Website content | **Checked** | Visible text, title and control labels (`observePage`), screenshots and recording frames (`capturePage`), and DevTools results (`executeCdp`) from agent tabs. This also covers any personal, health, financial, communication or location details that appear on those pages. |
 
 ### Certifications
@@ -249,34 +249,34 @@ They are true because the extension sends data only to the host on the user's de
 
 ### Permissions
 
-Line numbers refer to the files at extension version 0.2.1, after commit a88821b.
+Line numbers refer to the files at version 0.2.2. Apart from the manifest version, the extension files are the same as in the 0.2.1 submission.
 
 | Permission | Code (file:line) | User-facing feature | Verdict |
 | --- | --- | --- | --- |
-| `alarms` | `background.ts:391-394` create; `451-452` clear; `1387-1393` `onAlarm` | Automatic reconnect every 30 s, and a heartbeat that stops sessions when the host dies | Keep |
-| `debugger` | `background.ts:890` attach; `893`, `1201` detach; `915` `getTargets`; `1118` `sendCommand`; `1314-1317` `onEvent`; `1319-1323` `onDetach` | Navigate, screenshots and recordings, PDF upload, cursor fallback, raw DevTools relay | Keep. It is the core feature. Expect in-depth review. |
-| `nativeMessaging` | `background.ts:484` `connectNative("com.opzero.chrome")` | The only channel to the local host | Keep |
-| `scripting` | `background.ts:592-595` (`pageControl`), `957-959` (`observePrivateFields`), `993-996` (`fillPrivateFields`), `1223-1227` (content script file) | Observe, act, upload preparation, private fill, cursor overlay | Keep |
-| `storage` | `background.ts:136-140` helpers; writes at `240`, `254-265`, `406`, `475`, `991`; `1398` (session); `popup.ts:61`, `79` | Popup status, pause setting, group bookkeeping, private-fill quarantine | Keep |
-| `tabGroups` | `background.ts:274-280`, `290-294`, `306-312`, `320-324`, `358`, `876-877` | Labeled agent tab groups and the "✅ Browser Control" group | Keep |
-| `tabs` | `background.ts:794` (`query`), `807` (`create`), `784`, `812`, `820`, `827` (`get`), `854` (`remove`), `275`, `288`, `307`, `319` (`group`), `349` (`ungroup`), `1208` (`sendMessage`), `1325-1354` (events, used only to invalidate stale state; nothing is sent to the host) | List and claim tabs, create and close agent tabs, cursor messages | Keep for now. With `<all_urls>`, web-page URLs and titles are readable without `tabs`, but `isControllableUrl` (`background.ts:212-216`) treats a missing URL as controllable. Dropping `tabs` needs that code fixed first, or `chrome://` tabs become claimable. |
-| `host_permissions: <all_urls>` | Needed by every `scripting.executeScript` call above, and by the content script injection | Work on any site that the user chooses | Keep, with justification. Possible narrowing: `https://*/*` plus loopback. The typed page API already requires HTTPS or loopback (`background.ts:707`), but the raw path and the cursor overlay also work on plain HTTP. |
+| `alarms` | `background.ts:393-396` create; `454-455` clear; `1422-1435` `onAlarm` | Automatic reconnect every 30 s, and a heartbeat that stops sessions when the host dies | Keep |
+| `debugger` | `background.ts:925` attach; `928`, `1236` detach; `950` `getTargets`; `1153` `sendCommand`; `1349-1352` `onEvent`; `1354-1358` `onDetach` | Navigate, screenshots and recordings, PDF upload, cursor fallback, raw DevTools relay | Keep. It is the core feature. Expect in-depth review. |
+| `nativeMessaging` | `background.ts:487` `connectNative("com.opzero.chrome")`, through `HOST_NAME` (`12`, `1451`) | The only channel to the local host | Keep |
+| `scripting` | `background.ts:627-630` (`pageControl`), `992-994` (`observePrivateFields`), `1028-1031` (`fillPrivateFields`), `1258-1262` (content script file) | Observe, act, upload preparation, private fill, cursor overlay | Keep |
+| `storage` | `background.ts:137-141` helpers; writes at `241`, `255-266`, `408`, `478`, `1026`; `1440` (session); `popup.ts:68`, `90` | Popup status, pause setting, group bookkeeping, private-fill quarantine | Keep |
+| `tabGroups` | `background.ts:275-281`, `291-295`, `307-313`, `321-325`, `359`, `911-912` | Labeled agent tab groups and the "✅ Browser Control" group | Keep |
+| `tabs` | `background.ts:829` (`query`), `842` (`create`), `819`, `847`, `855`, `862` (`get`), `889` (`remove`), `276`, `289`, `308`, `320` (`group`), `350` (`ungroup`), `1243` (`sendMessage`), `1360-1389` (events, used only to invalidate stale state; nothing is sent to the host) | List and claim tabs, create and close agent tabs, cursor messages | Keep for now. With `<all_urls>`, web-page URLs and titles are readable without `tabs`, but `isControllableUrl` (`background.ts:213-217`) treats a missing URL as controllable. Dropping `tabs` needs that code fixed first, or `chrome://` tabs become claimable. |
+| `host_permissions: <all_urls>` | Needed by every `scripting.executeScript` call above, and by the content script injection | Work on any site that the user chooses | Keep, with justification. Possible narrowing: `https://*/*` plus loopback. The typed page API already requires HTTPS or loopback (`background.ts:742`), but the raw path and the cursor overlay also work on plain HTTP. |
 | `web_accessible_resources: images/cursor-chat.svg` on `<all_urls>` | `content-scripts/opzero-chrome.ts:81` | The agent cursor image | Keep or drop. Any site can probe the file to detect the extension. A CSS fallback already exists (`opzero-chrome.ts:82-87`). Consider `use_dynamic_url: true`. |
 
-Other APIs that need no permission: `chrome.windows.getCurrent` and `getAll` (`background.ts:367-369`), `chrome.runtime` messaging, reload and update events, and `chrome.dom.openOrClosedShadowRoot` (`page-control.ts:28`, `72`).
+Other APIs that need no permission: `chrome.windows.getCurrent` and `getAll` (`background.ts:368-370`), `chrome.runtime` messaging, reload and update events, and `chrome.dom.openOrClosedShadowRoot` (`page-control.ts:28`, `72`).
 
-The extension sends the host only three kinds of notification: `onControlStopped` (`background.ts:1252`), `onCDPEvent` (`1316`) and `onCDPDetach` (`1322`).
+The extension sends the host only three kinds of notification: `onControlStopped` (`background.ts:1287`), `onCDPEvent` (`1351`) and `onCDPDetach` (`1357`).
 
 ### Chrome DevTools Protocol methods sent through `chrome.debugger`
 
 | Method | Code | Feature |
 | --- | --- | --- |
-| `DOM.getDocument`, `DOM.querySelectorAll`, `DOM.setFileInputFiles` | `background.ts:660`, `662`, `671` | `uploadFile`: attach a local PDF to the file input that the agent chose |
-| `Page.navigate` | `background.ts:718` | `navigatePage`: same-origin navigation only |
-| `Page.captureScreenshot` (JPEG, quality 80) | `background.ts:759` | `capturePage`: screenshots and recording frames |
-| `Runtime.evaluate` (bundled expression) | `background.ts:1189-1193` | Cursor fallback when the content script is unavailable |
-| Any method from the local agent, except `Target.*` and `Browser.*` | `background.ts:906-926` | `executeCdp` raw relay. Refused on origin-bound tabs (`911`) and after a private fill (`912-913`). `Target.getTargets` is answered by `chrome.debugger.getTargets`, filtered to the session's tabs (`914-917`). |
-| All events from attached session tabs | `background.ts:1314-1317` | Forwarded as `onCDPEvent` to the owning session only (`host.ts:87-93`) |
+| `DOM.getDocument`, `DOM.querySelectorAll`, `DOM.setFileInputFiles` | `background.ts:695`, `697`, `706` | `uploadFile`: attach a local PDF to the file input that the agent chose |
+| `Page.navigate` | `background.ts:753` | `navigatePage`: same-origin navigation only |
+| `Page.captureScreenshot` (JPEG, quality 80) | `background.ts:794` | `capturePage`: screenshots and recording frames |
+| `Runtime.evaluate` (bundled expression) | `background.ts:1224-1228` | Cursor fallback when the content script is unavailable |
+| Any method from the local agent, except `Target.*` and `Browser.*` | `background.ts:941-961` | `executeCdp` raw relay. Refused on origin-bound tabs (`946`) and after a private fill (`947-948`). `Target.getTargets` is answered by `chrome.debugger.getTargets`, filtered to the session's tabs (`949-952`). |
+| All events from attached session tabs | `background.ts:1349-1352` | Forwarded as `onCDPEvent` to the owning session only (`host.ts:91-97`) |
 
 ### Data flows
 
@@ -284,26 +284,26 @@ Extension (`background.ts`) → Chrome native messaging (stdio, 4-byte length-pr
 
 | Data | Source in code | Leaves the device? |
 | --- | --- | --- |
-| Tab URL, title, IDs, group | `tabInfo`, `background.ts:218-232`; `getTabs` (`780-789`), `getUserTabs` (`791-800`), `createTab`, `claimUserTab` | Only if the local agent sends it |
+| Tab URL, title, IDs, group | `tabInfo`, `background.ts:219-233`; `getTabs` (`815-824`), `getUserTabs` (`826-835`), `createTab`, `claimUserTab` | Only if the local agent sends it |
 | Page text, title, control labels | `page-control.ts:217-236` | Only if the local agent sends it |
-| Screenshots and recording frames | `background.ts:754-762`; recordings written by `transport.ts:165-211` | Only if the local agent sends it |
-| Raw DevTools results and events | `background.ts:906-926`, `1314-1317` | Only if the local agent sends it |
-| Private-fill values | `background.ts:972-998`, `private-input.ts:25-56`; the host reduces the reply at `host.ts:66-69` | Typed into the page. The site receives them when the form is submitted. |
-| Uploaded PDF | Path only, `background.ts:671`. The extension never reads the bytes. `transport.ts:134-136` reads 5 bytes to check the signature. | To the website, when the page submits the form |
+| Screenshots and recording frames | `background.ts:789-797`; recordings written by `transport.ts:173-219` | Only if the local agent sends it |
+| Raw DevTools results and events | `background.ts:941-961`, `1349-1352` | Only if the local agent sends it |
+| Private-fill values | `background.ts:1007-1033`, `private-input.ts:25-56`; the host reduces the reply at `host.ts:70-73` | Typed into the page. The site receives them when the form is submitted. |
+| Uploaded PDF | Path only, `background.ts:706`. The extension never reads the bytes. `transport.ts:142-144` reads 5 bytes to check the signature. | To the website, when the page submits the form |
 | Agent-typed text and clicks | `page-control.ts:259-277` | To the website, as normal browsing |
 
-**Remote transmission:** none by the extension. `src/extension` and `src/shared` contain no `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon` or `importScripts`, and neither do the built bundles in `dist/extension` (rebuilt after a88821b). The only external URL in the extension is the user-clicked "Docs" link in `popup.html:42`. The URLs in the bundles are Effect error-message strings. The extension CSP is `script-src 'self'; connect-src 'self'`. The host, client and transport use only local `net` sockets. Chrome itself contacts websites when the agent navigates or submits.
+**Remote transmission:** none by the extension. `src/extension` and `src/shared` contain no `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon` or `importScripts`, and neither do the built bundles in `dist/extension` (rebuilt for 0.2.2). The only external URL in the extension is the user-clicked "Docs" link in `popup.html:42`. The URLs in the bundles are Effect error-message strings. The extension CSP is `script-src 'self'; connect-src 'self'`. The host, client and transport use only local `net` sockets. Chrome itself contacts websites when the agent navigates or submits.
 
 ## Review risks
 
 1. **In-depth review is likely.** The item requests `debugger`, `<all_urls>` and `tabs`. Google names `<all_urls>` and `tabs` as causes of longer review.
-2. **Raw DevTools relay.** `executeCdp` (`background.ts:906-926`) forwards any method except `Target.*` and `Browser.*`, including `Runtime.evaluate`, `Network.getCookies` and `Storage.*`. A reviewer can treat this as executing code that is not in the package, or as broad data access. The remote-code justification discloses it. To remove the risk, change the code to an allowlist, or block `Runtime.evaluate`, `Runtime.compileScript`, `Page.addScriptToEvaluateOnNewDocument` and cookie and storage methods.
+2. **Raw DevTools relay.** `executeCdp` (`background.ts:941-961`) forwards any method except `Target.*` and `Browser.*`, including `Runtime.evaluate`, `Network.getCookies` and `Storage.*`. A reviewer can treat this as executing code that is not in the package, or as broad data access. The remote-code justification discloses it. To remove the risk, change the code to an allowlist, or block `Runtime.evaluate`, `Runtime.compileScript`, `Page.addScriptToEvaluateOnNewDocument` and cookie and storage methods.
 3. **Minified bundles.** `dist/extension/*.js` are minified IIFE bundles of about 190 to 245 KB. Google allows minification, but reviewers must be able to understand the code. Static scanners may flag six `eval(` matches per bundle. They are Effect `Micro` object methods named `eval`, not the global `eval`. Consider `build.minify: false` for the store package, and point reviewers to the public source.
-4. **Stale docs outside this change.** `README.md` and `docs/DEVELOPER.md` are current. `scripts/install-chrome-control-skill.sh` downloads from the `opzero1/browser-control` releases. `skills/chrome-control/SKILL.md` still says "Opzero Chrome" and shows `client.js` commands with JSON arguments that `client.ts:13-15` rejects. The coordinator replaces this file separately. That file ships inside `chrome-control-skill.zip`, which reviewers download.
-5. **Leftover host routing.** `host.ts` still accepts `host.subscribeProfileEvents` and routes `onDownloadChange` to subscribed clients (`host.ts:90`, `135-138`), but the extension no longer sends that notification. The code is unreachable and not part of the extension package. A reviewer who reads the host source may still ask about it.
-6. **Windows.** A host started by Chrome on Windows exits unless `OPZERO_CHROME_HOST_TOKEN_FILE` is set (`host.ts:199-206`), and the installer never sets it. `transport.ts:37-40` supports only Unix sockets. Do not claim Windows support. The listing says "Other systems need extra manual configuration".
-7. **One profile at a time.** All profiles share one socket, and a second host exits when the socket exists (`host.ts:213`). A reviewer with several profiles sees Disconnected in all but one. The reviewer steps say to use one profile.
-8. **Quarantine keys are never removed.** No code removes the `PRIVATE_CAPTURE_QUARANTINE:<tabId>` keys, so they build up. Tab IDs restart after a browser restart, so a new tab can inherit an old marker, and `executeCdp` then refuses that tab (`background.ts:912-913`). The policy says that these entries stay until uninstall.
-9. **DevTools events after a private fill.** If a client turned on a domain such as `Network` before it bound the page, later events, such as a form post, still reach that local session (`background.ts:1314-1317`). The policy states this.
+4. **Stale docs in the helper.** `README.md` and `docs/DEVELOPER.md` are current. `scripts/install-browser-control-skill.sh` downloads from the `opzero1/browser-control` releases. The rename resolved the "Opzero Chrome" name: the skill is now `skills/browser-control`, and its `SKILL.md` says "Browser Control". The raw client examples moved to `skills/browser-control/references/native-host.md`, and they still pass method names or JSON arguments that `client.ts:13-15` rejects (lines 88, 94, 100-101, 115, 133 and 141 of that file). Both files ship inside `browser-control-skill.zip`, which reviewers download. The reviewer steps use only `ping`, `getInfo` and `--stdio`, which work.
+5. **Leftover host routing.** `host.ts` still accepts `host.subscribeProfileEvents` and routes `onDownloadChange` to subscribed clients (`host.ts:94`, `139-142`), but the extension no longer sends that notification. The code is unreachable and not part of the extension package. A reviewer who reads the host source may still ask about it.
+6. **Windows.** A host started by Chrome on Windows exits unless `BROWSER_CONTROL_HOST_TOKEN_FILE` is set (`host.ts:204-211`), and the installer never sets it. `transport.ts:45-48` supports only Unix sockets. Do not claim Windows support. The listing says "Other systems need extra manual configuration".
+7. **One profile at a time.** All profiles share one socket, and a second host exits while another host holds the startup lock or answers on the socket (`host.ts:218`, `341`). A reviewer with several profiles sees Disconnected in all but one. The reviewer steps say to use one profile.
+8. **Quarantine keys are never removed.** No code removes the `PRIVATE_CAPTURE_QUARANTINE:<tabId>` keys, so they build up. Tab IDs restart after a browser restart, so a new tab can inherit an old marker, and `executeCdp` then refuses that tab (`background.ts:947-948`). The policy says that these entries stay until uninstall.
+9. **DevTools events after a private fill.** If a client turned on a domain such as `Network` before it bound the page, later events, such as a form post, still reach that local session (`background.ts:1349-1352`). The policy states this.
 10. **Functionality not visible without the host.** Without the host, reviewers see only a Disconnected popup. The reviewer instructions above and <https://browser-control.pages.dev/support/reviewers/> cover this.
 11. **Private vulnerability reporting.** The support page sends security reports to `https://github.com/opzero1/browser-control/security/advisories/new`. That form works only if private vulnerability reporting is turned on in the repository settings.

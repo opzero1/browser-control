@@ -1,6 +1,8 @@
-# Reviewer test instructions: Browser Control 0.2.1
+# Reviewer test instructions: Browser Control 0.2.2
 
 Maintainer note: the public copy of the full steps is `site/support/reviewers/index.html`, served at <https://browser-control.pages.dev/support/reviewers/>. When you change any text from "What you need" to the end of this file, make the same change on that page.
+
+The short form below still links to `/download/chrome-control-skill.zip`, the helper's name before 0.2.2. It is the text in the dashboard's "Additional instructions for reviewers" field, which the Chrome Web Store API cannot change. The website serves the 0.2.2 `browser-control-skill.zip` at that path too, as an alias (see "3. Deploy the website" in `docs/RELEASE.md`), so the short form stays valid without an edit. The full steps use `/download/browser-control-skill.zip`. Once the dashboard field links to that path, the alias can go.
 
 ## Short form for the dashboard
 
@@ -38,15 +40,15 @@ Expected: the popup shows **Disconnected** and "Install the native host to conne
 ```sh
 mkdir -p ~/browser-control-review
 cd ~/browser-control-review
-curl -fsSL -o chrome-control-skill.zip https://browser-control.pages.dev/download/chrome-control-skill.zip
-unzip -o chrome-control-skill.zip -d helper
+curl -fsSL -o browser-control-skill.zip https://browser-control.pages.dev/download/browser-control-skill.zip
+unzip -o browser-control-skill.zip -d helper
 cd helper
 ls
 ```
 
-Expected: the folder contains `SKILL.md`, `native-host/`, `scripts/` and `chunks/`. Run all later commands in this `helper` folder.
+Expected: the folder contains `SKILL.md`, `chunks/`, `native-host/`, `references/` and `scripts/`. Run all later commands in this `helper` folder.
 
-The link downloads `chrome-control-skill.zip` for version 0.2.1 from this website. The same file is built from the source at [github.com/opzero1/browser-control](https://github.com/opzero1/browser-control).
+The link downloads `browser-control-skill.zip` for version 0.2.2 from this website. The same file is built from the source at [github.com/opzero1/browser-control](https://github.com/opzero1/browser-control). The short instructions in the store dashboard link to `chrome-control-skill.zip`, the helper's name before 0.2.2. That link downloads the same file.
 
 ### 3. Install the native messaging host
 
@@ -57,7 +59,7 @@ node scripts/check-native-host-manifest.js --json
 
 Expected:
 
-- The installer prints `Installed native messaging manifest:` with the manifest path, `Allowed extension origin: chrome-extension://dcnjjnecbhipdbngkhjppkckpkellmld/`, and `Host executable:` with the path of `native-host/opzero-chrome-host`.
+- The installer prints `Installed native messaging manifest:` with the manifest path, `Allowed extension origin: chrome-extension://dcnjjnecbhipdbngkhjppkckpkellmld/`, and `Host executable:` with the path of `native-host/browser-control-host`.
 - The check prints JSON with `"ok": true` and `"status": "valid"`.
 
 The manifest is written to `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.opzero.chrome.json` on macOS, or `~/.config/google-chrome/NativeMessagingHosts/com.opzero.chrome.json` on Linux.
@@ -79,7 +81,7 @@ node native-host/client.js getInfo
 Expected:
 
 - `ping` prints `{"jsonrpc":"2.0","id":1,"result":"pong"}`. The answer comes from the extension through the host.
-- `getInfo` prints one JSON line with `"version":"0.2.1"`, `"protocolVersion":2`, `"pageProtocolVersion":2` and `"extensionId":"dcnjjnecbhipdbngkhjppkckpkellmld"`.
+- `getInfo` prints one JSON line with `"version":"0.2.2"`, `"protocolVersion":2`, `"pageProtocolVersion":2` and `"extensionId":"dcnjjnecbhipdbngkhjppkckpkellmld"`.
 
 If `ping` reports `Extension protocol v2 is not ready`, wait a few seconds and run it again. The host checks the extension for up to 10 seconds after it starts.
 
@@ -102,7 +104,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { ChromeTransport } = require("./native-host/transport.js");
 
-const socket = process.env.OPZERO_CHROME_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
+const socket = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
 
 (async () => {
   const browser = await ChromeTransport.connect(socket);

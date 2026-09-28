@@ -102,7 +102,7 @@ function handleNative(message) {
 		if (message.method === "ping") native(result(message.id, "pong"));
 		else if (message.method === "getHostInfo") native(result(message.id, {
 			name: "browser-control-native-host",
-			version: "0.2.1",
+			version: "0.2.2",
 			protocolVersion: 2,
 			extensionProtocol,
 			epoch,

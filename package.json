@@ -1,6 +1,6 @@
 {
   "name": "@op1/browser-control",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Browser Control extension with native messaging and CDP bridge.",
   "packageManager": "pnpm@10.33.2",

@@ -21,7 +21,7 @@ The scripts are in `store/capture/`. Each one reads its settings from `env.sh`, 
 2. `serve-demo.sh` serves `demo/index.html`, a fake "Book a demo" page, on `127.0.0.1:$BC_DEMO_PORT`.
 3. `launch.sh` does the following:
    - Creates a fresh profile.
-   - Writes `NativeMessagingHosts/com.opzero.chrome.json`. The manifest allows only the unpacked ID, which `extension-id.py` derives from the extension path, and it points to a private wrapper that sets `OPZERO_CHROME_HOST_SOCKET`.
+   - Writes `NativeMessagingHosts/com.opzero.chrome.json`. The manifest allows only the unpacked ID, which `extension-id.py` derives from the extension path, and it points to a private wrapper that sets `BROWSER_CONTROL_HOST_SOCKET`.
    - Pre-pins the extension.
    - Launches Chrome for Testing in the background with `cua-driver launch_app`, using `creates_new_application_instance`, `--load-extension` and `--disable-extensions-except`. It also passes `--disable-infobars`, which hides the "Chrome for Testing is only for automated testing" bar.
 

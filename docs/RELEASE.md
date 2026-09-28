@@ -40,19 +40,31 @@ Deploy after every release, and whenever anything under `site/` changes. The sit
 ```sh
 pnpm run build
 mkdir -p site/download
-cp dist/release/browser-control-skill.zip site/download/
+cp dist/release/browser-control-skill.zip site/download/browser-control-skill.zip
+cp dist/release/browser-control-skill.zip site/download/chrome-control-skill.zip
 npx wrangler pages deploy site --project-name browser-control --branch main
 ```
 
-Check that `/`, `/privacy/`, `/support/`, `/support/reviewers/` and `/download/browser-control-skill.zip` return HTTP 200. Keep the `google-site-verification` meta tag in `site/index.html`. It proves ownership of the site in Google Search Console, which the listing's official URL requires. Cloudflare Pages redirects `.html` URLs to extensionless ones, so the HTML-file verification method does not work on this site.
+`/download/chrome-control-skill.zip` is an alias that serves the same file as `/download/browser-control-skill.zip`. It exists for the dashboard's "Additional instructions for reviewers" field. That field links to the old path, and the Chrome Web Store API cannot change it. After the field is updated in the dashboard to link to `/download/browser-control-skill.zip`, the alias can go: update the short form in `store/reviewer-test-instructions.md` and `store/listing.md`, delete `site/download/chrome-control-skill.zip`, remove the second `cp` line, and deploy again.
+
+Check that `/`, `/privacy/`, `/support/`, `/support/reviewers/`, `/download/browser-control-skill.zip` and `/download/chrome-control-skill.zip` return HTTP 200, and that both zips match the build:
+
+```sh
+shasum -a 256 dist/release/browser-control-skill.zip
+curl -fsSL https://browser-control.pages.dev/download/browser-control-skill.zip | shasum -a 256
+curl -fsSL https://browser-control.pages.dev/download/chrome-control-skill.zip | shasum -a 256
+```
+
+Keep the `google-site-verification` meta tag in `site/index.html`. It proves ownership of the site in Google Search Console, which the listing's official URL requires. Cloudflare Pages redirects `.html` URLs to extensionless ones, so the HTML-file verification method does not work on this site.
 
 ### Renamed helper
 
-After 0.2.1, the skill is `browser-control` and its zip is `browser-control-skill.zip`. The host, client and scripts read `BROWSER_CONTROL_*` variables and no longer read the `OPZERO_CHROME_*` names. The installer writes a `browser-control-host` wrapper. The native host name `com.opzero.chrome` and the default socket `~/.opzero-chrome/default.sock` are unchanged.
+0.2.2 is the first release after the rename. Its extension code is the same as in 0.2.1 apart from the version. The skill is `browser-control` and its zip is `browser-control-skill.zip`. The host, client and scripts read `BROWSER_CONTROL_*` variables and no longer read the `OPZERO_CHROME_*` names. The installer writes a `browser-control-host` wrapper. The native host name `com.opzero.chrome` and the default socket `~/.opzero-chrome/default.sock` are unchanged.
 
-The 0.2.1 submission still points at the old names, so for the first release after the rename:
+What changed with it:
 
-- `store/listing.md`, `store/reviewer-test-instructions.md` and the pages under `site/` still describe the 0.2.1 helper and link to `/download/chrome-control-skill.zip`. Keep serving the 0.2.1 helper at that path until the 0.2.1 review ends. Then update those files to `browser-control-skill.zip` and the `BROWSER_CONTROL_HOST_SOCKET` excerpt, and deploy the site.
+- 0.2.2 replaces the pending 0.2.1 submission, which still describes the old helper. Cancel that review with `action: cancel` before you upload 0.2.2.
+- `store/listing.md`, `store/reviewer-test-instructions.md` and the pages under `site/` describe the 0.2.2 helper: the `/download/browser-control-skill.zip` link, the `browser-control-host` wrapper, the `BROWSER_CONTROL_HOST_SOCKET` excerpt and `"version":"0.2.2"` from `getInfo`. Only the dashboard short form still links to `/download/chrome-control-skill.zip`, through the alias above.
 - Create the repository variable `BROWSER_CONTROL_EXTENSION_ID` if the old `OPZERO_CHROME_EXTENSION_ID` variable was set. The `Release` workflow no longer reads the old name.
 - Existing installs keep working until they are reinstalled. A reinstall from the new zip goes to `~/.config/opencode/skills/browser-control`, so remove the old `skills/chrome-control` folder.
 
