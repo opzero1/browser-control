@@ -146,7 +146,9 @@ it("revokes unknown outcomes on timeout without replaying requests", async () =>
 
 it("protects Unix endpoint permissions and never steals a running endpoint", async () => {
   const h = await host();
-  expect(fs.statSync(h.endpoint).mode & 0o777).toBe(0o600);
+  // umask 077 makes the socket owner-only from creation; the listen callback then narrows it to 0600.
+  expect(fs.statSync(h.endpoint).mode & 0o077).toBe(0);
+  await vi.waitFor(() => expect(fs.statSync(h.endpoint).mode & 0o777).toBe(0o600));
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
     env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
   });

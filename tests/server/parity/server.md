@@ -12,7 +12,7 @@ module function becomes an assignment on the `BrowserControl` instance (`registe
 over a private state root. Expected codes are Python's after the D19 rename (`opchrome-*` becomes
 `browser-control-*`); `FAST_CHROME_UNSHARED_SITES=reap.global` keeps the Python unshared-site intent (C5).
 
-## test_native_server.py -> app.ts, args.ts, page.ts, tabs.ts, route.ts (110 functions; 102 ported, 8 not ported)
+## test_native_server.py -> app.ts, args.ts, page.ts, tabs.ts, route.ts (110 functions; 104 ported, 6 not ported)
 
 test_native_server.py::test_controller_denies_foreign_session_before_any_page_or_vault_call -> not ported: C8 removes the fixed numbered route (FAST_CHROME_CONTROLLER_ID, controller_operation, claimed_by and browser-controller-not-owned for the entry). A foreign session on a lease tab is refused before any call in tests/server/server/routing.test.ts::refuses another tenant's use of a lease tab before any call or registry write.
 test_native_server.py::test_numbered_entry_refusal_creates_no_registry_directory_or_lock -> not ported: C8 removes the fixed numbered route and its read-only claim.json check (fixed_owner).
@@ -197,3 +197,9 @@ Each is required by C1-C8, the coordinator decisions or the platform; everything
 - S8 (D11) A cancelled call gets no response; its body still runs to completion and its tab stays busy.
 - S9 During shutdown a call is refused before argument validation by the stdio entry (the transport is closing
   then); Python validated first. The app itself validates first, then refuses.
+
+Integration notes (no behavior change): `vite.server.config.ts` now loads bare builtins (`fs`, `path`,
+`child_process`, required by cross-spawn inside the MCP SDK's stdio client that the vault uses) as `node:`
+builtins, so `dist/server/cli.js` still requires nothing outside Node; `BusyFlag.acquireBy` and the cleanup's
+deadline sleep re-arm a timer that fires on the loop's millisecond clock just before the monotonic deadline, so
+cleanup never closes connections early; the stdio transport ignores write errors after the client closed its end.

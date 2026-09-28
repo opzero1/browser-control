@@ -31,15 +31,23 @@ export class BusyFlag {
     const remaining = deadline - monotonic();
     if (remaining <= 0) return Promise.resolve(false);
     return new Promise((resolve) => {
+      let timer: NodeJS.Timeout;
       const grant = () => {
         clearTimeout(timer);
         resolve(true);
       };
-      const timer = setTimeout(() => {
+      // Timers run on the loop's millisecond clock and can fire just before the monotonic deadline; re-arm then.
+      const expire = () => {
+        const left = deadline - monotonic();
+        if (left > 0) {
+          timer = setTimeout(expire, Math.max(1, left * 1000));
+          return;
+        }
         const index = this.waiters.indexOf(grant);
         if (index >= 0) this.waiters.splice(index, 1);
         resolve(false);
-      }, remaining * 1000);
+      };
+      timer = setTimeout(expire, remaining * 1000);
       this.waiters.push(grant);
     });
   }

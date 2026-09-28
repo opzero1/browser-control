@@ -124,8 +124,9 @@ async function confirmGroupTitle(connection: HostConnection, session: string, la
   return title;
 }
 
-function sleepUntil(deadline: number): Promise<void> {
-  return sleep(Math.max(0, (deadline - monotonic()) * 1000));
+/** Sleep until a monotonic deadline; a timer that fires on the loop's millisecond clock just before it sleeps again. */
+async function sleepUntil(deadline: number): Promise<void> {
+  while (monotonic() < deadline) await sleep(Math.max(1, (deadline - monotonic()) * 1000));
 }
 
 type Waited = { outcome: string; elapsed_ms?: number; snapshot?: Dict; error?: string };

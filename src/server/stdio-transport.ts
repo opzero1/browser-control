@@ -76,6 +76,8 @@ export class StdioTransport implements Transport {
     this.started = true;
     this.stdin.on("data", this.onData);
     this.stdin.on("error", this.onError);
+    // A client that closed its end makes late writes fail with EPIPE; that must not crash the shutdown.
+    this.stdout.on("error", this.onError);
   }
 
   async close(): Promise<void> {
@@ -88,8 +90,10 @@ export class StdioTransport implements Transport {
 
   send(message: JSONRPCMessage): Promise<void> {
     return new Promise((resolve) => {
-      if (this.stdout.write(`${JSON.stringify(message)}\n`)) resolve();
-      else this.stdout.once("drain", resolve);
+      const stream = this.stdout as NodeJS.WritableStream & { destroyed?: boolean; writable?: boolean };
+      if (stream.destroyed || stream.writable === false) return resolve();
+      if (stream.write(`${JSON.stringify(message)}\n`)) resolve();
+      else stream.once("drain", resolve);
     });
   }
 }
