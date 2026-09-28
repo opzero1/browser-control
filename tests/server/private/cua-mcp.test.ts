@@ -104,12 +104,14 @@ describe("the private cua-driver MCP connection", () => {
   });
 
   it("cancels a hung call at the deadline, restores the clipboard first, then closes the driver", async () => {
-    VAULT_TIMING.timeoutSeconds = 1.5;
+    // The deadline must fall inside the hung clipboard_read. Under a loaded full suite the path up to it (driver
+    // start, MCP handshake, window lookup) takes about 2 s, so a shorter budget expires before the hang.
+    VAULT_TIMING.timeoutSeconds = 4;
     const { env, log, marker } = driver({ behavior: { clipboard_read: "hang" } });
     const started = monotonic();
     const error = await failure(readField(EMAIL, "password", { env }));
     expect(error.code).toBe("deadline-exceeded");
-    expect(monotonic() - started).toBeLessThan(4);
+    expect(monotonic() - started).toBeLessThan(6.5);
     expect(fs.readFileSync(marker, "utf8")).toBe("done");
     const names = calls(log).map((call) => call.name);
     expect(names).toContain("clipboard_write");

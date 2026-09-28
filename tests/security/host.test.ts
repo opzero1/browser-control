@@ -33,7 +33,9 @@ async function host(env: NodeJS.ProcessEnv = {}, protocolVersion = 2) {
     const header = Buffer.alloc(4); header.writeUInt32LE(body.length);
     child.stdin.write(Buffer.concat([header, body]));
   }
-  await vi.waitFor(() => expect(fs.existsSync(endpoint)).toBe(true));
+  // bind() creates the socket file before listen(), so a loaded host can refuse a connection while only the file
+  // exists. The host removes its startup lock once it is listening.
+  await vi.waitFor(() => expect(fs.existsSync(endpoint) && !fs.existsSync(`${endpoint}.lock`)).toBe(true));
   async function connect() {
     const socket = net.connect(endpoint);
     cleanup.push(() => socket.destroy());
