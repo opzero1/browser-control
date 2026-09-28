@@ -279,6 +279,19 @@ describe("browser-control install", () => {
     expect(fs.readdirSync(state)).toEqual([]);
   });
 
+  it("creates a missing manifest directory with mode 0755 under a group-writable umask, so its lock is accepted", async () => {
+    const { root, env, assets, manifests, flags } = setup();
+    const previous = process.umask(0o002);
+    let report: Awaited<ReturnType<typeof install>>;
+    try {
+      report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    } finally {
+      process.umask(previous);
+    }
+    expect(byId(report.steps).manifest).toMatchObject({ level: "ok", status: "created" });
+    expect(fs.statSync(manifests).mode & 0o7777).toBe(0o755);
+  });
+
   it("prints cua-driver's upstream install command when it is missing (C1)", async () => {
     const { root, env, assets, flags } = setup({ CUA_DRIVER: undefined, PATH: "/nonexistent-bin" });
     const report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));

@@ -23,6 +23,26 @@ var InstallLockBusy = class extends Error {
 		this.name = "InstallLockBusy";
 	}
 };
+/**
+* Another user could change the lock, so it was not used: `path` is the lock or its parent directory at fault.
+* With `replaced`, the lock directory this installer held is no longer at its path, and nothing was removed.
+*/
+var InstallLockUnsafe = class extends Error {
+	lockPath;
+	code = "browser-controller-unsafe-install-lock";
+	path;
+	constructor(lockPath, at, replaced = false) {
+		super(replaced ? `The installer lock ${lockPath} was replaced while this installer held it, so nothing was removed. Make sure no other installer is running, then try again.` : `Refusing the installer lock ${lockPath}: ${at} must be a real directory owned by you that no other user can write to.`);
+		this.lockPath = lockPath;
+		this.name = "InstallLockUnsafe";
+		this.path = at;
+	}
+};
+var nodeFs = {
+	lstat: (file) => node_fs.default.lstatSync(file),
+	stat: (file) => node_fs.default.statSync(file),
+	readdir: (directory) => node_fs.default.readdirSync(directory)
+};
 /** The lock that serializes every installer's check and replacement of one native messaging manifest. */
 function manifestLockPath(manifestFile) {
 	return node_path.default.join(node_path.default.dirname(manifestFile), `.${node_path.default.basename(manifestFile)}.lock`);
@@ -30,16 +50,46 @@ function manifestLockPath(manifestFile) {
 var ENTRY = /^([1-9][0-9]{0,9})-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** Entries this process holds, so an entry left by a dead process that had this pid is still found stale. */
 var held = /* @__PURE__ */ new Set();
+var WRITABLE_BY_OTHERS = 18;
+var STICKY = 512;
 function codeOf(error) {
 	return error?.code;
 }
-function exists(file) {
+/** Windows has no POSIX owners or modes, so there only the kind and identity of the lock are checked. */
+function ownerId() {
+	return process.getuid?.();
+}
+/**
+* The parent (followed if it is a symlink) must be a directory owned by this user. If group or others can write
+* to it, it needs the sticky bit, so that they cannot rename or remove the lock, which must then be ours.
+*/
+function checkParent(lockPath, io) {
+	const parent = node_path.default.dirname(lockPath);
+	const stats = io.stat(parent);
+	const uid = ownerId();
+	const shared = (stats.mode & WRITABLE_BY_OTHERS) !== 0 && (stats.mode & STICKY) === 0;
+	if (!stats.isDirectory() || uid !== void 0 && (stats.uid !== uid || shared)) throw new InstallLockUnsafe(lockPath, parent);
+}
+/** The identity of the lock directory, or null when nothing is at its path; anything unsafe there is refused. */
+function inspect(lockPath, io) {
+	let stats;
 	try {
-		node_fs.default.lstatSync(file);
-		return true;
-	} catch {
-		return false;
+		stats = io.lstat(lockPath);
+	} catch (error) {
+		if (codeOf(error) === "ENOENT") return null;
+		throw error;
 	}
+	const uid = ownerId();
+	if (stats.isSymbolicLink() || !stats.isDirectory() || uid !== void 0 && (stats.uid !== uid || stats.mode & WRITABLE_BY_OTHERS)) throw new InstallLockUnsafe(lockPath, lockPath);
+	return {
+		dev: stats.dev,
+		ino: stats.ino
+	};
+}
+/** The lock path still names the directory `expected` identifies (and is still safe). */
+function unchanged(lockPath, expected, io) {
+	const current = inspect(lockPath, io);
+	return current !== null && current.dev === expected.dev && current.ino === expected.ino;
 }
 /** Whether a process may have this id: only ESRCH proves it gone (EPERM means another user's process). */
 function running(pid) {
@@ -52,12 +102,16 @@ function running(pid) {
 }
 /**
 * Remove the entries of processes that are gone, then the lock directory if that left it empty (rmdir removes
-* only an empty directory). Returns a live holder's pid, or null when none is known.
+* only an empty directory). Only regular files named like an entry are removed, and only while the lock path
+* still names the directory that was listed; if another process replaced it, the next attempt checks the new
+* one. Returns a live holder's pid, or null when none is known.
 */
-function clearStale(lockPath) {
+function clearStale(lockPath, io) {
+	const listed = inspect(lockPath, io);
+	if (!listed) return null;
 	let names;
 	try {
-		names = node_fs.default.readdirSync(lockPath);
+		names = io.readdir(lockPath);
 	} catch (error) {
 		if (codeOf(error) === "ENOENT" || codeOf(error) === "ENOTDIR") return null;
 		throw error;
@@ -65,10 +119,21 @@ function clearStale(lockPath) {
 	let holder = null;
 	for (const name of names) {
 		const match = ENTRY.exec(name);
-		const pid = match ? Number(match[1]) : null;
-		if (pid !== null && (pid === process.pid ? !held.has(`${lockPath}\0${name}`) : !running(pid))) node_fs.default.rmSync(node_path.default.join(lockPath, name), { force: true });
-		else if (pid !== null) holder = pid;
+		if (!match) continue;
+		const pid = Number(match[1]);
+		if (!(pid === process.pid ? !held.has(`${lockPath}\0${name}`) : !running(pid))) {
+			holder = pid;
+			continue;
+		}
+		if (!unchanged(lockPath, listed, io)) return null;
+		const file = node_path.default.join(lockPath, name);
+		try {
+			if (io.lstat(file).isFile()) node_fs.default.unlinkSync(file);
+		} catch (error) {
+			if (codeOf(error) !== "ENOENT") throw error;
+		}
 	}
+	if (!unchanged(lockPath, listed, io)) return null;
 	try {
 		node_fs.default.rmdirSync(lockPath);
 	} catch (error) {
@@ -82,11 +147,15 @@ function clearStale(lockPath) {
 	return holder;
 }
 /** One attempt: the lock, or the pid of a live holder (null when unknown). */
-function attempt(lockPath) {
+function attempt(lockPath, io) {
+	checkParent(lockPath, io);
+	inspect(lockPath, io);
 	const entry = `${process.pid}-${node_crypto.default.randomUUID()}`;
 	const staging = `${lockPath}.${node_crypto.default.randomUUID()}.tmp`;
 	node_fs.default.mkdirSync(staging, { mode: 448 });
+	let created;
 	try {
+		created = io.lstat(staging);
 		node_fs.default.closeSync(node_fs.default.openSync(node_path.default.join(staging, entry), "wx", 384));
 		try {
 			node_fs.default.renameSync(staging, lockPath);
@@ -96,8 +165,8 @@ function attempt(lockPath) {
 				"EEXIST",
 				"ENOTEMPTY",
 				"ENOTDIR"
-			].includes(code) || ["EPERM", "EACCES"].includes(code) && exists(lockPath))) throw error;
-			return { holder: clearStale(lockPath) };
+			].includes(code) || ["EPERM", "EACCES"].includes(code) && inspect(lockPath, io) !== null)) throw error;
+			return { holder: clearStale(lockPath, io) };
 		}
 	} finally {
 		node_fs.default.rmSync(staging, {
@@ -105,6 +174,11 @@ function attempt(lockPath) {
 			force: true
 		});
 	}
+	const identity = {
+		dev: created.dev,
+		ino: created.ino
+	};
+	if (!unchanged(lockPath, identity, io)) throw new InstallLockUnsafe(lockPath, lockPath, true);
 	const key = `${lockPath}\0${entry}`;
 	held.add(key);
 	let released = false;
@@ -114,7 +188,13 @@ function attempt(lockPath) {
 			if (released) return;
 			released = true;
 			held.delete(key);
-			node_fs.default.rmSync(node_path.default.join(lockPath, entry), { force: true });
+			if (!unchanged(lockPath, identity, io)) throw new InstallLockUnsafe(lockPath, lockPath, true);
+			try {
+				node_fs.default.unlinkSync(node_path.default.join(lockPath, entry));
+			} catch (error) {
+				if (codeOf(error) !== "ENOENT") throw error;
+			}
+			if (!unchanged(lockPath, identity, io)) return;
 			try {
 				node_fs.default.rmdirSync(lockPath);
 			} catch {}
@@ -123,11 +203,15 @@ function attempt(lockPath) {
 }
 var POLL_MS = 20;
 /** The same, for the zip's synchronous installer, which has nothing else to run while it waits. */
-function acquireInstallLockSync(lockPath, timeoutMs = 1e4) {
+function acquireInstallLockSync(lockPath, timeoutMs = 1e4, calls = {}) {
+	const io = {
+		...nodeFs,
+		...calls
+	};
 	const deadline = performance.now() + timeoutMs;
 	const pause = new Int32Array(new SharedArrayBuffer(4));
 	while (true) {
-		const result = attempt(lockPath);
+		const result = attempt(lockPath, io);
 		if ("release" in result) return result;
 		if (performance.now() >= deadline) throw new InstallLockBusy(lockPath, result.holder);
 		Atomics.wait(pause, 0, 0, POLL_MS);
@@ -395,7 +479,10 @@ function install(extensionId, manifestPath, socketPath) {
 		path: wrapper,
 		allowed_origins: [`chrome-extension://${extensionId}/`]
 	};
-	node_fs.default.mkdirSync(node_path.default.dirname(manifestPath), { recursive: true });
+	node_fs.default.mkdirSync(node_path.default.dirname(manifestPath), {
+		recursive: true,
+		mode: 493
+	});
 	const lock = acquireInstallLockSync(manifestLockPath(manifestPath));
 	try {
 		refuseForeign(manifestPath, wrapper);

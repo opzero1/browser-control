@@ -298,7 +298,8 @@ function install(extensionId: string, manifestPath: string, socketPath: string |
     path: wrapper,
     allowed_origins: [`chrome-extension://${extensionId}/`]
   };
-  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  // 0755 whatever the umask: the lock refuses a directory that group or others can write to.
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true, mode: 0o755 });
   // `browser-control install` takes the same lock, so the manifest is classified again and replaced as one step.
   const lock = acquireInstallLockSync(manifestLockPath(manifestPath));
   try {

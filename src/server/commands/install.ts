@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { acquireInstallLock, InstallLockBusy, manifestLockPath, type InstallLock } from "../../shared/install-lock";
+import { acquireInstallLock, InstallLockBusy, InstallLockUnsafe, manifestLockPath, type InstallLock } from "../../shared/install-lock";
 import { packageAssets, type PackageAssets } from "../assets";
 import { HOST_WRAPPER_NAME, nodeExecutable, resolveCuaDriver, statePaths, STORE_EXTENSION_ID, type Env } from "../config";
 import { childDirectory, existingDirectory, openDirectory, writePrivate } from "../fs-private";
@@ -130,8 +130,20 @@ async function manifestStep(env: Env, platform: NodeJS.Platform, options: Option
   const wrapper = userWrapperPath(env);
   const planned = manifestPlan(file, manifestState(file, wrapper), options);
   if (planned) return planned;
-  // The release zip's installer takes the same lock, so the manifest is classified again and replaced as one step.
-  fs.mkdirSync(directory, { recursive: true });
+  // 0755 whatever the umask: the lock refuses a directory that group or others can write to.
+  fs.mkdirSync(directory, { recursive: true, mode: 0o755 });
+  try {
+    return await replaceManifest(file, wrapper, options);
+  } catch (error) {
+    if (!(error instanceof InstallLockUnsafe)) throw error;
+    return step("manifest", "fail", "unsafe-lock",
+      "The lock beside the Chrome native messaging manifest is unsafe: it and its directory must be real directories owned by you that no other user can write to or replace. Fix that path, then run browser-control install again.",
+      { path: error.path, code: error.code });
+  }
+}
+
+/** The release zip's installer takes the same lock, so the manifest is classified again and replaced as one step. */
+async function replaceManifest(file: string, wrapper: string, options: Options): Promise<Step> {
   let lock: InstallLock;
   try {
     lock = await acquireInstallLock(manifestLockPath(file));
