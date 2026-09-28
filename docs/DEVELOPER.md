@@ -38,6 +38,8 @@ The popup shows **Connecting** until the host sends its first message, because `
 
 Every Unix host startup holds the lock file `<socket>.lock`, from its first look at the socket path until its own socket is listening. The lock holds the owner's process ID. A new host treats it as stale only if that process is dead, or if the lock is older than five minutes, which only happens when a process ID has been reused. While the lock is held, the host removes a socket left by a crashed host only if a connection to it is refused. At shutdown it removes the socket only if it is still the one it bound. A host that cannot take the lock exits, and the extension retries within 30 seconds.
 
+Known limits of this lock: Node.js has no crash-released file lock, so ownership rests on the lock file. Two hosts can still both believe they own the endpoint in three rare cases. The first is an orphaned lock left by an interrupted start, combined with three hosts starting at once. The second is the same orphaned lock, two hosts starting at once, and the filesystem reusing the freed inode. The third is a host suspended for more than five minutes mid-start. A single Chrome profile cannot reach any of these. Use one Chrome profile per socket path.
+
 ## Verify
 
 ```sh

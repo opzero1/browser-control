@@ -92,5 +92,5 @@ Then submit for review, from the dashboard or with `action: submit`. Google revi
 
 - 0.1.2 was published and is live.
 - 0.1.3 was rejected on 1 July 2026 for "User data privacy" (reference Purple Nickel). Its privacy policy link pointed to a GitHub file, and Google does not accept a repository page as a privacy policy. The fix was a hosted policy at `https://browser-control.pages.dev/privacy/`.
-- 0.2.1 renames the item from Chrome Control to Browser Control, as the branding guidelines require, and drops the unused `history` and `downloads` permissions.
+- 0.2.1 renames the item from Chrome Control to Browser Control, as the branding guidelines require, and drops the unused `history` and `downloads` permissions. It was submitted for review on 28 September 2026 with automatic publishing after approval, from the extension source at `5717395`.
 - The old `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET` and `CHROME_REFRESH_TOKEN` secrets belong to an OAuth client whose consent screen stayed in testing mode, so its refresh tokens expired after seven days. The workflow no longer uses them.
