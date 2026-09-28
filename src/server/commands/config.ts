@@ -1,6 +1,6 @@
 // `browser-control config <client>`: the MCP configuration snippet for each supported client. install prints
-// the same snippets. A non-default state directory is passed to the server through its environment.
-import { BIN_NAME, statePaths, type Env } from "../config";
+// the same snippets. A non-default state directory or user socket is passed to the server through its environment.
+import { BIN_NAME, HOST_SOCKET_ENV, statePaths, userSocket, type Env } from "../config";
 import { isGate } from "../gate";
 import { commandEnv, PACKAGE_COMMAND, parseOptions, UsageError, type CommandIo } from "./shared";
 
@@ -14,10 +14,16 @@ const TITLES: Record<Client, string> = {
   cursor: "Cursor (~/.cursor/mcp.json):"
 };
 
-/** The server environment a snippet must carry: only a state directory other than the default. */
+/**
+ * The server environment a snippet must carry: a state directory other than the default, and a user socket
+ * other than that state directory's default, which install wrote into the user wrapper (D1).
+ */
 function serverEnvironment(env: Env): Record<string, string> {
-  const root = statePaths(env).root;
-  return root === statePaths({ ...env, BROWSER_CONTROL_STATE_DIR: undefined }).root ? {} : { BROWSER_CONTROL_STATE_DIR: root };
+  const paths = statePaths(env);
+  const environment: Record<string, string> = {};
+  if (paths.root !== statePaths({ ...env, BROWSER_CONTROL_STATE_DIR: undefined }).root) environment.BROWSER_CONTROL_STATE_DIR = paths.root;
+  if (userSocket(env) !== paths.userSocket) environment[HOST_SOCKET_ENV] = userSocket(env);
+  return environment;
 }
 
 /** JSON with two-space indentation and arrays of strings kept on one line, as people write config files. */

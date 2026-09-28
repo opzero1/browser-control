@@ -16,12 +16,14 @@ Python tests mapped by this slice: 0.
   `--force` and the old path in the report, dry runs that write nothing, the defaults under `HOME` (no default
   skills directory, so no agent client's configuration is written, C4), skill links to stable copies, the
   clipboard-guard build and its verification (mode 0700, Mach-O, owned), cua-driver resolution and its install
-  command (C1), the Chrome for Testing bundle check, the MCP snippets, and the port
-  of `src/scripts/check-extension-installed.ts` compared with the built script on the same profiles.
+  command (C1), the Chrome for Testing bundle check, the MCP snippets (with a state directory or user socket
+  other than the default), and the port of `src/scripts/check-extension-installed.ts` compared with the built
+  script on the same profiles.
 - tests/server/packaging/doctor.test.ts: read-only checks with fixed messages before and after install, stale
-  and foreign state, the user endpoint handshake against the fake host, and `--smoke` against a fake stdio
-  server (`tests/server/support/child-packaging.ts`): a temporary state root, a user-route socket that does
-  not exist, `FAST_CHROME_ALLOW_LOOPBACK=1`, one `act_steps` batch on the loopback fixture, release, and reap.
+  and foreign state, a wrapper that differs only in its socket, the user endpoint handshake against the fake
+  host, and `--smoke` against a fake stdio server (`tests/server/support/child-packaging.ts`): a temporary
+  state root, a user-route socket that does not exist, `FAST_CHROME_ALLOW_LOOPBACK=1`, one `act_steps` batch on
+  the loopback fixture, release, and reap.
 - tests/server/packaging/package.test.ts: `pnpm pack`, extracted to a temporary directory and run offline: the
   exact file list (server bundles, extension, data, Swift source, the three skills and the docs; no sources,
   tests or source maps), the CLI, install writing a host copy and wrapper that exec `process.execPath` and never

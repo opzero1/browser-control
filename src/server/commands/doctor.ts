@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { PackageAssets } from "../assets";
-import { nodeExecutable, statePaths, userSocket, whichExecutable, type Env } from "../config";
+import { HOST_SOCKET_ENV, nodeExecutable, statePaths, userSocket, whichExecutable, type Env } from "../config";
 import { existingDirectory } from "../fs-private";
 import { isGate } from "../gate";
 import { Connection, type Connect } from "../host-connection";
@@ -53,16 +53,30 @@ function hostStep(env: Env, assets: PackageAssets): { step: Step; hostScript: st
   return { hostScript, step: step("host", "ok", "current", "The native host copy matches this package.", { path: hostScript }) };
 }
 
+/** The socket that a wrapper written by install exports, or null for any other file. */
+function wrapperSocket(text: string): string | null {
+  const match = new RegExp(`^#!/bin/sh\nexport ${HOST_SOCKET_ENV}='([^'\x00-\x1f\x7f]*)'\n`).exec(text);
+  return match ? match[1] : null;
+}
+
 function wrapperStep(env: Env, hostScript: string): Step {
   const wrapper = userWrapperPath(env);
   const current = readRegular(wrapper);
   if (!current) return step("wrapper", "fail", "missing", "The native host wrapper is missing. Run browser-control install.", { path: wrapper, command: INSTALL_HINT });
-  const expected = Buffer.from(expectedWrapper(env, hostScript, nodeExecutable()));
-  if (!current.equals(expected) || (fs.lstatSync(wrapper).mode & 0o777) !== 0o700) {
-    return step("wrapper", "fail", "stale", "The native host wrapper does not run this version's host with this Node.js. Run browser-control install.",
-      { path: wrapper, command: INSTALL_HINT });
+  const node = nodeExecutable();
+  const modeOk = (fs.lstatSync(wrapper).mode & 0o777) === 0o700;
+  if (current.equals(Buffer.from(expectedWrapper(env, hostScript, node))) && modeOk) {
+    return step("wrapper", "ok", "current", "The native host wrapper runs this version's host with this Node.js.", { path: wrapper });
   }
-  return step("wrapper", "ok", "current", "The native host wrapper runs this version's host with this Node.js.", { path: wrapper });
+  // Right host and Node, but the socket install was given differs from the one this server connects to.
+  const socket = wrapperSocket(current.toString("utf8"));
+  if (modeOk && socket !== null && socket !== userSocket(env) && current.equals(Buffer.from(expectedWrapper({ ...env, [HOST_SOCKET_ENV]: socket }, hostScript, node)))) {
+    return step("wrapper", "fail", "socket-mismatch",
+      "The native host wrapper listens on another socket than this server connects to. Run browser-control install with the server's BROWSER_CONTROL_STATE_DIR and BROWSER_CONTROL_HOST_SOCKET.",
+      { path: wrapper, previous: socket, command: INSTALL_HINT });
+  }
+  return step("wrapper", "fail", "stale", "The native host wrapper does not run this version's host with this Node.js. Run browser-control install.",
+    { path: wrapper, command: INSTALL_HINT });
 }
 
 function manifestStep(env: Env, platform: NodeJS.Platform, options: Options): Step {

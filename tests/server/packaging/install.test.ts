@@ -337,9 +337,16 @@ describe("browser-control install", () => {
     expect(out.text).toContain("Claude Code (.mcp.json):\n");
     expect(out.text).toContain("Codex (~/.codex/config.toml; claim_browser can take up to 120 s):\n");
     expect(out.text).toContain(`  BROWSER_CONTROL_STATE_DIR = "${state}"\n`);
+    // The socket install wrote into the wrapper goes to the server too (D1).
+    const socket = path.join(root, "user.sock");
+    expect(readText(path.join(state, "hosts/user/browser-control-host"))).toContain(`export BROWSER_CONTROL_HOST_SOCKET='${socket}'\n`);
+    expect(out.text).toContain(`  BROWSER_CONTROL_HOST_SOCKET = "${socket}"\n`);
     const json = sink();
     await runInstall([...flags, "--json"], { stdout: json, stderr: sink(), env }, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
-    expect(Object.keys(JSON.parse(json.text).snippets)).toHaveLength(3);
+    const snippets = JSON.parse(json.text).snippets;
+    expect(Object.keys(snippets)).toHaveLength(3);
+    expect(JSON.parse(snippets["OpenCode (opencode.jsonc):"]).mcp["browser-control"].environment).toEqual({ BROWSER_CONTROL_STATE_DIR: state, BROWSER_CONTROL_HOST_SOCKET: socket });
+    expect(JSON.parse(snippets["Claude Code (.mcp.json):"]).mcpServers["browser-control"].env).toEqual({ BROWSER_CONTROL_STATE_DIR: state, BROWSER_CONTROL_HOST_SOCKET: socket });
   });
 
   it("rejects unknown options and resolves relative directories", async () => {
@@ -400,6 +407,16 @@ tool_timeout_sec = 150
     expect(err.text).toContain("unknown client: emacs");
     expect(await runConfig([], { stdout: sink(), stderr: err, env: { ...home, BROWSER_CONTROL_STATE_DIR: "relative" } })).toBe(1);
     expect(err.text).toContain("browser-control config: browser-control-invalid-state-dir\n");
+  });
+
+  it("pass a user socket other than the state directory's default", () => {
+    const socket = { ...home, BROWSER_CONTROL_HOST_SOCKET: "/run/bc/user.sock" };
+    expect(JSON.parse(mcpSnippet("opencode", socket)).mcp["browser-control"].environment).toEqual({ BROWSER_CONTROL_HOST_SOCKET: "/run/bc/user.sock" });
+    const both = { ...socket, BROWSER_CONTROL_STATE_DIR: "/srv/bc" };
+    expect(JSON.parse(mcpSnippet("cursor", both)).mcpServers["browser-control"].env).toEqual({ BROWSER_CONTROL_STATE_DIR: "/srv/bc", BROWSER_CONTROL_HOST_SOCKET: "/run/bc/user.sock" });
+    expect(mcpSnippet("codex", both)).toContain('\n[mcp_servers.browser-control.env]\nBROWSER_CONTROL_STATE_DIR = "/srv/bc"\nBROWSER_CONTROL_HOST_SOCKET = "/run/bc/user.sock"\n');
+    // The state directory's own socket is the server's default, so it needs no setting.
+    expect(mcpSnippet("opencode", { ...home, BROWSER_CONTROL_STATE_DIR: "/srv/bc", BROWSER_CONTROL_HOST_SOCKET: "/srv/bc/sockets/user.sock" })).not.toContain("HOST_SOCKET");
   });
 });
 

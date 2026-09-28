@@ -52,7 +52,7 @@ also holds the isolated profiles, the pool registry, every native-host socket, l
 The user's Chrome follows the state root too: the wrapper starts its native host on `<state>/sockets/user.sock`,
 and the server connects there, even when `BROWSER_CONTROL_STATE_DIR` is set to another directory. Two state
 roots never share an endpoint. To use another socket, set `BROWSER_CONTROL_HOST_SOCKET` to the same path for
-`install` and for the server.
+`install` and for the server. The configuration that install prints then sets it for the server.
 
 ### Options
 

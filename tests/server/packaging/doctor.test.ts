@@ -8,7 +8,7 @@ import { doctor, runDoctor } from "../../../src/server/commands/doctor";
 import { install } from "../../../src/server/commands/install";
 import { parseOptions, type Step } from "../../../src/server/commands/shared";
 import { SMOKE_FILL_TEXT, smokeEnv } from "../../../src/server/commands/smoke";
-import { clipboardGuardBinary } from "../../../src/server/stable-copy";
+import { clipboardGuardBinary, hostWrapper } from "../../../src/server/stable-copy";
 import { childPath } from "../support/children";
 import { FakeHost } from "../support/fake-host";
 import { fakeChromeForTesting, fakeDeps, fakePackage, realDefaultPaths, snapshotTree, writeFile, type FakeDeps } from "../support/packaging";
@@ -114,6 +114,26 @@ describe("browser-control doctor", () => {
     expect(report.manifest).toMatchObject({ level: "fail", status: "foreign", previous: "/opt/other-host", command: "browser-control install --force" });
     expect(report["clipboard-guard"]).toMatchObject({ level: "fail", status: "untrusted" });
     expect(report["skill:browser-control"]).toMatchObject({ level: "warn", status: "stale", previous: path.join(root, "state/skills/browser-control/0.0.1-000000000000") });
+  });
+
+  it("names the socket when the wrapper differs from this server's only there", async () => {
+    const { root, env, flags, deps } = setup();
+    const installed = await install(parseOptions(flags, INSTALL_FLAGS), env, deps);
+    const wrapper = path.join(root, "state/hosts/user/browser-control-host");
+    const other = { ...env, BROWSER_CONTROL_HOST_SOCKET: socketPath(root, "other.sock") };
+    expect(byId((await run(flags, other, deps)).steps).wrapper).toEqual({
+      id: "wrapper", level: "fail", status: "socket-mismatch",
+      message: "The native host wrapper listens on another socket than this server connects to. Run browser-control install with the server's BROWSER_CONTROL_STATE_DIR and BROWSER_CONTROL_HOST_SOCKET.",
+      path: wrapper, previous: env.BROWSER_CONTROL_HOST_SOCKET, command: "browser-control install"
+    });
+    // Any other difference is still a stale wrapper.
+    fs.chmodSync(wrapper, 0o755);
+    expect(byId((await run(flags, other, deps)).steps).wrapper).toMatchObject({ status: "stale",
+      message: "The native host wrapper does not run this version's host with this Node.js. Run browser-control install." });
+    fs.chmodSync(wrapper, 0o700);
+    fs.writeFileSync(wrapper, hostWrapper(env.BROWSER_CONTROL_HOST_SOCKET as string, `${byId(installed.steps).host.path}.old`, process.execPath));
+    expect(byId((await run(flags, other, deps)).steps).wrapper).toMatchObject({ status: "stale" });
+    expect(byId((await run(flags, env, deps)).steps).wrapper).toMatchObject({ status: "stale" });
   });
 
   it("checks the user endpoint's protocol 2 handshake", async () => {
