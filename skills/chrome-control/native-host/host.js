@@ -301,20 +301,26 @@ function lstatIfExists(file) {
 	}
 }
 function listenUnix() {
-	server.listen(socketPath, () => {
-		try {
-			const bound = node_fs.default.lstatSync(socketPath);
-			boundSocket = {
-				dev: bound.dev,
-				ino: bound.ino
-			};
-			ownsSocket = true;
-			node_fs.default.chmodSync(socketPath, 384);
-			releaseStartupLock();
-		} catch {
-			refuseEndpoint();
-		}
-	});
+	const previousUmask = node_process.default.umask(127);
+	try {
+		server.listen(socketPath, onUnixListening);
+	} finally {
+		node_process.default.umask(previousUmask);
+	}
+}
+function onUnixListening() {
+	try {
+		const bound = node_fs.default.lstatSync(socketPath);
+		boundSocket = {
+			dev: bound.dev,
+			ino: bound.ino
+		};
+		ownsSocket = true;
+		node_fs.default.chmodSync(socketPath, 384);
+		releaseStartupLock();
+	} catch {
+		refuseEndpoint();
+	}
 }
 function removeOwnSocket() {
 	try {

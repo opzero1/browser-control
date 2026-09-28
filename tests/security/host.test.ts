@@ -14,6 +14,7 @@ async function host(env: NodeJS.ProcessEnv = {}, protocolVersion = 2) {
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
     env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint, ...env }, stdio: ["pipe", "pipe", "pipe"]
   });
+  child.stdin.on("error", () => undefined);
   cleanup.push(() => { child.kill(); fs.rmSync(directory, { recursive: true, force: true }); });
   const native: any[] = [];
   let buffer = Buffer.alloc(0);
@@ -185,6 +186,7 @@ function spawnHost(endpoint: string) {
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
     env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
   });
+  child.stdin.on("error", () => undefined);
   cleanup.push(() => child.kill());
   const exited = new Promise<number | null>(resolve => child.once("exit", resolve));
   return { child, exited };
