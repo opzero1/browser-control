@@ -6,7 +6,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { DatabaseSync as Database } from "node:sqlite";
-import { checkFileStats, entryStats, io, openLockFile, verified, type PrivateDir } from "./fs-private";
+import { pathToFileURL } from "node:url";
+import { checkFileStats, entryStats, FsError, io, verified, type PrivateDir } from "./fs-private";
 import { Gate } from "./gate";
 import { monotonic, sleep } from "./time";
 
@@ -34,26 +35,64 @@ function databaseModule(): typeof import("node:sqlite") {
 
 class Busy extends Error {}
 
+const SQLITE_CANTOPEN = 14;
+
 function isBusy(error: unknown): boolean {
   const record = error as { errcode?: number } | null;
   return typeof record?.errcode === "number" && (record.errcode & 0xff) === 5;
 }
 
+const { O_RDWR, O_CREAT, O_EXCL, O_NOFOLLOW } = fs.constants;
+
+/**
+ * check_file for a lock file, creating a missing one 0600 like browser_pool.open_lock. An existing lock file is
+ * only lstat'ed, never opened: closing any descriptor of a file drops every POSIX lock this process holds on
+ * it, which would silently release SQLite's locks for other holders in this process while SQLite still counts
+ * them as held. A new file is created with O_EXCL, so the descriptor closed here is on an inode nobody locks.
+ */
+function lockFileStats(dir: PrivateDir, name: string): fs.Stats {
+  let attempts = 3;
+  while (true) {
+    const existing = entryStats(dir, name);
+    if (existing) {
+      // What os.open(name, O_RDWR | O_NOFOLLOW) would have refused.
+      if (existing.isSymbolicLink()) throw new FsError("ELOOP");
+      if (existing.isDirectory()) throw new FsError("EISDIR");
+      if (existing.isSocket()) throw new FsError("ENXIO");
+      checkFileStats(existing);
+      return existing;
+    }
+    let fd: number;
+    try {
+      fd = fs.openSync(path.join(verified(dir), name), O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      // EEXIST: another process created it meanwhile. ENOENT: macOS can fail an O_CREAT open while another
+      // process creates the same name.
+      if ((code === "EEXIST" || code === "ENOENT") && --attempts) continue;
+      return io(() => { throw error; });
+    }
+    try {
+      const stats = io(() => fs.fstatSync(fd));
+      checkFileStats(stats);
+      return stats;
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+}
+
 /** One attempt; throws Busy when another holder conflicts. */
 function attempt(dir: PrivateDir, name: string, exclusive: boolean): HeldLock {
-  const fd = openLockFile(dir, name);
-  let before: fs.Stats;
-  try {
-    before = io(() => fs.fstatSync(fd));
-    checkFileStats(before);
-  } finally {
-    fs.closeSync(fd);
-  }
-  const file = path.join(verified(dir), name);
+  const before = lockFileStats(dir, name);
+  // mode=rw: SQLite must never create the file itself (with its default 0644) if it vanished meanwhile.
+  const file = pathToFileURL(path.join(verified(dir), name));
+  file.searchParams.set("mode", "rw");
   let database: Database;
   try {
     database = new (databaseModule().DatabaseSync)(file, { timeout: 0 });
   } catch (error) {
+    if ((error as { errcode?: number } | null)?.errcode === SQLITE_CANTOPEN) throw new FsError("ENOENT");
     return io(() => { throw error; });
   }
   let held = false;
