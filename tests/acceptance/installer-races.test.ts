@@ -11,7 +11,7 @@ import {
   acquireInstallLock, acquireInstallLockSync, checkDirectory, InstallLockBusy, InstallLockUnsafe, manifestLockPath, type InstallLock
 } from "../../src/shared/install-lock";
 import { childPath } from "../server/support/children";
-import { realDefaultPaths } from "../server/support/packaging";
+import { realDefaultPaths, snapshotTree } from "../server/support/packaging";
 import { privateTemp, removeTempRoots, testEnv } from "../server/support/temp";
 
 const repository = path.resolve(__dirname, "../..");
@@ -46,6 +46,11 @@ function chain(directory: string): string[] {
   const result = [root];
   for (const part of directory.slice(root.length).split(path.sep).filter(Boolean)) result.push(path.join(result[result.length - 1], part));
   return result;
+}
+
+/** `text` as a literal in a RegExp. */
+function escaped(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** The staging directory an acquisition has made beside the lock, by name. */
@@ -98,12 +103,14 @@ function setup() {
   const state = path.join(root, "state");
   const manifests = path.join(root, "manifests");
   const manifest = path.join(manifests, "com.opzero.chrome.json");
+  const zipArgs = [zipInstaller, "--extension-id", "testextensionid", "--manifest-path", manifest];
+  const npmArgs = [cli, "install", "--state-dir", state, "--chrome-manifest-dir", manifests, "--json"];
   return {
-    root, state, manifest,
+    root, state, manifest, env, zipArgs, npmArgs,
     zipWrapper: path.join(state, "hosts/skill/browser-control-host"),
     npmWrapper: path.join(state, "hosts/user/browser-control-host"),
-    zip: (...extra: string[]) => start([zipInstaller, "--extension-id", "testextensionid", "--manifest-path", manifest, ...extra], { ...env, BROWSER_CONTROL_STATE_DIR: state }),
-    npm: (...extra: string[]) => start([cli, "install", "--state-dir", state, "--chrome-manifest-dir", manifests, "--json", ...extra], env)
+    zip: (...extra: string[]) => start([...zipArgs, ...extra], { ...env, BROWSER_CONTROL_STATE_DIR: state }),
+    npm: (...extra: string[]) => start([...npmArgs, ...extra], env)
   };
 }
 
@@ -312,6 +319,151 @@ describe("the zip installer and browser-control install on one manifest", () => 
     expect(JSON.parse(npmResult.stdout).steps.find((item: { id: string }) => item.id === "manifest"))
       .toMatchObject({ level: "fail", status: "unsafe-lock", path: directory, code: UNSAFE_CODE });
     expect(fs.readdirSync(directory)).toEqual([]);
+  }, 30000);
+});
+
+describe("a manifest directory symlink repointed while an installer holds the lock", () => {
+  const FOREIGN = `${JSON.stringify({ name: "com.opzero.chrome", path: "/opt/other/host", type: "stdio", allowed_origins: [] })}\n`;
+
+  /**
+   * The manifest directory is given as a symlink to `a`, which the lock accepts. `b` holds another host's
+   * manifest. Once an installer holds the lock and has found no manifest in `a`, the preloaded hook points the
+   * symlink at `b`, as another user who owned the symlink could, just before the temporary manifest is made.
+   */
+  function retarget() {
+    const context = setup();
+    const a = path.join(context.root, "a");
+    const b = path.join(context.root, "b");
+    for (const directory of [a, b]) {
+      fs.mkdirSync(directory);
+      fs.chmodSync(directory, 0o755);
+    }
+    fs.writeFileSync(path.join(b, "com.opzero.chrome.json"), FOREIGN);
+    const link = path.dirname(context.manifest);
+    fs.symlinkSync(a, link);
+    const mark = path.join(context.root, "mark");
+    const hooked = (args: string[], env: Record<string, string | undefined>) => start(["--require", childPath("child-retarget-manifest"), ...args],
+      { ...env, RETARGET_LINK: link, RETARGET_TARGET: b, RETARGET_MARK: mark });
+    return {
+      ...context, a, b, link,
+      /** The temporary manifest paths the installer opened once the symlink was repointed: exactly one, made in `a`. */
+      opened: () => fs.readFileSync(mark, "utf8").split("\n").filter(Boolean),
+      zipHooked: () => hooked(context.zipArgs, { ...context.env, BROWSER_CONTROL_STATE_DIR: context.state }),
+      npmHooked: () => hooked(context.npmArgs, context.env)
+    };
+  }
+
+  function temporaryIn(directory: string) {
+    return new RegExp(`^${escaped(directory)}/\\.com\\.opzero\\.chrome\\.json\\.[0-9a-f-]{36}\\.tmp$`);
+  }
+
+  it("the zip installer classifies and writes only in the locked directory, leaves the other manifest, and refuses", async () => {
+    const { a, b, link, manifest, opened, zipHooked } = retarget();
+    const result = await zipHooked().done;
+    expect(fs.readFileSync(path.join(b, "com.opzero.chrome.json"), "utf8")).toBe(FOREIGN);
+    expect(fs.readdirSync(b)).toEqual(["com.opzero.chrome.json"]);
+    expect(opened()).toEqual([expect.stringMatching(temporaryIn(a))]);
+    expect(result).toMatchObject({ code: 1,
+      stderr: `The native messaging manifest directory ${link} no longer resolves to ${a}, so no manifest was written. Make sure nothing else is changing it, then try again.\n` });
+    expect(result.stdout).not.toContain(manifest);
+    expect(fs.readdirSync(a)).toEqual([]);
+  }, 30000);
+
+  it("browser-control install classifies and writes only in the locked directory, leaves the other manifest, and refuses", async () => {
+    const { a, b, manifest, opened, npmHooked } = retarget();
+    const result = await npmHooked().done;
+    expect(fs.readFileSync(path.join(b, "com.opzero.chrome.json"), "utf8")).toBe(FOREIGN);
+    expect(fs.readdirSync(b)).toEqual(["com.opzero.chrome.json"]);
+    expect(opened()).toEqual([expect.stringMatching(temporaryIn(a))]);
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stdout).steps.find((item: { id: string }) => item.id === "manifest")).toEqual({
+      id: "manifest", level: "fail", status: "moved", path: manifest,
+      message: "The directory of the Chrome native messaging manifest changed while install was writing the manifest, so nothing was written. Make sure nothing else is changing it, then run browser-control install again."
+    });
+    expect(fs.readdirSync(a)).toEqual([]);
+  }, 30000);
+});
+
+describe("the state root the zip installer records", () => {
+  /** Every single-quoted literal in a generated wrapper: the socket, the Node it execs and the host script. */
+  function literals(wrapper: string): string[] {
+    return [...fs.readFileSync(wrapper, "utf8").matchAll(/'([^']*)'/g)].map((match) => match[1]);
+  }
+
+  function zipAt(context: ReturnType<typeof setup>, stateDir: string) {
+    return start(context.zipArgs, { ...context.env, BROWSER_CONTROL_STATE_DIR: stateDir });
+  }
+
+  /** A tree another user could make: their own wrapper and host where `state` would put them. */
+  function attackerTree(state: string) {
+    fs.mkdirSync(path.join(state, "hosts/skill"), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(state, "hosts/skill/browser-control-host"), "#!/bin/sh\necho attacker\n", { mode: 0o700 });
+  }
+
+  it.each([
+    ["above it", (root: string) => {
+      fs.mkdirSync(path.join(root, "real"), { mode: 0o700 });
+      fs.symlinkSync(path.join(root, "real"), path.join(root, "link"));
+      attackerTree(path.join(root, "attacker/state"));
+      return { link: path.join(root, "link"), given: path.join(root, "link/state"), real: path.join(root, "real/state"), repoint: path.join(root, "attacker") };
+    }],
+    ["to it", (root: string) => {
+      fs.mkdirSync(path.join(root, "real/state"), { recursive: true, mode: 0o700 });
+      fs.symlinkSync(path.join(root, "real/state"), path.join(root, "link"));
+      attackerTree(path.join(root, "attacker/state"));
+      return { link: path.join(root, "link"), given: path.join(root, "link"), real: path.join(root, "real/state"), repoint: path.join(root, "attacker/state") };
+    }]
+  ])("is its real path when given through a symlink %s, on the first and the matching-copy run, and repointing that symlink changes nothing Chrome runs", async (_where, layout) => {
+    const context = setup();
+    const { link, given, real, repoint } = layout(context.root);
+    const wrapper = path.join(real, "hosts/skill/browser-control-host");
+    // The first run publishes the host copy; the second finds it matching and does not take the publish lock.
+    for (let run = 0; run < 2; run += 1) {
+      const result = await zipAt(context, given).done;
+      expect(result, result.stderr).toMatchObject({ code: 0, stderr: "" });
+      expect(result.stdout).toContain(`Host executable: ${wrapper}\n`);
+      expect(result.stdout).toMatch(new RegExp(`\nHost copy: ${escaped(real)}/hosts/skill-[0-9a-f]{12}\n`));
+      expect(JSON.parse(fs.readFileSync(context.manifest, "utf8")).path).toBe(wrapper);
+      expect(wrapperHost(wrapper)).toMatch(new RegExp(`^${escaped(real)}/hosts/skill-[0-9a-f]{12}/native-host/host\\.js$`));
+    }
+    expect(fs.readdirSync(path.join(real, "hosts")).filter((name) => name.startsWith("skill-"))).toHaveLength(1);
+    const manifestText = fs.readFileSync(context.manifest, "utf8");
+    const wrapperText = fs.readFileSync(wrapper, "utf8");
+
+    fs.unlinkSync(link);
+    fs.symlinkSync(repoint, link);
+    // Through the path given, the wrapper is now the other user's; Chrome is given only the real path.
+    expect(fs.realpathSync(path.join(given, "hosts/skill/browser-control-host"))).toBe(path.join(context.root, "attacker/state/hosts/skill/browser-control-host"));
+    expect(fs.readFileSync(context.manifest, "utf8")).toBe(manifestText);
+    expect(fs.readFileSync(wrapper, "utf8")).toBe(wrapperText);
+    for (const file of [wrapper, ...literals(wrapper)]) {
+      expect(fs.realpathSync(path.dirname(file)), file).toBe(path.dirname(file));
+      expect(file.startsWith(`${link}${path.sep}`), file).toBe(false);
+    }
+    for (const file of [wrapper, wrapperHost(wrapper)]) expect(fs.realpathSync(file)).toBe(file);
+  }, 30000);
+
+  it("refuses a state root whose symlink leads under a directory other users can write to, also once its host copy is in place, and writes nothing", async () => {
+    const context = setup();
+    const open = path.join(context.root, "open");
+    fs.mkdirSync(path.join(open, "real"), { recursive: true, mode: 0o700 });
+    fs.chmodSync(open, 0o777);
+    const link = path.join(context.root, "link");
+    fs.symlinkSync(path.join(open, "real"), link);
+    const given = path.join(link, "state");
+    const refusal = { code: 1,
+      stderr: `Refusing the state directory ${given}: ${open} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.\n` };
+    expect(await zipAt(context, given).done).toMatchObject(refusal);
+    expect(fs.existsSync(path.join(open, "real/state/hosts"))).toBe(false);
+    expect(fs.existsSync(path.dirname(context.manifest))).toBe(false);
+
+    // Installed while the directory was safe, the matching copy needs no publish lock: the state root is checked anyway.
+    fs.chmodSync(open, 0o755);
+    expect(await zipAt(context, given).done).toMatchObject({ code: 0, stderr: "" });
+    const installed = snapshotTree(context.root);
+    fs.chmodSync(open, 0o777);
+    expect(await zipAt(context, given).done).toMatchObject(refusal);
+    expect(snapshotTree(context.root)).toEqual({ ...installed, open: expect.stringMatching(/^dir 777 /) });
   }, 30000);
 });
 

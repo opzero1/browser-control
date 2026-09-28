@@ -91,6 +91,17 @@ function checkChain(directory, io) {
 		ino: stats.ino
 	};
 }
+/**
+* The real path of `directory` and its identity, once every directory from / down to it is owned by this user
+* or root and writable only by its owner unless it has the sticky bit; otherwise the first directory that is
+* not. Only this user or root can then rename, replace or remove anything in it.
+*/
+function checkDirectory(directory, calls = {}) {
+	return checkChain(directory, {
+		...nodeFs,
+		...calls
+	});
+}
 /** Whether `file`, not followed, is still what `expected` identifies; a missing file is not. */
 function unchangedAt(file, expected, calls = {}) {
 	let stats;
@@ -101,6 +112,24 @@ function unchangedAt(file, expected, calls = {}) {
 		throw error;
 	}
 	return !stats.isSymbolicLink() && stats.dev === expected.dev && stats.ino === expected.ino;
+}
+/**
+* Whether `directory` is still the one that was checked and `given` still resolves to it. An installer checks
+* this just before it renames a file into `directory`: the given path is the one Chrome reads, and a symlink in
+* it may have been repointed since.
+*/
+function stillResolves(given, directory, calls = {}) {
+	const io = {
+		...nodeFs,
+		...calls
+	};
+	if (!unchangedAt(directory.path, directory, io)) return false;
+	try {
+		return io.realpath(given) === directory.path;
+	} catch (error) {
+		if (codeOf(error) === void 0) throw error;
+		return false;
+	}
 }
 /** What `stats` says `file` is, as this process made it. */
 function created(file, stats) {
@@ -346,15 +375,42 @@ function stateRoot() {
 function isPrivate(stats) {
 	return node_process.default.platform === "win32" || stats.uid === node_process.default.getuid?.() && (stats.mode & 63) === 0;
 }
-/** Create `dir` (mode 0700) if needed, and refuse a symlink or a directory another user could change. */
-function privateDirectory(dir) {
+/** `dir`, not followed, is a private directory; with `expected`, it is still that directory. */
+function privateAt(dir, expected) {
+	const stats = node_fs.default.lstatSync(dir);
+	if (!stats.isDirectory() || !isPrivate(stats) || expected && (stats.dev !== expected.dev || stats.ino !== expected.ino)) throw new InstallError(`Refusing a directory that is not private to you: ${dir}`);
+	return {
+		path: dir,
+		dev: stats.dev,
+		ino: stats.ino
+	};
+}
+/**
+* Create the state root `dir` (mode 0700) if needed and return its real path, once every directory from / down
+* to it is owned by you or root and writable only by its owner unless it has the sticky bit, and it is private
+* to you. Then no other user can rename anything on that path.
+*/
+function stateDirectory(dir) {
 	node_fs.default.mkdirSync(dir, {
 		recursive: true,
 		mode: 448
 	});
-	const stats = node_fs.default.lstatSync(dir);
-	if (!stats.isDirectory() || !isPrivate(stats)) throw new InstallError(`Refusing a directory that is not private to you: ${dir}`);
-	return dir;
+	const checked = checkDirectory(dir);
+	if ("unsafe" in checked) throw new InstallError(`Refusing the state directory ${dir}: ${checked.unsafe} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.`);
+	return privateAt(checked.path, checked);
+}
+/** <parent>/<name>, made with mode 0700 if missing: a private directory, not a symlink, in a checked parent. */
+function privateChild(parent, name) {
+	const dir = node_path.default.join(parent.path, name);
+	try {
+		node_fs.default.mkdirSync(dir, { mode: 448 });
+	} catch (error) {
+		if (error.code !== "EEXIST") throw error;
+	}
+	return privateAt(dir);
+}
+function sameDirectory(a, b) {
+	return a.path === b.path && a.dev === b.dev && a.ino === b.ino;
 }
 /** The host entry and every chunk it requires, by path relative to the skill root. */
 function hostFiles() {
@@ -436,26 +492,27 @@ function makeDirectory(dir) {
 	return created(dir, node_fs.default.lstatSync(dir));
 }
 /**
-* Publish `files` as <parent>/<name>/. Publications are serialized by a lock in <parent>, and the target is
+* Publish `files` as <hosts>/<name>/. Publications are serialized by a lock in `hosts`, and the target is
 * checked again under it, so a matching copy that another installer published (and Chrome may be running) is
 * never moved or deleted. Returns the published directory.
 */
-function publishTree(parent, name, files) {
-	const target = node_path.default.join(parent, name);
+function publishTree(hosts, name, files) {
+	const target = node_path.default.join(hosts.path, name);
 	let current = null;
 	try {
 		current = treeState(target, files);
 	} catch {}
 	if (current !== "matches") {
-		const lock = acquireInstallLockSync(node_path.default.join(parent, publishLock));
+		const lock = acquireInstallLockSync(node_path.default.join(hosts.path, publishLock));
 		try {
-			const state = treeState(node_path.default.join(lock.directory.path, name), files);
+			if (!sameDirectory(lock.directory, hosts)) throw new InstallError(`${hosts.path} was replaced while this installer used it, so no host copy was written.`);
+			const state = treeState(target, files);
 			if (state !== "matches") replaceTree(lock.directory, name, files, state === "differs");
 		} finally {
 			lock.release();
 		}
 	}
-	if (treeState(target, files) !== "matches") throw new InstallError(`Could not verify the native host copy: ${target}`);
+	if (!unchangedAt(hosts.path, hosts) || treeState(target, files) !== "matches") throw new InstallError(`Could not verify the native host copy: ${target}`);
 	return target;
 }
 /**
@@ -534,13 +591,18 @@ function launcher(node, host, socketPath) {
 	if (node_process.default.platform === "win32") return `@echo off\r\n${socketPath ? `set "BROWSER_CONTROL_HOST_SOCKET=${cmdValue(socketPath)}"\r\n` : ""}"${cmdValue(node)}" "${cmdValue(host)}"\r\n`;
 	return `#!/bin/sh\n${socketPath ? `export BROWSER_CONTROL_HOST_SOCKET=${shellLiteral(socketPath)}\n` : ""}exec ${shellLiteral(node)} ${shellLiteral(host)}\n`;
 }
-/** Replace `file` atomically with `text`: a temporary file beside it, then a rename. */
-function replaceFile(file, text, mode) {
-	const temporary = writeNew(node_path.default.join(node_path.default.dirname(file), `.${node_path.default.basename(file)}.${node_crypto.default.randomUUID()}.tmp`), text, mode);
+/**
+* Replace <directory>/<name> atomically with `text`: a temporary file beside it, then a rename. Just before the
+* rename, `intact` must hold; otherwise `refusal` is thrown. Only the temporary file is ever removed, and only
+* while it is still the one written here.
+*/
+function replaceFile(directory, name, text, mode, intact, refusal) {
+	const temporary = writeNew(node_path.default.join(directory.path, `.${name}.${node_crypto.default.randomUUID()}.tmp`), text, mode);
 	try {
-		node_fs.default.renameSync(temporary.path, file);
+		if (!intact()) throw new InstallError(refusal);
+		node_fs.default.renameSync(temporary.path, node_path.default.join(directory.path, name));
 	} catch (error) {
-		removeCreated([temporary]);
+		removeCreated([temporary], directory);
 		throw error;
 	}
 }
@@ -560,22 +622,23 @@ function existingHost(manifestPath) {
 		return null;
 	}
 }
-function refuseForeign(manifestPath, wrapper) {
-	const previous = existingHost(manifestPath);
+/** Refuse the manifest at `file` if it names another host; `manifestPath` is the path the user gave. */
+function refuseForeign(file, wrapper, manifestPath = file) {
+	const previous = existingHost(file);
 	if (previous !== void 0 && previous !== wrapper && !force) throw new InstallError(`A native messaging manifest for ${hostName} already points at another host:\n  ${previous ?? "(unreadable)"}\nPass --force to replace it: ${manifestPath}`);
 }
 function install(extensionId, manifestPath, socketPath) {
 	const node = nodeExecutable();
-	const hosts = privateDirectory(node_path.default.join(privateDirectory(stateRoot()), "hosts"));
+	const hosts = privateChild(stateDirectory(stateRoot()), "hosts");
 	const files = hostFiles();
-	const wrapperDir = node_path.default.join(hosts, "skill");
-	const wrapper = node_path.default.join(wrapperDir, wrapperName);
-	const copyDir = node_path.default.join(hosts, `skill-${digest(files).slice(0, 12)}`);
+	const copyName = `skill-${digest(files).slice(0, 12)}`;
+	const copyDir = node_path.default.join(hosts.path, copyName);
+	const wrapper = node_path.default.join(hosts.path, "skill", wrapperName);
 	const text = launcher(node, node_path.default.join(copyDir, ...hostEntry.split("/")), socketPath);
 	refuseForeign(manifestPath, wrapper);
-	publishTree(hosts, node_path.default.basename(copyDir), files);
-	privateDirectory(wrapperDir);
-	replaceFile(wrapper, text, 448);
+	publishTree(hosts, copyName, files);
+	const wrapperDir = privateChild(hosts, "skill");
+	replaceFile(wrapperDir, wrapperName, text, 448, () => unchangedAt(wrapperDir.path, wrapperDir), `${wrapperDir.path} was replaced while this installer used it, so the wrapper was not written.`);
 	const manifest = {
 		name: hostName,
 		description: "Browser Control native messaging host",
@@ -589,8 +652,10 @@ function install(extensionId, manifestPath, socketPath) {
 	});
 	const lock = acquireInstallLockSync(manifestLockPath(manifestPath));
 	try {
-		refuseForeign(manifestPath, wrapper);
-		replaceFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 420);
+		const given = node_path.default.dirname(manifestPath);
+		const name = node_path.default.basename(manifestPath);
+		refuseForeign(node_path.default.join(lock.directory.path, name), wrapper, manifestPath);
+		replaceFile(lock.directory, name, `${JSON.stringify(manifest, null, 2)}\n`, 420, () => stillResolves(given, lock.directory), `The native messaging manifest directory ${given} no longer resolves to ${lock.directory.path}, so no manifest was written. Make sure nothing else is changing it, then try again.`);
 	} finally {
 		lock.release();
 	}

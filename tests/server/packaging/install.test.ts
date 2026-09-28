@@ -279,6 +279,45 @@ describe("browser-control install", () => {
     expect(fs.readdirSync(state)).toEqual([]);
   });
 
+  it("refuses a state directory given through a symlink, so every path it records is a real path, and writes nothing through it", async () => {
+    const { root, env, assets, manifests, skills } = setup();
+    const real = path.join(root, "real");
+    fs.mkdirSync(real, { mode: 0o700 });
+    fs.symlinkSync(real, path.join(root, "link"));
+    for (const state of [path.join(root, "link/state"), path.join(root, "link")]) {
+      const report = await install(options(["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", skills]), env,
+        fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+      expect(byId(report.steps).state).toMatchObject({ level: "fail", status: "unsafe", path: state, code: "ELOOP" });
+      expect(report.steps.map((item) => item.id)).toEqual(["node", "state", "extension", "cua-driver", "chrome-for-testing"]);
+      expect(fs.readdirSync(real)).toEqual([]);
+      expect(fs.existsSync(manifests)).toBe(false);
+    }
+  });
+
+  it.each([["0777", 0o777], ["0770", 0o770], ["0707", 0o707]])("refuses a state directory under a directory with mode %s and no sticky bit, and accepts it once that has the sticky bit", async (_mode, mode) => {
+    const { root, env, assets, manifests, skills } = setup();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, mode);
+    const state = path.join(shared, "state");
+    const flags = ["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", skills];
+    const refused = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(refused.steps).state).toEqual({ id: "state", level: "fail", status: "unsafe-ancestor", path: shared,
+      message: "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir." });
+    expect(refused.steps.map((item) => item.id)).toEqual(["node", "state", "extension", "cua-driver", "chrome-for-testing"]);
+    expect(fs.readdirSync(state)).toEqual([]);
+    expect(fs.existsSync(manifests)).toBe(false);
+
+    fs.chmodSync(shared, mode | 0o1000);
+    const accepted = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(statuses(accepted.steps)).toMatchObject({ state: "unchanged", host: "created", wrapper: "created", manifest: "created" });
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    expect(JSON.parse(readText(path.join(manifests, "com.opzero.chrome.json"))).path).toBe(wrapper);
+    const named = [...readText(wrapper).matchAll(/'([^']*)'/g)].map((match) => match[1]);
+    expect(named).toEqual([path.join(root, "user.sock"), process.execPath, hostScriptOf(accepted)]);
+    for (const file of [wrapper, process.execPath, hostScriptOf(accepted)]) expect(fs.realpathSync(file)).toBe(file);
+  });
+
   it("creates a missing manifest directory with mode 0755 under a group-writable umask, so its lock is accepted", async () => {
     const { root, env, assets, manifests, flags } = setup();
     const previous = process.umask(0o002);

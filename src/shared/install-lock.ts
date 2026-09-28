@@ -150,6 +150,22 @@ export function unchangedAt(file: string, expected: Identity, calls: Partial<Ins
   return !stats.isSymbolicLink() && stats.dev === expected.dev && stats.ino === expected.ino;
 }
 
+/**
+ * Whether `directory` is still the one that was checked and `given` still resolves to it. An installer checks
+ * this just before it renames a file into `directory`: the given path is the one Chrome reads, and a symlink in
+ * it may have been repointed since.
+ */
+export function stillResolves(given: string, directory: TrustedDirectory, calls: Partial<InstallLockFs> = {}): boolean {
+  const io = { ...nodeFs, ...calls };
+  if (!unchangedAt(directory.path, directory, io)) return false;
+  try {
+    return io.realpath(given) === directory.path;
+  } catch (error) {
+    if (codeOf(error) === undefined) throw error;
+    return false;
+  }
+}
+
 /** What `stats` says `file` is, as this process made it. */
 export function created(file: string, stats: fs.Stats): Created {
   return { path: file, dev: stats.dev, ino: stats.ino, directory: stats.isDirectory() };

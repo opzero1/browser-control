@@ -3,7 +3,10 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { acquireInstallLock, InstallLockBusy, InstallLockUnsafe, manifestLockPath, type InstallLock } from "../../shared/install-lock";
+import {
+  acquireInstallLock, checkDirectory, created as createdEntry, InstallLockBusy, InstallLockUnsafe, manifestLockPath, removeCreated, stillResolves,
+  type Created, type InstallLock, type TrustedDirectory
+} from "../../shared/install-lock";
 import { packageAssets, type PackageAssets } from "../assets";
 import { HOST_WRAPPER_NAME, nodeExecutable, resolveCuaDriver, statePaths, STORE_EXTENSION_ID, type Env } from "../config";
 import { childDirectory, existingDirectory, openDirectory, writePrivate } from "../fs-private";
@@ -35,20 +38,32 @@ export function defaultDeps(): CommandDeps {
 
 export const INSTALL_FLAGS = ["--state-dir", "--chrome-manifest-dir", "--skills-dir", "--dry-run", "--force", "--json"] as const;
 
+/**
+ * The wrapper and the manifest name paths under the state root, so it must be a path no other user can change.
+ * fs-private refuses a symlink anywhere in the root and requires the root itself to be private, so the root is its
+ * own real path; the directories above it must also pass the installers' lock rule (src/shared/install-lock.ts).
+ */
 function stateStep(env: Env, dryRun: boolean): Step {
   const root = statePaths(env).root;
+  let created: boolean;
   try {
-    const created = !exists(root);
+    created = !exists(root);
     if (dryRun && created) return step("state", "ok", "would-create", "Would create the private state directory.", { path: root });
     if (dryRun) existingDirectory(root);
     else openDirectory(root);
-    return created
-      ? step("state", "ok", "created", "Created the private state directory.", { path: root })
-      : step("state", "ok", "unchanged", "The state directory is private.", { path: root });
   } catch (error) {
     return step("state", "fail", "unsafe",
       "The state directory must be a real directory owned by you with mode 0700. Fix it or pass another --state-dir.", { path: root, code: gateCode(error) });
   }
+  const checked = checkDirectory(root);
+  if ("unsafe" in checked || checked.path !== root) {
+    return step("state", "fail", "unsafe-ancestor",
+      "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir.",
+      { path: "unsafe" in checked ? checked.unsafe : root });
+  }
+  return created
+    ? step("state", "ok", "created", "Created the private state directory.", { path: root })
+    : step("state", "ok", "unchanged", "The state directory is private.", { path: root });
 }
 
 async function hostSteps(env: Env, assets: PackageAssets, dryRun: boolean): Promise<Step[]> {
@@ -86,22 +101,32 @@ async function hostSteps(env: Env, assets: PackageAssets, dryRun: boolean): Prom
   return steps;
 }
 
-/** Replace `file` atomically: a temporary file beside it, fsync, rename. A symlink at `file` is replaced, not followed. */
-function writeManifest(file: string, text: string) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const temporary = path.join(path.dirname(file), `.${MANIFEST_FILE}.${randomUUID()}.tmp`);
+/**
+ * Replace the manifest in `directory`, the real path the lock checked, atomically: a temporary file beside it,
+ * fsync, rename. A symlink at the manifest is replaced, not followed. Just before the rename, `directory` must
+ * still be the one checked and `given`, the directory Chrome reads, must still resolve to it; otherwise nothing
+ * is renamed and this returns false. Only the temporary file is ever removed, while it is still the one written.
+ */
+function writeManifest(directory: TrustedDirectory, given: string, text: string): boolean {
+  const temporary = path.join(directory.path, `.${MANIFEST_FILE}.${randomUUID()}.tmp`);
   const fd = fs.openSync(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o644);
+  let made: Created | null = null;
+  let placed = false;
   try {
     try {
+      made = createdEntry(temporary, fs.fstatSync(fd));
       fs.fchmodSync(fd, 0o644);
       fs.writeSync(fd, text);
       fs.fsyncSync(fd);
     } finally {
       fs.closeSync(fd);
     }
-    fs.renameSync(temporary, file);
+    if (!stillResolves(given, directory)) return false;
+    fs.renameSync(temporary, path.join(directory.path, MANIFEST_FILE));
+    placed = true;
+    return true;
   } finally {
-    fs.rmSync(temporary, { force: true });
+    if (!placed && made) removeCreated([made], directory);
   }
 }
 
@@ -155,10 +180,16 @@ async function replaceManifest(file: string, wrapper: string, options: Options):
   }
   let state: ManifestState;
   try {
-    state = manifestState(file, wrapper);
+    // The lock checked the real path of the manifest's directory from / down: classify and write there, never
+    // through `file`, whose symlinks may be repointed.
+    state = manifestState(path.join(lock.directory.path, MANIFEST_FILE), wrapper);
     const settled = manifestPlan(file, state, options);
     if (settled) return settled;
-    writeManifest(file, manifestText(wrapper));
+    if (!writeManifest(lock.directory, path.dirname(file), manifestText(wrapper))) {
+      return step("manifest", "fail", "moved",
+        "The directory of the Chrome native messaging manifest changed while install was writing the manifest, so nothing was written. Make sure nothing else is changing it, then run browser-control install again.",
+        { path: file });
+    }
   } finally {
     lock.release();
   }

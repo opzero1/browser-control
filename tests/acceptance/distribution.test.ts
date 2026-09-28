@@ -188,12 +188,14 @@ describe("Browser Control distribution", () => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     expect(manifest.name).toBe("com.opzero.chrome");
     expect(manifest.allowed_origins).toEqual(["chrome-extension://testextensionid/"]);
-    // Chrome gets a wrapper under the state root, never a path inside the skill it was installed from.
-    expect(manifest.path).toBe(path.join(state, "hosts/skill/browser-control-host"));
+    // Chrome gets a wrapper under the state root's real path (macOS /var is a symlink), never a path inside the
+    // skill it was installed from.
+    const realState = path.join(fs.realpathSync(tempDir), "state");
+    expect(manifest.path).toBe(path.join(realState, "hosts/skill/browser-control-host"));
     const copies = fs.readdirSync(path.join(state, "hosts")).filter((name) => name.startsWith("skill-"));
     expect(copies).toHaveLength(1);
     expect(copies[0]).toMatch(/^skill-[0-9a-f]{12}$/);
-    const hostScript = path.join(state, "hosts", copies[0], "native-host/host.js");
+    const hostScript = path.join(realState, "hosts", copies[0], "native-host/host.js");
     expect(fs.readFileSync(manifest.path, "utf8")).toBe(
       `#!/bin/sh\nexport BROWSER_CONTROL_HOST_SOCKET='${socketPath}'\nexec '${process.execPath}' '${hostScript}'\n`);
     expect(fs.statSync(manifest.path).mode & 0o777).toBe(0o700);
@@ -201,7 +203,7 @@ describe("Browser Control distribution", () => {
       expect(fs.lstatSync(dir).mode & 0o777, dir).toBe(0o700);
     }
     expect(fs.readFileSync(hostScript).equals(fs.readFileSync(path.join(skillDir, "native-host/host.js")))).toBe(true);
-    expect(install.stdout).toContain(`Host copy: ${path.join(state, "hosts", copies[0])}\n`);
+    expect(install.stdout).toContain(`Host copy: ${path.join(realState, "hosts", copies[0])}\n`);
     // The skill may be a stable copy under the state root or a package cache, so install writes nothing into it:
     // scripts/extension-id.json keeps the build's store ID.
     expect(treeContents(skillDir)).toEqual(skillBefore);
@@ -252,7 +254,7 @@ describe("Browser Control distribution", () => {
     expect(install.stderr).toBe("");
     expect(install.code).toBe(0);
     const { path: wrapper } = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    expect(wrapper).toBe(path.join(tempDir, "$HOME `x`", "hosts/skill/browser-control-host"));
+    expect(wrapper).toBe(path.join(fs.realpathSync(tempDir), "$HOME `x`", "hosts/skill/browser-control-host"));
     await hostListens(wrapper, tempDir, socketPath);
     expect(fs.readdirSync(tempDir).filter((name) => name === "p" || name === "q")).toEqual([]);
   });
@@ -305,7 +307,7 @@ describe("Browser Control distribution", () => {
 
     const forced = await runNode([...args, "--force"], { BROWSER_CONTROL_STATE_DIR: state });
     expect(forced.code).toBe(0);
-    expect(JSON.parse(fs.readFileSync(manifestPath, "utf8")).path).toBe(path.join(state, "hosts/skill/browser-control-host"));
+    expect(JSON.parse(fs.readFileSync(manifestPath, "utf8")).path).toBe(path.join(fs.realpathSync(tempDir), "state/hosts/skill/browser-control-host"));
     // Its own manifest is replaced without --force.
     expect((await runNode(args, { BROWSER_CONTROL_STATE_DIR: state })).code).toBe(0);
   });
