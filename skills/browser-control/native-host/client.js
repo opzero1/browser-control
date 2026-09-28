@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_rpc = require("../chunks/rpc-CKph8efs.js");
+const require_trusted_path = require("../chunks/trusted-path-OQ7soDSf.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_net = require("node:net");
@@ -26,7 +27,21 @@ if (args.length > 1 || !streaming && ![
 	node_process.default.exit(1);
 }
 var useTcp = node_process.default.platform === "win32" || node_process.default.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
-var socket = useTcp ? node_net.default.connect(Number(node_process.default.env.BROWSER_CONTROL_HOST_PORT || 17365), "127.0.0.1") : node_net.default.connect(node_process.default.env.BROWSER_CONTROL_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock"));
+/**
+* The host's socket by its canonical path, once privateSocketEndpoint (src/shared/trusted-path.ts) found it to be
+* this user's socket in a private directory that no other user can change; the handshake does not authenticate
+* the host, so nothing is sent to any other endpoint. A missing socket is a host that is not running, reported as
+* a failed connection is.
+*/
+function unixEndpoint() {
+	try {
+		return require_trusted_path.privateSocketEndpoint(node_process.default.env.BROWSER_CONTROL_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock"));
+	} catch (error) {
+		node_process.default.stderr.write(error.code === "ENOENT" ? "Private client stopped; outcome may be unknown; do not replay\n" : "Refusing the native host socket: it must be your socket, in a private directory that no other user can change; nothing was sent\n");
+		node_process.default.exit(1);
+	}
+}
+var socket = useTcp ? node_net.default.connect(Number(node_process.default.env.BROWSER_CONTROL_HOST_PORT || 17365), "127.0.0.1") : node_net.default.connect(unixEndpoint());
 var pending = /* @__PURE__ */ new Map();
 var ready = false;
 var inputEnded = false;

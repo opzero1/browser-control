@@ -1,0 +1,848 @@
+// browser-control install: stable host, wrapper, manifest, checks, clipboard guard and skills, all inside
+// temporary directories.
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { Writable } from "node:stream";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { ISOLATED_EXTENSION_ID, STORE_EXTENSION_ID } from "../../../src/server/config";
+import { mcpSnippet, runConfig } from "../../../src/server/commands/config";
+import { checkExtensionInstalled } from "../../../src/server/commands/extension";
+import { install, runInstall } from "../../../src/server/commands/install";
+import { parseOptions, type Options, type Step } from "../../../src/server/commands/shared";
+import { ClipboardError } from "../../../src/server/private/clipboard-guard";
+import { clipboardGuardBinary, hostWrapper } from "../../../src/server/stable-copy";
+import {
+  fakeChromeForTesting, fakeDeps, fakePackage, MACH_O, readText, realDefaultPaths, snapshotTree, writeFile
+} from "../support/packaging";
+import { privateTemp, removeTempRoots, testEnv } from "../support/temp";
+
+const repository = path.resolve(__dirname, "../../..");
+let defaults: Record<string, string>;
+
+beforeAll(() => {
+  defaults = realDefaultPaths();
+});
+
+beforeEach(() => {
+  // Any fallback to the real home directory fails the test instead of touching it.
+  vi.spyOn(os, "homedir").mockImplementation(() => {
+    throw new Error("the real home directory was used");
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  removeTempRoots();
+});
+
+afterAll(() => {
+  expect(realDefaultPaths()).toEqual(defaults);
+});
+
+interface Setup {
+  root: string;
+  env: Record<string, string | undefined>;
+  assets: ReturnType<typeof fakePackage>;
+  state: string;
+  manifests: string;
+  skills: string;
+  flags: string[];
+}
+
+function setup(extra: Record<string, string | undefined> = {}): Setup {
+  const root = privateTemp("pk-");
+  const cua = writeFile(path.join(root, "tools/cua-driver"), "#!/bin/sh\nexit 0\n", 0o755);
+  const env = testEnv(root, { CUA_DRIVER: cua, BROWSER_CONTROL_STATE_DIR: undefined, BROWSER_CONTROL_HOST_SOCKET: path.join(root, "user.sock"), ...extra });
+  fs.mkdirSync(env.HOME as string, { mode: 0o700 });
+  const state = path.join(root, "state");
+  const manifests = path.join(root, "manifests");
+  const skills = path.join(root, "skills");
+  return { root, env, assets: fakePackage(root), state, manifests, skills, flags: ["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", skills] };
+}
+
+function options(argv: string[]): Options {
+  return parseOptions(argv, ["--state-dir", "--chrome-manifest-dir", "--skills-dir", "--dry-run", "--force", "--json"]);
+}
+
+function byId(steps: readonly Step[]): Record<string, Step> {
+  return Object.fromEntries(steps.map((item) => [item.id, item]));
+}
+
+function statuses(steps: readonly Step[]): Record<string, string> {
+  return Object.fromEntries(steps.map((item) => [item.id, item.status]));
+}
+
+function sink(): Writable & { text: string } {
+  const stream = new Writable({
+    write(chunk, _encoding, done) {
+      stream.text += String(chunk);
+      done();
+    }
+  }) as Writable & { text: string };
+  stream.text = "";
+  return stream;
+}
+
+function hostScriptOf(report: { steps: Step[] }): string {
+  return byId(report.steps).host.path as string;
+}
+
+describe("browser-control install", () => {
+  it("installs into the flagged directories and writes nothing under the home directory", async () => {
+    const { root, env, assets, state, manifests, skills, flags } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    const report = await install(options(flags), env, deps);
+    expect(statuses(report.steps)).toEqual({
+      node: "found", state: "created", host: "created", wrapper: "created", manifest: "created", extension: "profile-missing",
+      "cua-driver": "found", "chrome-for-testing": "found", "clipboard-guard": "built", "skill:browser-control": "linked"
+    });
+    expect(report.ok).toBe(true);
+    expect(deps.located).toEqual(["com.google.chrome.for.testing"]);
+
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    const hostScript = hostScriptOf(report);
+    expect(path.dirname(hostScript)).toMatch(new RegExp(`^${state}/hosts/1\\.2\\.3-[0-9a-f]{12}$`));
+    expect(fs.readFileSync(hostScript)).toEqual(fs.readFileSync(assets.nativeHost));
+    expect(readText(wrapper)).toBe(hostWrapper(path.join(root, "user.sock"), hostScript, process.execPath));
+    expect(fs.statSync(wrapper).mode & 0o777).toBe(0o700);
+    const manifestFile = path.join(manifests, "com.opzero.chrome.json");
+    expect(JSON.parse(readText(manifestFile))).toEqual({
+      name: "com.opzero.chrome", description: "Browser Control native messaging host", path: wrapper, type: "stdio",
+      allowed_origins: [`chrome-extension://${STORE_EXTENSION_ID}/`, `chrome-extension://${ISOLATED_EXTENSION_ID}/`]
+    });
+    expect(ISOLATED_EXTENSION_ID).toBe("mpodnojmjjafgogldgieimgbmfhhknbe");
+    // Chrome launches only the stable copies under the state root, never files inside the package.
+    for (const file of [manifestFile, wrapper]) expect(readText(file).includes(assets.root)).toBe(false);
+
+    const guard = clipboardGuardBinary({ ...env, BROWSER_CONTROL_STATE_DIR: state }, assets);
+    expect(byId(report.steps)["clipboard-guard"].path).toBe(guard);
+    expect(fs.statSync(guard).mode & 0o777).toBe(0o700);
+
+    const link = path.join(skills, "browser-control");
+    const target = fs.readlinkSync(link);
+    expect(target).toMatch(new RegExp(`^${state}/skills/browser-control/1\\.2\\.3-[0-9a-f]{12}$`));
+    expect(readText(path.join(link, "SKILL.md"))).toBe(readText(path.join(assets.root, "skills/browser-control/SKILL.md")));
+    expect(readText(path.join(link, "references/setup.md"))).toBe("# Setup\n");
+
+    expect(fs.readdirSync(env.HOME as string)).toEqual([]);
+    expect(fs.statSync(state).mode & 0o777).toBe(0o700);
+  });
+
+  it("is idempotent: a second run changes nothing", async () => {
+    const { root, env, assets, flags } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    await install(options(flags), env, deps);
+    const before = snapshotTree(root);
+    const again = await install(options(flags), env, deps);
+    expect(statuses(again.steps)).toEqual({
+      node: "found", state: "unchanged", host: "unchanged", wrapper: "unchanged", manifest: "unchanged", extension: "profile-missing",
+      "cua-driver": "found", "chrome-for-testing": "found", "clipboard-guard": "unchanged", "skill:browser-control": "unchanged"
+    });
+    expect(deps.builds).toBe(1);
+    expect(snapshotTree(root)).toEqual(before);
+  });
+
+  it("moves the wrapper and skill to a new package version while the manifest stays", async () => {
+    const { root, env, flags, state, manifests } = setup();
+    const first = fakePackage(path.join(root, "v1"), "1.2.3");
+    const firstReport = await install(options(flags), env, fakeDeps(first, { app: fakeChromeForTesting(root) }));
+    const manifest = readText(path.join(manifests, "com.opzero.chrome.json"));
+    const second = fakePackage(path.join(root, "v2"), "1.3.0");
+    const report = await install(options(flags), env, fakeDeps(second, { app: fakeChromeForTesting(root) }));
+    expect(statuses(report.steps)).toMatchObject({ host: "created", wrapper: "updated", manifest: "unchanged", "skill:browser-control": "updated" });
+    expect(readText(path.join(manifests, "com.opzero.chrome.json"))).toBe(manifest);
+    expect(readText(path.join(state, "hosts/user/browser-control-host")).includes(`${state}/hosts/1.3.0-`)).toBe(true);
+    // The previous copy stays for a Chrome that still runs it.
+    expect(fs.existsSync(hostScriptOf(firstReport))).toBe(true);
+    expect(fs.readlinkSync(path.join(root, "skills/browser-control"))).toMatch(/\/skills\/browser-control\/1\.3\.0-[0-9a-f]{12}$/);
+  });
+
+  it("never overwrites a manifest that points elsewhere without --force, and reports the old path", async () => {
+    const { root, env, assets, manifests, flags } = setup();
+    const manifestFile = writeFile(path.join(manifests, "com.opzero.chrome.json"),
+      JSON.stringify({ name: "com.opzero.chrome", path: "/opt/other/opzero-chrome-host", type: "stdio", allowed_origins: [] }));
+    const foreign = readText(manifestFile);
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    const out = sink();
+    expect(await runInstall(flags, { stdout: out, stderr: sink(), env }, deps)).toBe(1);
+    expect(out.text).toContain("FAIL manifest: A Chrome native messaging manifest for com.opzero.chrome already points at another host."
+      + " Run browser-control install --force to replace it.\n");
+    expect(out.text).toContain("     previous: /opt/other/opzero-chrome-host\n");
+    expect(readText(manifestFile)).toBe(foreign);
+
+    const report = await install(options([...flags, "--force"]), env, deps);
+    expect(byId(report.steps).manifest).toMatchObject({ level: "ok", status: "replaced", previous: "/opt/other/opzero-chrome-host", path: manifestFile });
+    expect(JSON.parse(readText(manifestFile)).path).toBe(path.join(root, "state/hosts/user/browser-control-host"));
+
+    writeFile(manifestFile, "{not json");
+    const unreadable = await install(options(flags), env, deps);
+    expect(byId(unreadable.steps).manifest).toMatchObject({ level: "fail", status: "conflict", previous: null });
+    expect(readText(manifestFile)).toBe("{not json");
+  });
+
+  it("updates its own outdated manifest without --force", async () => {
+    const { root, env, assets, manifests, flags, state } = setup();
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    const manifestFile = writeFile(path.join(manifests, "com.opzero.chrome.json"),
+      JSON.stringify({ name: "com.opzero.chrome", path: wrapper, type: "stdio", allowed_origins: [`chrome-extension://${STORE_EXTENSION_ID}/`] }));
+    const report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(report.steps).manifest.status).toBe("updated");
+    expect(JSON.parse(readText(manifestFile)).allowed_origins).toEqual([`chrome-extension://${STORE_EXTENSION_ID}/`, `chrome-extension://${ISOLATED_EXTENSION_ID}/`]);
+  });
+
+  it("writes nothing in a dry run", async () => {
+    const { root, env, assets, flags, manifests } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    const before = snapshotTree(root);
+    const planned = await install(options([...flags, "--dry-run"]), env, deps);
+    expect(statuses(planned.steps)).toEqual({
+      node: "found", state: "would-create", host: "would-create", wrapper: "would-create", manifest: "would-create", extension: "profile-missing",
+      "cua-driver": "found", "chrome-for-testing": "found", "clipboard-guard": "would-build", "skill:browser-control": "would-create"
+    });
+    expect(deps.builds).toBe(0);
+    expect(snapshotTree(root)).toEqual(before);
+
+    await install(options(flags), env, deps);
+    writeFile(path.join(manifests, "com.opzero.chrome.json"), JSON.stringify({ path: "/opt/other" }));
+    const installed = snapshotTree(root);
+    const again = await install(options([...flags, "--dry-run", "--force"]), env, deps);
+    expect(statuses(again.steps)).toMatchObject({ state: "unchanged", host: "unchanged", wrapper: "unchanged", manifest: "would-replace",
+      "clipboard-guard": "unchanged", "skill:browser-control": "unchanged" });
+    expect(byId(again.steps).manifest.previous).toBe("/opt/other");
+    expect(snapshotTree(root)).toEqual(installed);
+  });
+
+  it.each([
+    ["darwin", "Library/Application Support/Google/Chrome/NativeMessagingHosts"],
+    ["linux", ".config/google-chrome/NativeMessagingHosts"]
+  ] as const)("defaults to paths under HOME on %s and links skills only into a flagged directory", async (platform, manifestDir) => {
+    const { root, env, assets } = setup();
+    const home = env.HOME as string;
+    const report = await install(options([]), env, fakeDeps(assets, { platform, app: fakeChromeForTesting(root) }));
+    const state = path.join(home, ".local/state/browser-control");
+    expect(byId(report.steps).state.path).toBe(state);
+    expect(byId(report.steps).manifest.path).toBe(path.join(home, manifestDir, "com.opzero.chrome.json"));
+    // No agent client's configuration directory is a default target (C4).
+    expect(byId(report.steps).skills).toMatchObject({ level: "ok", status: "skipped" });
+    expect(report.steps.filter((item) => item.id.startsWith("skill:"))).toEqual([]);
+    expect(fs.readdirSync(home).sort()).toEqual(platform === "darwin" ? [".local", "Library"] : [".config", ".local"]);
+    expect(fs.readdirSync(state).includes("skills")).toBe(false);
+    expect(JSON.parse(readText(path.join(home, manifestDir, "com.opzero.chrome.json"))).path).toBe(path.join(state, "hosts/user/browser-control-host"));
+    expect(byId(report.steps)["clipboard-guard"].status).toBe(platform === "darwin" ? "built" : "skipped");
+    expect(Object.values(report.snippets).join("")).not.toContain("BROWSER_CONTROL_STATE_DIR");
+  });
+
+  it("links skills into several skills directories and handles existing entries", async () => {
+    const { root, env, assets } = setup();
+    const claude = path.join(root, "home/.claude/skills");
+    const agents = path.join(root, "home/.agents/skills");
+    const base = ["--state-dir", path.join(root, "state"), "--chrome-manifest-dir", path.join(root, "manifests"), "--skills-dir", claude, "--skills-dir", agents];
+    fs.mkdirSync(claude, { recursive: true });
+    fs.symlinkSync("/opt/someone-else/browser-control", path.join(claude, "browser-control"));
+    fs.mkdirSync(path.join(agents, "browser-control"), { recursive: true });
+    writeFile(path.join(agents, "browser-control/SKILL.md"), "mine\n");
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+
+    const refused = await install(options(base), env, deps);
+    const skillSteps = refused.steps.filter((item) => item.id === "skill:browser-control");
+    expect(skillSteps.map((item) => [item.status, item.path, item.previous])).toEqual([
+      ["conflict", path.join(claude, "browser-control"), "/opt/someone-else/browser-control"],
+      ["conflict-directory", path.join(agents, "browser-control"), undefined]
+    ]);
+    expect(fs.readlinkSync(path.join(claude, "browser-control"))).toBe("/opt/someone-else/browser-control");
+
+    const forced = await install(options([...base, "--force"]), env, deps);
+    expect(forced.steps.filter((item) => item.id === "skill:browser-control").map((item) => item.status)).toEqual(["replaced", "conflict-directory"]);
+    expect(fs.readlinkSync(path.join(claude, "browser-control")).startsWith(path.join(root, "state/skills/browser-control/"))).toBe(true);
+    // A real directory is never removed, even with --force.
+    expect(readText(path.join(agents, "browser-control/SKILL.md"))).toBe("mine\n");
+  });
+
+  it.each([
+    ["a sticky skills directory of yours, where --force replaces the link", "yours"],
+    ["a sticky skills directory of root's, where only its owner can replace the link", "root's"]
+  ] as const)("never takes a skill link that another user owns in %s as current, with or without --force", async (_name, directoryOwner) => {
+    const { root, env, assets, flags, skills } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    expect(byId((await install(options(flags), env, deps)).steps)["skill:browser-control"].status).toBe("linked");
+    const link = path.join(skills, "browser-control");
+    const target = fs.readlinkSync(link);
+    // Others can add entries to a sticky directory, as to /tmp, and the trusted-path rule accepts it. The link
+    // points at this user's current copy, byte for byte what install would write, but its owner can repoint it.
+    fs.chmodSync(skills, 0o1777);
+    const other = fs.lstatSync(link).uid + 1;
+    owned(directoryOwner === "yours" ? { [link]: other } : { [link]: other, [skills]: 0 });
+    const ino = fs.lstatSync(link).ino;
+    for (const extra of [[], ["--dry-run"]]) {
+      expect(byId((await install(options([...flags, ...extra]), env, deps)).steps)["skill:browser-control"], extra.join(" ")).toEqual({
+        id: "skill:browser-control", level: "fail", status: "untrusted", path: link, previous: target,
+        message: "An entry with this skill's name is already here, but another user owns it and could change it. Run browser-control install --force to replace it."
+      });
+    }
+    const forced = byId((await install(options([...flags, "--force"]), env, deps)).steps)["skill:browser-control"];
+    if (directoryOwner === "root's") {
+      expect(forced).toEqual({ id: "skill:browser-control", level: "fail", status: "cannot-replace", path: link, previous: target,
+        message: "The entry with this skill's name belongs to another user, in a directory with the sticky bit that is not yours, so only that user or root can replace it. Have it removed, or pass another --skills-dir." });
+      expect(fs.lstatSync(link).ino).toBe(ino);
+    } else {
+      expect(forced).toMatchObject({ level: "ok", status: "replaced-untrusted", path: link, previous: target });
+      expect(fs.lstatSync(link).ino).not.toBe(ino);
+      vi.restoreAllMocks();
+      expect(fs.readlinkSync(link)).toBe(target);
+      expect(fs.readdirSync(skills)).toEqual(["browser-control"]);
+      expect(byId((await install(options(flags), env, deps)).steps)["skill:browser-control"].status).toBe("unchanged");
+    }
+  });
+
+  it.each([["0770", 0o770], ["0777", 0o777]])("refuses a skills directory reached through a symlink in a directory with mode %s, naming it, and links nothing through it", async (_mode, mode) => {
+    const { root, env, assets, state, manifests } = setup();
+    const real = path.join(root, "real-skills");
+    fs.mkdirSync(real, { mode: 0o755 });
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, mode);
+    // Another user who can write to `shared` can repoint `link`, or put a directory of theirs in its place.
+    const link = path.join(shared, "link");
+    fs.symlinkSync(real, link);
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    for (const skillsDir of [link, path.join(link, "missing"), path.join(shared, "made")]) {
+      for (const extra of [[], ["--force"], ["--dry-run"]]) {
+        const report = await install(options(["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", skillsDir, ...extra]), env, deps);
+        expect(report.steps.filter((item) => item.id === "skills"), `${skillsDir} ${extra.join(" ")}`).toEqual([{ id: "skills", level: "fail", status: "unsafe-directory", path: shared,
+          message: "Another user could change this skills directory: it and every directory above it must be owned by you or root and writable only by their owner, unless they have the sticky bit. Fix that directory or pass another --skills-dir." }]);
+        expect(report.steps.filter((item) => item.id === "skill:browser-control")).toEqual([]);
+        expect(report.ok).toBe(false);
+      }
+    }
+    expect(fs.readdirSync(real)).toEqual([]);
+    expect(fs.readdirSync(shared)).toEqual(["link"]);
+  });
+
+  it("links into a 0755 skills directory of yours, as agent clients keep them, and into one reached through a symlink by its canonical path", async () => {
+    const { root, env, assets, state, manifests } = setup();
+    const home = env.HOME as string;
+    // A skills directory under ~/.config and ~/.claude/skills: the user's own 0755 directories, never private.
+    const opencode = path.join(home, ".config/agent-client/skills");
+    fs.mkdirSync(opencode, { recursive: true, mode: 0o755 });
+    const claude = path.join(home, ".claude");
+    fs.mkdirSync(path.join(root, "dotfiles/claude-skills"), { recursive: true, mode: 0o755 });
+    fs.mkdirSync(claude, { mode: 0o755 });
+    fs.symlinkSync(path.join(root, "dotfiles/claude-skills"), path.join(claude, "skills"));
+    const fresh = path.join(home, ".agents/skills");
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    const flags = ["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", opencode, "--skills-dir", path.join(claude, "skills"),
+      "--skills-dir", fresh, "--skills-dir", path.join(root, "dotfiles/claude-skills")];
+    const report = await install(options(flags), env, deps);
+    expect(report.ok).toBe(true);
+    const linked = report.steps.filter((item) => item.id === "skill:browser-control");
+    // The symlinked directory and its real path are one directory, linked once by its real path.
+    expect(linked.map((item) => [item.status, item.path])).toEqual([
+      ["linked", path.join(opencode, "browser-control")],
+      ["linked", path.join(root, "dotfiles/claude-skills/browser-control")],
+      ["linked", path.join(fresh, "browser-control")]
+    ]);
+    expect(fs.statSync(fresh).mode & 0o7777).toBe(0o755);
+    for (const item of linked) expect(fs.readlinkSync(item.path as string)).toMatch(new RegExp(`^${state}/skills/browser-control/1\\.2\\.3-[0-9a-f]{12}$`));
+    expect(readText(path.join(opencode, "browser-control/SKILL.md"))).toBe(readText(path.join(assets.root, "skills/browser-control/SKILL.md")));
+    const again = await install(options(flags), env, deps);
+    expect(again.steps.filter((item) => item.id === "skill:browser-control").map((item) => item.status)).toEqual(["unchanged", "unchanged", "unchanged"]);
+    expect(fs.readdirSync(opencode)).toEqual(["browser-control"]);
+  });
+
+  /**
+   * A second run that also links into a new, empty skills directory, where renaming the temporary link into place
+   * fails with EXDEV. `during` runs just before that failure, with the temporary link's path and the test's root.
+   */
+  async function failedLink(during: (temporary: string, root: string) => void = () => {}) {
+    const { root, env, assets, flags } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    expect(byId((await install(options(flags), env, deps)).steps)["skill:browser-control"].status).toBe("linked");
+    const fresh = path.join(root, "fresh-skills");
+    fs.mkdirSync(fresh, { mode: 0o755 });
+    const before = snapshotTree(root);
+    const rename = fs.renameSync;
+    const temporaries: string[] = [];
+    vi.spyOn(fs, "renameSync").mockImplementation(((from: fs.PathLike, to: fs.PathLike) => {
+      if (String(to) !== path.join(fresh, "browser-control")) return rename(from, to);
+      temporaries.push(String(from));
+      during(String(from), root);
+      throw Object.assign(new Error("EXDEV: cross-device link not permitted"), { code: "EXDEV" });
+    }) as typeof fs.renameSync);
+    const report = await install(options([...flags, "--skills-dir", fresh]), env, deps);
+    expect(report.steps.filter((item) => item.id.startsWith("skill"))).toEqual([{ id: "skills", level: "fail", status: "error", code: "EXDEV",
+      message: "This step failed. Fix the reported code, then run browser-control install again." }]);
+    expect(temporaries).toHaveLength(1);
+    expect(path.dirname(temporaries[0])).toBe(fresh);
+    expect(path.basename(temporaries[0])).toMatch(/^\.browser-control\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.tmp$/);
+    return { root, fresh, before, temporary: temporaries[0] };
+  }
+
+  it("removes its own temporary skill link when the rename fails, and touches nothing else", async () => {
+    const { root, fresh, before } = await failedLink();
+    expect(fs.readdirSync(fresh)).toEqual([]);
+    // Everything else, the stable copy the link pointed at included, is as it was. Only the new directory's
+    // mtime records the link that came and went.
+    const after = snapshotTree(root);
+    for (const tree of [before, after]) delete tree["fresh-skills"];
+    expect(after).toEqual(before);
+  });
+
+  it("leaves a link that took the temporary link's name before the failed rename, and what it points at", async () => {
+    const swaps: { original: number; swapped: number }[] = [];
+    const { root, fresh, temporary } = await failedLink((file, base) => {
+      writeFile(path.join(base, "elsewhere/SKILL.md"), "someone else's\n");
+      // The other link exists beside the temporary one before it takes that name, so the two inodes differ.
+      const other = path.join(path.dirname(file), "other");
+      fs.symlinkSync(path.join(base, "elsewhere"), other);
+      const original = fs.lstatSync(file).ino;
+      fs.renameSync(other, file);
+      swaps.push({ original, swapped: fs.lstatSync(file).ino });
+    });
+    expect(swaps).toHaveLength(1);
+    expect(swaps[0].swapped).not.toBe(swaps[0].original);
+    expect(fs.readdirSync(fresh)).toEqual([path.basename(temporary)]);
+    expect(fs.lstatSync(temporary).ino).toBe(swaps[0].swapped);
+    expect(fs.readlinkSync(temporary)).toBe(path.join(root, "elsewhere"));
+    expect(readText(path.join(root, "elsewhere/SKILL.md"))).toBe("someone else's\n");
+  });
+
+  it("refuses a BROWSER_CONTROL_HOST_SOCKET under a directory another user could change: no wrapper, manifest or snippet names it", async () => {
+    const { root, env: base, assets, flags, state, manifests } = setup();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(path.join(shared, "run"), { recursive: true, mode: 0o700 });
+    fs.chmodSync(shared, 0o777);
+    const env = { ...base, BROWSER_CONTROL_HOST_SOCKET: path.join(shared, "run/user.sock") };
+    const report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(report.steps).wrapper).toEqual({ id: "wrapper", level: "fail", status: "unsafe-socket", path: shared,
+      message: "The native host socket's directory, or a directory above it, can be changed by another user. Every directory on BROWSER_CONTROL_HOST_SOCKET must be owned by you or root and writable only by its owner, unless it has the sticky bit." });
+    expect(byId(report.steps).manifest).toBeUndefined();
+    expect(report.snippets).toEqual({});
+    expect(fs.existsSync(path.join(state, "hosts/user/browser-control-host"))).toBe(false);
+    expect(fs.existsSync(manifests)).toBe(false);
+    const err = sink();
+    expect(await runConfig([], { stdout: sink(), stderr: err, env })).toBe(1);
+    expect(err.text).toBe(`browser-control config: Refusing the native host socket ${path.join(shared, "run/user.sock")}: ${shared} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.\n`);
+  });
+
+  it("refuses to print a configuration for a state directory under a directory another user could change, naming it", async () => {
+    const { root, env } = setup();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, 0o770);
+    const out = sink();
+    const err = sink();
+    expect(await runConfig(["opencode", "--state-dir", path.join(shared, "state")], { stdout: out, stderr: err, env })).toBe(1);
+    expect(out.text).toBe("");
+    expect(err.text).toBe(`browser-control config: Refusing the state directory ${path.join(shared, "state")}: ${shared} must be a directory owned by you or root that only its owner can write to, unless it has the sticky bit.\n`);
+    fs.chmodSync(shared, 0o1770);
+    expect(await runConfig(["opencode", "--state-dir", path.join(shared, "state")], { stdout: out, stderr: sink(), env })).toBe(0);
+    expect(fs.existsSync(path.join(shared, "state"))).toBe(false);
+  });
+
+  it("reports a skill the package does not contain", async () => {
+    const { root, env, assets, flags } = setup();
+    fs.rmSync(path.join(assets.root, "skills"), { recursive: true });
+    const report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(report.steps)["skill:browser-control"]).toMatchObject({ level: "fail", status: "missing-from-package",
+      message: "The package does not contain this skill. Reinstall @op1/browser-control." });
+  });
+
+  it("refuses a state directory that is not private and writes no manifest", async () => {
+    const { root, env, assets, flags, state, manifests } = setup();
+    fs.mkdirSync(state, { mode: 0o755 });
+    fs.chmodSync(state, 0o755);
+    const report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(report.steps).state).toMatchObject({ level: "fail", status: "unsafe", code: "browser-controller-unsafe-registry" });
+    expect(report.steps.map((item) => item.id)).toEqual(["node", "state", "extension", "cua-driver", "chrome-for-testing"]);
+    expect(fs.existsSync(manifests)).toBe(false);
+    expect(fs.readdirSync(state)).toEqual([]);
+  });
+
+  it("refuses a state directory given through a symlink, so every path it records is a real path, and writes nothing through it", async () => {
+    const { root, env, assets, manifests, skills } = setup();
+    const real = path.join(root, "real");
+    fs.mkdirSync(real, { mode: 0o700 });
+    fs.symlinkSync(real, path.join(root, "link"));
+    for (const state of [path.join(root, "link/state"), path.join(root, "link")]) {
+      const report = await install(options(["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", skills]), env,
+        fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+      expect(byId(report.steps).state).toMatchObject({ level: "fail", status: "unsafe", path: state, code: "ELOOP" });
+      expect(report.steps.map((item) => item.id)).toEqual(["node", "state", "extension", "cua-driver", "chrome-for-testing"]);
+      expect(fs.readdirSync(real)).toEqual([]);
+      expect(fs.existsSync(manifests)).toBe(false);
+    }
+  });
+
+  it.each([["0777", 0o777], ["0770", 0o770], ["0707", 0o707]])("refuses a state directory under a directory with mode %s and no sticky bit, and accepts it once that has the sticky bit", async (_mode, mode) => {
+    const { root, env, assets, manifests, skills } = setup();
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, mode);
+    const state = path.join(shared, "state");
+    const flags = ["--state-dir", state, "--chrome-manifest-dir", manifests, "--skills-dir", skills];
+    const refused = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(refused.steps).state).toEqual({ id: "state", level: "fail", status: "unsafe-ancestor", path: shared,
+      message: "Every directory above the state directory must be owned by you or root and writable only by its owner, unless it has the sticky bit. Fix that directory or pass another --state-dir." });
+    expect(refused.steps.map((item) => item.id)).toEqual(["node", "state", "extension", "cua-driver", "chrome-for-testing"]);
+    // The directories above are checked first, so nothing is made under the one at fault.
+    expect(fs.existsSync(state)).toBe(false);
+    expect(fs.existsSync(manifests)).toBe(false);
+
+    fs.chmodSync(shared, mode | 0o1000);
+    const accepted = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(statuses(accepted.steps)).toMatchObject({ state: "created", host: "created", wrapper: "created", manifest: "created" });
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    expect(JSON.parse(readText(path.join(manifests, "com.opzero.chrome.json"))).path).toBe(wrapper);
+    const named = [...readText(wrapper).matchAll(/'([^']*)'/g)].map((match) => match[1]);
+    expect(named).toEqual([path.join(root, "user.sock"), process.execPath, hostScriptOf(accepted)]);
+    for (const file of [wrapper, process.execPath, hostScriptOf(accepted)]) expect(fs.realpathSync(file)).toBe(file);
+  });
+
+  it.each([["0770", 0o770], ["0777", 0o777]])("refuses a manifest directory reached through a symlink in a directory with mode %s, in a dry run, a write and on the current-manifest fast path", async (_mode, mode) => {
+    const { root, env, assets, state, manifests, skills } = setup();
+    fs.mkdirSync(manifests, { mode: 0o755 });
+    const shared = path.join(root, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, mode);
+    // Another user who can write to `shared` can repoint `link` at any time; the directory it leads to is yours.
+    const link = path.join(shared, "link");
+    fs.symlinkSync(manifests, link);
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    const through = (directory: string, ...extra: string[]) => options(["--state-dir", state, "--chrome-manifest-dir", directory, "--skills-dir", skills, ...extra]);
+    const refusal = { level: "fail", status: "unsafe-lock", path: shared, code: "browser-controller-unsafe-install-lock" };
+    expect(byId((await install(through(link, "--dry-run"), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(byId((await install(through(link), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(fs.readdirSync(manifests)).toEqual([]);
+    // The manifest is current when read through the real directory; through the symlink it is still refused.
+    expect(byId((await install(through(manifests), env, deps)).steps).manifest).toMatchObject({ level: "ok", status: "created" });
+    const installed = snapshotTree(root);
+    expect(byId((await install(through(link), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(byId((await install(through(link, "--dry-run"), env, deps)).steps).manifest).toMatchObject(refusal);
+    expect(snapshotTree(root)).toEqual(installed);
+  });
+
+  it("never takes a manifest directory whose `..` follows a missing directory as checked, so neither the fast path nor a write reads or writes there", async () => {
+    const { root, env, assets, state, manifests, skills, flags } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    await install(options(flags), env, deps);
+    // Another user's tree: others can write to `attacker`, and it holds a byte-identical manifest.
+    const planted = writeFile(path.join(root, "attacker/hosts/com.opzero.chrome.json"), readText(path.join(manifests, "com.opzero.chrome.json")));
+    fs.chmodSync(path.join(root, "attacker"), 0o777);
+    // Kept as text: `gap` is missing, so the kernel fails at the `..` after it, and so must the walk.
+    const link = path.join(root, "chrome");
+    fs.symlinkSync(`${root}/gap/../attacker/hosts`, link);
+    const installed = snapshotTree(root);
+    for (const extra of [[], ["--dry-run"], ["--force"]]) {
+      const report = await install(options(["--state-dir", state, "--chrome-manifest-dir", link, "--skills-dir", skills, ...extra]), env, deps);
+      expect(byId(report.steps).manifest, extra.join(" ")).toMatchObject({ level: "fail", status: "error", code: "ENOENT" });
+    }
+    expect(snapshotTree(root)).toEqual(installed);
+    expect(fs.readdirSync(path.dirname(planted))).toEqual(["com.opzero.chrome.json"]);
+  });
+
+  /** lstat reports each path in `owners` as owned by that uid; tests cannot chown. */
+  function owned(owners: Record<string, number>) {
+    const lstat = fs.lstatSync;
+    vi.spyOn(fs, "lstatSync").mockImplementation(((file: fs.PathLike, options?: fs.StatSyncOptions) => {
+      const observed = lstat(file, options as fs.StatSyncOptions & { bigint?: false }) as fs.Stats;
+      const owner = owners[String(file)];
+      return owner === undefined ? observed : Object.assign(Object.create(Object.getPrototypeOf(observed)), observed, { uid: owner });
+    }) as typeof fs.lstatSync);
+  }
+
+  const UNTRUSTED_MESSAGE = "A Chrome native messaging manifest for com.opzero.chrome is already there, but it is not a regular file owned by you that only you can write to, so another user could change it. Run browser-control install --force to replace it.";
+
+  it.each(["another user's", "group-writable", "world-writable"] as const)("takes a byte-identical manifest that is %s as untrusted, not current: refused without --force, replaced with it", async (kind) => {
+    const { root, env, assets, manifests, flags, state } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    await install(options(flags), env, deps);
+    const file = path.join(manifests, "com.opzero.chrome.json");
+    const text = readText(file);
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    // Others can add entries to a directory with the sticky bit, as they can to /tmp, and the trusted-path rule accepts it.
+    fs.chmodSync(manifests, 0o1777);
+    if (kind === "another user's") owned({ [file]: fs.lstatSync(file).uid + 1 });
+    else fs.chmodSync(file, kind === "group-writable" ? 0o664 : 0o646);
+    const ino = fs.lstatSync(file).ino;
+    const refused = await install(options(flags), env, deps);
+    expect(byId(refused.steps).manifest).toEqual({ id: "manifest", level: "fail", status: "untrusted", message: UNTRUSTED_MESSAGE, path: file, previous: wrapper });
+    expect(refused.ok).toBe(false);
+    expect(byId((await install(options([...flags, "--dry-run", "--force"]), env, deps)).steps).manifest).toEqual({ id: "manifest", level: "ok",
+      status: "would-replace-untrusted", message: "Would replace the Chrome native messaging manifest that another user could change.", path: file, previous: wrapper });
+    expect(fs.lstatSync(file).ino).toBe(ino);
+    const replaced = await install(options([...flags, "--force"]), env, deps);
+    expect(byId(replaced.steps).manifest).toEqual({ id: "manifest", level: "ok",
+      status: "replaced-untrusted", message: "Replaced the Chrome native messaging manifest that another user could change.", path: file, previous: wrapper });
+    expect(fs.lstatSync(file).ino).not.toBe(ino);
+    expect(fs.lstatSync(file).mode & 0o777).toBe(0o644);
+    expect(readText(file)).toBe(text);
+    expect(fs.readdirSync(manifests)).toEqual(["com.opzero.chrome.json"]);
+  });
+
+  it("refuses to replace another user's manifest in a sticky directory that is not yours, even with --force, and says so", async () => {
+    const { root, env, assets, manifests, flags, state } = setup();
+    const deps = fakeDeps(assets, { app: fakeChromeForTesting(root) });
+    await install(options(flags), env, deps);
+    const file = path.join(manifests, "com.opzero.chrome.json");
+    const text = readText(file);
+    const wrapper = path.join(state, "hosts/user/browser-control-host");
+    fs.chmodSync(manifests, 0o1777);
+    // As in /tmp: the directory is root's, so only the manifest's owner or root may remove it.
+    owned({ [file]: fs.lstatSync(file).uid + 1, [manifests]: 0 });
+    const ino = fs.lstatSync(file).ino;
+    expect(byId((await install(options(flags), env, deps)).steps).manifest).toMatchObject({ level: "fail", status: "untrusted", previous: wrapper });
+    for (const extra of [["--force"], ["--force", "--dry-run"]]) {
+      expect(byId((await install(options([...flags, ...extra]), env, deps)).steps).manifest, extra.join(" ")).toEqual({ id: "manifest", level: "fail",
+        status: "cannot-replace", path: file, previous: wrapper,
+        message: "The Chrome native messaging manifest belongs to another user, in a directory with the sticky bit that is not yours, so only that user or root can replace it. Have it removed, or pass another --chrome-manifest-dir." });
+    }
+    expect(fs.lstatSync(file).ino).toBe(ino);
+    expect(readText(file)).toBe(text);
+    expect(fs.readdirSync(manifests)).toEqual(["com.opzero.chrome.json"]);
+  });
+
+  it("writes the wrapper, the snippets and the manifest with the canonical path of a socket reached through a symlink", async () => {
+    const { root, env: base, assets, flags, state } = setup();
+    const sockets = path.join(root, "sockets");
+    fs.mkdirSync(sockets, { mode: 0o700 });
+    fs.symlinkSync(sockets, path.join(root, "slink"));
+    const env = { ...base, BROWSER_CONTROL_HOST_SOCKET: path.join(root, "slink/user.sock") };
+    const canonical = path.join(sockets, "user.sock");
+    const out = sink();
+    await runInstall([...flags, "--json"], { stdout: out, stderr: sink(), env }, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    const report = JSON.parse(out.text);
+    expect(statuses(report.steps)).toMatchObject({ wrapper: "created", manifest: "created" });
+    expect(readText(path.join(state, "hosts/user/browser-control-host"))).toContain(`export BROWSER_CONTROL_HOST_SOCKET='${canonical}'\n`);
+    expect(JSON.parse(report.snippets["OpenCode (opencode.jsonc):"]).mcp["browser-control"].environment).toEqual({ BROWSER_CONTROL_STATE_DIR: state, BROWSER_CONTROL_HOST_SOCKET: canonical });
+    expect(mcpSnippet("codex", { ...env, BROWSER_CONTROL_STATE_DIR: state })).toContain(`BROWSER_CONTROL_HOST_SOCKET = "${canonical}"\n`);
+  });
+
+  it("creates a missing manifest directory with mode 0755 under a group-writable umask, so its lock is accepted", async () => {
+    const { root, env, assets, manifests, flags } = setup();
+    const previous = process.umask(0o002);
+    let report: Awaited<ReturnType<typeof install>>;
+    try {
+      report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    } finally {
+      process.umask(previous);
+    }
+    expect(byId(report.steps).manifest).toMatchObject({ level: "ok", status: "created" });
+    expect(fs.statSync(manifests).mode & 0o7777).toBe(0o755);
+  });
+
+  it("prints cua-driver's upstream install command when it is missing (C1)", async () => {
+    const { root, env, assets, flags } = setup({ CUA_DRIVER: undefined, PATH: "/nonexistent-bin" });
+    const report = await install(options(flags), env, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(byId(report.steps)["cua-driver"]).toEqual({
+      id: "cua-driver", level: "warn", status: "missing",
+      message: "cua-driver is not installed. claim_browser and paste_1password_field need it. Install it with its upstream installer.",
+      command: '/bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"'
+    });
+    const fallback = writeFile(path.join(env.HOME as string, ".local/bin/cua-driver"), "#!/bin/sh\n", 0o755);
+    expect(byId((await install(options(flags), env, fakeDeps(assets))).steps)["cua-driver"]).toMatchObject({ status: "found", path: fallback });
+  });
+
+  it("checks that Chrome for Testing can launch by its bundle ID", async () => {
+    const { root, env, assets, flags } = setup();
+    const missing = byId((await install(options(flags), env, fakeDeps(assets, { app: null }))).steps)["chrome-for-testing"];
+    expect(missing).toMatchObject({ level: "warn", status: "missing", command: "npx @puppeteer/browsers install chrome@stable --path ~/Applications/ChromeForTesting" });
+    const hollow = path.join(root, "apps/Hollow.app");
+    fs.mkdirSync(hollow, { recursive: true });
+    expect(byId((await install(options(flags), env, fakeDeps(assets, { app: hollow }))).steps)["chrome-for-testing"])
+      .toMatchObject({ level: "warn", status: "broken", path: hollow });
+    const linux = fakeDeps(assets, { platform: "linux", app: fakeChromeForTesting(root) });
+    expect(byId((await install(options(flags), env, linux)).steps)["chrome-for-testing"]).toMatchObject({ level: "warn", status: "unsupported" });
+    expect(linux.located).toEqual([]);
+  });
+
+  it("builds the clipboard guard into the state directory with mode 0700 and verifies it", async () => {
+    const { root, env, assets, flags } = setup();
+    const app = fakeChromeForTesting(root);
+    const guardOf = async (overrides: Parameters<typeof fakeDeps>[1]) => {
+      const deps = fakeDeps(assets, { app, ...overrides });
+      return { deps, guard: byId((await install(options(flags), env, deps)).steps)["clipboard-guard"] };
+    };
+    const noTools = await guardOf({ xcodeTools: async () => false });
+    expect(noTools.guard).toMatchObject({ level: "warn", status: "toolchain-missing", command: "xcode-select --install" });
+    expect(noTools.deps.builds).toBe(0);
+    expect((await guardOf({ buildClipboardGuard: async () => { throw new ClipboardError("clipboard-unavailable"); } })).guard)
+      .toMatchObject({ level: "fail", status: "build-failed", code: "clipboard-unavailable" });
+    expect((await guardOf({ guardMode: 0o755 })).guard).toMatchObject({ level: "fail", status: "untrusted" });
+    fs.rmSync(path.join(root, "state/bin"), { recursive: true });
+    expect((await guardOf({ guardData: Buffer.from("#!/bin/sh\n") })).guard).toMatchObject({ level: "fail", status: "untrusted" });
+    fs.rmSync(path.join(root, "state/bin"), { recursive: true });
+    const built = await guardOf({});
+    expect(built.guard).toMatchObject({ level: "ok", status: "built" });
+    expect(fs.readFileSync(built.guard.path as string).subarray(0, MACH_O.length)).toEqual(MACH_O);
+    const again = await guardOf({});
+    expect(again.guard.status).toBe("unchanged");
+    expect(again.deps.builds).toBe(0);
+    expect((await guardOf({ platform: "linux" })).guard).toMatchObject({ level: "ok", status: "skipped" });
+  });
+
+  it("prints the MCP config snippets for OpenCode, Claude Code and Codex", async () => {
+    const { root, env, assets, flags, state } = setup();
+    const out = sink();
+    await runInstall(flags, { stdout: out, stderr: sink(), env }, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    expect(out.text).toContain("OpenCode (opencode.jsonc):\n");
+    expect(out.text).toContain("Claude Code (.mcp.json):\n");
+    expect(out.text).toContain("Codex (~/.codex/config.toml; claim_browser can take up to 120 s):\n");
+    expect(out.text).toContain(`  BROWSER_CONTROL_STATE_DIR = "${state}"\n`);
+    // The socket install wrote into the wrapper goes to the server too (D1).
+    const socket = path.join(root, "user.sock");
+    expect(readText(path.join(state, "hosts/user/browser-control-host"))).toContain(`export BROWSER_CONTROL_HOST_SOCKET='${socket}'\n`);
+    expect(out.text).toContain(`  BROWSER_CONTROL_HOST_SOCKET = "${socket}"\n`);
+    const json = sink();
+    await runInstall([...flags, "--json"], { stdout: json, stderr: sink(), env }, fakeDeps(assets, { app: fakeChromeForTesting(root) }));
+    const snippets = JSON.parse(json.text).snippets;
+    expect(Object.keys(snippets)).toHaveLength(3);
+    expect(JSON.parse(snippets["OpenCode (opencode.jsonc):"]).mcp["browser-control"].environment).toEqual({ BROWSER_CONTROL_STATE_DIR: state, BROWSER_CONTROL_HOST_SOCKET: socket });
+    expect(JSON.parse(snippets["Claude Code (.mcp.json):"]).mcpServers["browser-control"].env).toEqual({ BROWSER_CONTROL_STATE_DIR: state, BROWSER_CONTROL_HOST_SOCKET: socket });
+  });
+
+  it("rejects unknown options and resolves relative directories", async () => {
+    const err = sink();
+    expect(await runInstall(["--bogus"], { stdout: sink(), stderr: err, env: {} })).toBe(2);
+    expect(err.text).toContain("browser-control install: unknown option: --bogus\n");
+    expect(await runInstall(["--state-dir"], { stdout: sink(), stderr: sink(), env: {} })).toBe(2);
+    expect(await runInstall(["--force=yes"], { stdout: sink(), stderr: sink(), env: {} })).toBe(2);
+    expect(options(["--state-dir=rel/state", "--skills-dir", "a", "--skills-dir", "b"])).toMatchObject({
+      stateDir: path.resolve("rel/state"), skillsDirs: [path.resolve("a"), path.resolve("b")]
+    });
+  });
+});
+
+describe("the MCP config snippets", () => {
+  const home = { HOME: "/home/u" };
+
+  it("match the design's snippets for the default state directory", () => {
+    expect(mcpSnippet("opencode", home)).toBe(`{
+  "mcp": {
+    "browser-control": {
+      "type": "local",
+      "command": ["npx", "-y", "@op1/browser-control", "mcp"],
+      "enabled": true
+    }
+  }
+}
+`);
+    const claude = `{
+  "mcpServers": {
+    "browser-control": {
+      "command": "npx",
+      "args": ["-y", "@op1/browser-control", "mcp"]
+    }
+  }
+}
+`;
+    expect(mcpSnippet("claude", home)).toBe(claude);
+    expect(mcpSnippet("cursor", home)).toBe(claude);
+    expect(mcpSnippet("codex", home)).toBe(`[mcp_servers.browser-control]
+command = "npx"
+args = ["-y", "@op1/browser-control", "mcp"]
+tool_timeout_sec = 150
+`);
+    expect(mcpSnippet("opencode", { ...home, BROWSER_CONTROL_STATE_DIR: "/home/u/.local/state/browser-control" })).not.toContain("environment");
+  });
+
+  it("pass a non-default state directory in the server environment", async () => {
+    const env = { ...home, BROWSER_CONTROL_STATE_DIR: "/srv/bc" };
+    expect(JSON.parse(mcpSnippet("opencode", env)).mcp["browser-control"].environment).toEqual({ BROWSER_CONTROL_STATE_DIR: "/srv/bc" });
+    expect(JSON.parse(mcpSnippet("claude", env)).mcpServers["browser-control"].env).toEqual({ BROWSER_CONTROL_STATE_DIR: "/srv/bc" });
+    expect(mcpSnippet("codex", env)).toContain('\n[mcp_servers.browser-control.env]\nBROWSER_CONTROL_STATE_DIR = "/srv/bc"\n');
+    const out = sink();
+    expect(await runConfig(["codex", "--state-dir", "/srv/other"], { stdout: out, stderr: sink(), env: home })).toBe(0);
+    expect(out.text).toContain('BROWSER_CONTROL_STATE_DIR = "/srv/other"');
+    const err = sink();
+    expect(await runConfig(["emacs"], { stdout: sink(), stderr: err, env: home })).toBe(2);
+    expect(err.text).toContain("unknown client: emacs");
+    expect(await runConfig([], { stdout: sink(), stderr: err, env: { ...home, BROWSER_CONTROL_STATE_DIR: "relative" } })).toBe(1);
+    expect(err.text).toContain("browser-control config: browser-control-invalid-state-dir\n");
+  });
+
+  it("pass a user socket other than the state directory's default", () => {
+    const socket = { ...home, BROWSER_CONTROL_HOST_SOCKET: "/run/bc/user.sock" };
+    expect(JSON.parse(mcpSnippet("opencode", socket)).mcp["browser-control"].environment).toEqual({ BROWSER_CONTROL_HOST_SOCKET: "/run/bc/user.sock" });
+    const both = { ...socket, BROWSER_CONTROL_STATE_DIR: "/srv/bc" };
+    expect(JSON.parse(mcpSnippet("cursor", both)).mcpServers["browser-control"].env).toEqual({ BROWSER_CONTROL_STATE_DIR: "/srv/bc", BROWSER_CONTROL_HOST_SOCKET: "/run/bc/user.sock" });
+    expect(mcpSnippet("codex", both)).toContain('\n[mcp_servers.browser-control.env]\nBROWSER_CONTROL_STATE_DIR = "/srv/bc"\nBROWSER_CONTROL_HOST_SOCKET = "/run/bc/user.sock"\n');
+    // The state directory's own socket is the server's default, so it needs no setting.
+    expect(mcpSnippet("opencode", { ...home, BROWSER_CONTROL_STATE_DIR: "/srv/bc", BROWSER_CONTROL_HOST_SOCKET: "/srv/bc/sockets/user.sock" })).not.toContain("HOST_SOCKET");
+  });
+});
+
+function chromeProfile(userData: string, profile: string, file: "Preferences" | "Secure Preferences", settings: unknown) {
+  writeFile(path.join(userData, profile, "Preferences"), JSON.stringify({}));
+  const target = path.join(userData, profile, file);
+  const existing = fs.existsSync(target) ? JSON.parse(readText(target)) : {};
+  writeFile(target, JSON.stringify({ ...existing, extensions: { settings: { [STORE_EXTENSION_ID]: settings } } }));
+}
+
+function runScript(env: Record<string, string | undefined>): Promise<{ status: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [path.join(repository, "dist/scripts/check-extension-installed.js"), "--extension-id", STORE_EXTENSION_ID, "--json"],
+      { env: env as NodeJS.ProcessEnv, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.on("error", reject);
+    child.on("close", () => {
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
+describe("the extension check (ported from src/scripts/check-extension-installed.ts)", () => {
+  it("gives the script's status for the same Chrome profiles", async () => {
+    const { root, env } = setup();
+    const home = env.HOME as string;
+    const userData = path.join(home, "Library/Application Support/Google/Chrome");
+    const cases: Array<[string, () => void, string]> = [
+      ["no profile", () => undefined, "profile-missing"],
+      ["registered in another extension only", () => writeFile(path.join(userData, "Default/Preferences"), JSON.stringify({ extensions: { settings: { other: {} } } })), "not-installed"],
+      ["enabled in Secure Preferences", () => chromeProfile(userData, "Default", "Secure Preferences", { state: 1, manifest: { version: "0.2.1" } }), "enabled"],
+      ["disabled by reason", () => chromeProfile(userData, "Default", "Secure Preferences", { state: 1, disable_reasons: 1 }), "disabled"],
+      ["disabled by state", () => chromeProfile(userData, "Default", "Preferences", { state: 0 }), "disabled"],
+      ["the last used profile wins", () => {
+        writeFile(path.join(userData, "Local State"), JSON.stringify({ profile: { last_used: "Profile 3" } }));
+        chromeProfile(userData, "Profile 3", "Secure Preferences", { disable_reasons: 0 });
+      }, "enabled"],
+      ["the highest numbered profile before Default", () => {
+        fs.rmSync(path.join(userData, "Local State"));
+        fs.rmSync(path.join(userData, "Profile 3"), { recursive: true });
+        writeFile(path.join(userData, "Profile 2/Preferences"), JSON.stringify({}));
+        writeFile(path.join(userData, "Profile 10/Preferences"), JSON.stringify({}));
+      }, "not-installed"]
+    ];
+    for (const [name, arrange, expected] of cases) {
+      arrange();
+      const ported = checkExtensionInstalled(STORE_EXTENSION_ID, env, "darwin");
+      expect(ported.status, name).toBe(expected);
+      if (process.platform === "darwin") expect((await runScript(env)).status, `script: ${name}`).toBe(expected);
+    }
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "darwin").preferencesPath).toBe(path.join(userData, "Profile 10/Preferences"));
+    const custom = writeFile(path.join(root, "custom/Preferences"), JSON.stringify({ extensions: { settings: { [STORE_EXTENSION_ID]: { state: 1 } } } }));
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, BROWSER_CONTROL_PREFERENCES_PATH: custom }, "darwin")).toMatchObject({ status: "enabled", preferencesPath: custom });
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, BROWSER_CONTROL_USER_DATA_DIR: userData }, "linux"))
+      .toMatchObject({ status: "not-installed", preferencesPath: path.join(userData, "Profile 10/Preferences") });
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, OPZERO_CHROME_PREFERENCES_PATH: custom, OPZERO_CHROME_USER_DATA_DIR: userData }, "linux").status)
+      .toBe("profile-missing");
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, { ...env, CHROME_PROFILE_DIR: path.dirname(custom) }, "linux").status).toBe("enabled");
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "linux").status).toBe("profile-missing");
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "win32").status).toBe("unsupported");
+  });
+
+  it("reads Chrome's list form of disable_reasons", () => {
+    const { env } = setup();
+    const userData = path.join(env.HOME as string, ".config/google-chrome");
+    chromeProfile(userData, "Default", "Secure Preferences", { disable_reasons: [] });
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "linux").status).toBe("enabled");
+    chromeProfile(userData, "Default", "Secure Preferences", { disable_reasons: [1] });
+    expect(checkExtensionInstalled(STORE_EXTENSION_ID, env, "linux").status).toBe("disabled");
+  });
+});

@@ -3,12 +3,11 @@ import fs from "node:fs";
 import { Context, Effect, Layer } from "effect";
 import { NodeRuntime } from "@effect/platform-node";
 
+// Reads, process calls and output only: the one script that writes files, install-native-host.ts, writes through
+// the trusted-path rule itself rather than through this service.
 export type ScriptIoService = {
   exists: (file: string) => Effect.Effect<boolean, never>;
   readText: (file: string) => Effect.Effect<string, Error>;
-  writeText: (file: string, text: string) => Effect.Effect<void, Error>;
-  mkdir: (dir: string) => Effect.Effect<void, Error>;
-  chmod: (file: string, mode: number) => Effect.Effect<void, Error>;
   readdir: (dir: string) => Effect.Effect<string[], Error>;
   execFile: (command: string, args: string[], options?: childProcess.ExecFileSyncOptionsWithStringEncoding) => Effect.Effect<string, Error>;
   execFileInherit: (command: string, args: string[]) => Effect.Effect<void, Error>;
@@ -25,9 +24,6 @@ function toError(error: unknown) {
 export const ScriptIoLive = Layer.succeed(ScriptIo, {
   exists: (file: string) => Effect.sync(() => fs.existsSync(file)),
   readText: (file: string) => Effect.try({ try: () => fs.readFileSync(file, "utf8"), catch: toError }),
-  writeText: (file: string, text: string) => Effect.try({ try: () => { fs.writeFileSync(file, text); }, catch: toError }),
-  mkdir: (dir: string) => Effect.try({ try: () => { fs.mkdirSync(dir, { recursive: true }); }, catch: toError }),
-  chmod: (file: string, mode: number) => Effect.try({ try: () => { fs.chmodSync(file, mode); }, catch: toError }),
   readdir: (dir: string) => Effect.try({ try: () => fs.readdirSync(dir), catch: toError }),
   execFile: (command: string, args: string[], options?: childProcess.ExecFileSyncOptionsWithStringEncoding) =>
     Effect.try({ try: () => String(childProcess.execFileSync(command, args, options)), catch: toError }),

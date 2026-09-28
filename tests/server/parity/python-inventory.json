@@ -1,0 +1,2398 @@
+{
+  "source": "the fast-chrome Python reference (read-only AST scan; case counts from pytest --collect-only)",
+  "collected": 556,
+  "functions": [
+    {
+      "id": "test_browser_pool.py::test_concurrent_automatic_claims_are_distinct_and_persistent",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_concurrent_automatic_claims_are_distinct_and_persistent",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_same_slot_race_has_one_winner",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_same_slot_race_has_one_winner",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_same_owner_auto_claim_race_is_idempotent",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_same_owner_auto_claim_race_is_idempotent",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_pin_prevents_release_but_other_slots_stay_available",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_pin_prevents_release_but_other_slots_stay_available",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_explicit_setup_claims_can_share_owner",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_explicit_setup_claims_can_share_owner",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_live_tab_and_crash_marker_block_reassignment",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_live_tab_and_crash_marker_block_reassignment",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_confirmed_cleanup_allows_exact_release",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_confirmed_cleanup_allows_exact_release",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_unsafe_registry_refused",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_unsafe_registry_refused",
+      "cases": 6,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_pool.py::test_foreign_owner_and_wrong_lease_refused",
+      "file": "test_browser_pool.py",
+      "class": null,
+      "name": "test_foreign_owner_and_wrong_lease_refused",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_only_password_saving_preference_changes",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_only_password_saving_preference_changes",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_new_stopped_profile_gets_password_saving_disabled",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_new_stopped_profile_gets_password_saving_disabled",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_running_profile_is_not_rewritten",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_running_profile_is_not_rewritten",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_invalid_preferences_are_preserved",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_invalid_preferences_are_preserved",
+      "cases": 6,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_symlink_preferences_are_not_followed",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_symlink_preferences_are_not_followed",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_cold_profile_gets_password_and_download_keys_and_keeps_the_rest",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_cold_profile_gets_password_and_download_keys_and_keeps_the_rest",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_new_stopped_profile_gets_all_four_keys",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_new_stopped_profile_gets_all_four_keys",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_running_profile_is_only_checked",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_running_profile_is_only_checked",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_running_profile_without_preferences_is_unconfirmed",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_running_profile_without_preferences_is_unconfirmed",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_preferences.py::test_invalid_download_preferences_are_preserved",
+      "file": "test_browser_preferences.py",
+      "class": null,
+      "name": "test_invalid_download_preferences_are_preserved",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_cold_start_then_warm_reuse",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_cold_start_then_warm_reuse",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_endpoint_loss_during_window_check_cannot_return_ready",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_endpoint_loss_during_window_check_cannot_return_ready",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_launch_requires_explicit_focus_preservation",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_launch_requires_explicit_focus_preservation",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_enabled_password_saving_blocks_warm_reuse",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_enabled_password_saving_blocks_warm_reuse",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_existing_unready_process_is_never_relaunched",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_existing_unready_process_is_never_relaunched",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_unknown_launch_is_not_replayed_and_pins_release",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_unknown_launch_is_not_replayed_and_pins_release",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_ambiguous_identity_refused",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_ambiguous_identity_refused",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_foreign_owner_cannot_launch",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_foreign_owner_cannot_launch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_concurrent_ensure_waits_for_startup_then_reuses_warm",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_concurrent_ensure_waits_for_startup_then_reuses_warm",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_startup_lock_wait_is_bounded_by_the_timeout",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_startup_lock_wait_is_bounded_by_the_timeout",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_profile_matching_is_exact_and_excludes_helpers",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_profile_matching_is_exact_and_excludes_helpers",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_launch_arguments_are_controller_specific",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_launch_arguments_are_controller_specific",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_readiness_windows_exclude_hidden_and_utility_windows",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_readiness_windows_exclude_hidden_and_utility_windows",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_invalid_timeout_does_not_claim",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_invalid_timeout_does_not_claim",
+      "cases": 6,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_exclusive_receipt_names_pid_windows_downloads_and_lease_artifacts",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_exclusive_receipt_names_pid_windows_downloads_and_lease_artifacts",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_shared_receipt_omits_profile_wide_native_and_download_fields",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_shared_receipt_omits_profile_wide_native_and_download_fields",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_second_tenant_on_other_site_joins_running_shared_chrome_warm",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_second_tenant_on_other_site_joins_running_shared_chrome_warm",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_stale_socket_is_removed_before_launch",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_stale_socket_is_removed_before_launch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_live_endpoint_without_profile_process_blocks_launch",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_live_endpoint_without_profile_process_blocks_launch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_existing_profile_without_history_reports_previously_used",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_existing_profile_without_history_reports_previously_used",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_new_profile_history_starts_complete_before_first_launch",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_new_profile_history_starts_complete_before_first_launch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_provision_creates_private_directories_wrapper_and_manifest",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_provision_creates_private_directories_wrapper_and_manifest",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_provision_requires_an_absolute_executable_node",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_provision_requires_an_absolute_executable_node",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_legacy_wrapper_is_accepted_until_migrate",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_legacy_wrapper_is_accepted_until_migrate",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_foreign_manifest_is_refused_and_preserved",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_foreign_manifest_is_refused_and_preserved",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_browser_start.py::test_real_runtime_configures_download_keys",
+      "file": "test_browser_start.py",
+      "class": null,
+      "name": "test_real_runtime_configures_download_keys",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_clipboard_guard.py::test_cancellation_waits_for_restore_after_body_mutation",
+      "file": "test_clipboard_guard.py",
+      "class": null,
+      "name": "test_cancellation_waits_for_restore_after_body_mutation",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_clipboard_guard.py::test_body_error_is_preserved_when_restore_succeeds",
+      "file": "test_clipboard_guard.py",
+      "class": null,
+      "name": "test_body_error_is_preserved_when_restore_succeeds",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_clipboard_guard.py::test_restore_failure_prevents_secret_return",
+      "file": "test_clipboard_guard.py",
+      "class": null,
+      "name": "test_restore_failure_prevents_secret_return",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_clipboard_guard.py::test_missing_binary_is_unavailable",
+      "file": "test_clipboard_guard.py",
+      "class": null,
+      "name": "test_missing_binary_is_unavailable",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_clipboard_guard.py::test_untrusted_binary_refuses_before_body",
+      "file": "test_clipboard_guard.py",
+      "class": null,
+      "name": "test_untrusted_binary_refuses_before_body",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_concurrent_shared_claims_each_get_their_own_chrome_first",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_concurrent_shared_claims_each_get_their_own_chrome_first",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_same_owner_concurrent_shared_claims_are_idempotent",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_same_owner_concurrent_shared_claims_are_idempotent",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_a_lock_file_create_that_races_another_process_is_retried",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_a_lock_file_create_that_races_another_process_is_retried",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_limits_default_clamp_and_reject",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_limits_default_clamp_and_reject",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_hard_cap_is_eight_controllers",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_hard_cap_is_eight_controllers",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_limit_caps_new_controllers_and_explicit_claims",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_limit_caps_new_controllers_and_explicit_claims",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_idle_controller_is_reused_before_a_new_one_and_running_first",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_idle_controller_is_reused_before_a_new_one_and_running_first",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_shared_claims_pack_only_at_the_limit_and_respect_the_tenant_cap",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_shared_claims_pack_only_at_the_limit_and_respect_the_tenant_cap",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_same_site_claim_goes_to_another_controller",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_same_site_claim_goes_to_another_controller",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_exclusive_lease_blocks_sharing_both_ways",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_exclusive_lease_blocks_sharing_both_ways",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_reap_global_lease_never_shares_in_either_direction",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_reap_global_lease_never_shares_in_either_direction",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_shared_tenant_cannot_add_reap_global_beside_another_tenant",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_shared_tenant_cannot_add_reap_global_beside_another_tenant",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_max_tenants_one_disables_sharing",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_max_tenants_one_disables_sharing",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_site_gate_refuses_same_site_before_writing_a_marker",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_site_gate_refuses_same_site_before_writing_a_marker",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_concurrent_same_site_gates_have_one_winner",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_concurrent_same_site_gates_have_one_winner",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_tenant_releases_while_another_tenant_has_a_live_tab",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_tenant_releases_while_another_tenant_has_a_live_tab",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_marker_is_kept_after_a_crash",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_marker_is_kept_after_a_crash",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_foreign_owner_wrong_lease_and_mode_mismatch",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_foreign_owner_wrong_lease_and_mode_mismatch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_lease_for_returns_the_single_lease_with_per_lease_artifacts",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_lease_for_returns_the_single_lease_with_per_lease_artifacts",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_shared_pin_blocks_only_its_own_release",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_shared_pin_blocks_only_its_own_release",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_sites_seen_reports_previously_used_after_release",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_sites_seen_reports_previously_used_after_release",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_sites_seen_overflow_and_lease_site_limit",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_sites_seen_overflow_and_lease_site_limit",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_status_lists_legacy_and_discovered_controllers",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_status_lists_legacy_and_discovered_controllers",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_legacy_formats_stay_byte_identical",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_legacy_formats_stay_byte_identical",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_claim_does_not_create_profile_or_artifact_directories",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_claim_does_not_create_profile_or_artifact_directories",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_reap_refused_while_lease_marker_pin_or_startup_exists",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_reap_refused_while_lease_marker_pin_or_startup_exists",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_reap_refused_while_an_http_tab_is_open",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_reap_refused_while_an_http_tab_is_open",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_reap_stops_verified_idle_chrome_and_keeps_the_profile",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_reap_stops_verified_idle_chrome_and_keeps_the_profile",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_unconfirmed_reap_keeps_intent_and_blocks_claims_until_confirmed",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_unconfirmed_reap_keeps_intent_and_blocks_claims_until_confirmed",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_reap_keeps_its_intent_while_the_endpoint_is_still_live",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_reap_keeps_its_intent_while_the_endpoint_is_still_live",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_a_reap_excludes_other_reapers_and_claims_until_its_exit_is_confirmed",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_a_reap_excludes_other_reapers_and_claims_until_its_exit_is_confirmed",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_reap_all_reports_each_controller",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_reap_all_reports_each_controller",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_reset_needs_confirmation_and_an_idle_stopped_controller",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_reset_needs_confirmation_and_an_idle_stopped_controller",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_migrate_rewrites_only_stopped_legacy_manifests",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_migrate_rewrites_only_stopped_legacy_manifests",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_capture_directory_uses_the_given_root_before_the_environment",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_capture_directory_uses_the_given_root_before_the_environment",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_controller_factory.py::test_cli_commands_and_flags_use_home_paths",
+      "file": "test_controller_factory.py",
+      "class": null,
+      "name": "test_cli_commands_and_flags_use_home_paths",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controller_denies_foreign_session_before_any_page_or_vault_call",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controller_denies_foreign_session_before_any_page_or_vault_call",
+      "cases": 15,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_numbered_entry_refusal_creates_no_registry_directory_or_lock",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_numbered_entry_refusal_creates_no_registry_directory_or_lock",
+      "cases": 15,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_numbered_entry_owner_is_refused_an_unknown_tab_before_any_pin",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_numbered_entry_owner_is_refused_an_unknown_tab_before_any_pin",
+      "cases": 12,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controller_status_reports_only_readiness_and_availability",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controller_status_reports_only_readiness_and_availability",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controller_config_cannot_route_a_lease_to_another_socket",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controller_config_cannot_route_a_lease_to_another_socket",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controller_listing_holds_lease_until_call_returns",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controller_listing_holds_lease_until_call_returns",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controller_tab_pins_between_calls_then_releases_after_confirmed_cleanup",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controller_tab_pins_between_calls_then_releases_after_confirmed_cleanup",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controller_failed_cleanup_survives_server_lifespan",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controller_failed_cleanup_survives_server_lifespan",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_unknown_create_without_handle_leaves_persistent_cleanup_block",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_unknown_create_without_handle_leaves_persistent_cleanup_block",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_pre_dispatch_claim_refusal_does_not_leave_cleanup_marker",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_pre_dispatch_claim_refusal_does_not_leave_cleanup_marker",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_session_metadata",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_session_metadata",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_group_title_uses_label_or_session_fallback",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_group_title_uses_label_or_session_fallback",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_existing_owned_tab_can_be_renamed_without_reclaim",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_existing_owned_tab_can_be_renamed_without_reclaim",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_name_group_requires_exact_extension_readback",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_name_group_requires_exact_extension_readback",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_open_names_the_created_group_before_claiming_success",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_open_names_the_created_group_before_claiming_success",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_existing_claim_without_label_preserves_confirmed_title",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_existing_claim_without_label_preserves_confirmed_title",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_existing_claim_refuses_busy_tab",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_existing_claim_refuses_busy_tab",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_missing_metadata",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_missing_metadata",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_refused_urls",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_refused_urls",
+      "cases": 7,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_exact_origin_and_loopback_opt_in",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_exact_origin_and_loopback_opt_in",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_other_session_cannot_use_tab",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_other_session_cannot_use_tab",
+      "cases": 5,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_unknown_input_consumes_token",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_unknown_input_consumes_token",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_post_action_read_failure_preserves_executed",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_post_action_read_failure_preserves_executed",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_action_waits_for_async_public_control",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_action_waits_for_async_public_control",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_action_accepts_same_origin_path_expectation",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_action_accepts_same_origin_path_expectation",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_wait_for_path_is_bound_to_claimed_origin",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_wait_for_path_is_bound_to_claimed_origin",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_path_expectation_rejects_ambiguous_urls",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_path_expectation_rejects_ambiguous_urls",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_action_wait_timeout_does_not_replay_or_return_token",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_action_wait_timeout_does_not_replay_or_return_token",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_unexecuted_action_with_expect_does_not_wait",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_unexecuted_action_with_expect_does_not_wait",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_action_reads_only_allowlisted_status",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_action_reads_only_allowlisted_status",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_generic_act_refuses_file_action",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_generic_act_refuses_file_action",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_upload_validates_pdf_and_returns_only_safe_metadata",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_upload_validates_pdf_and_returns_only_safe_metadata",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_upload_rejects_invalid_local_files_and_consumes_adapter_token",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_upload_rejects_invalid_local_files_and_consumes_adapter_token",
+      "cases": 6,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_upload_refuses_recording_and_unknown_is_single_use",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_upload_refuses_recording_and_unknown_is_single_use",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_pdf_validation_rejects_other_owner",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_pdf_validation_rejects_other_owner",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_public_snapshot_discards_unrecognized_values",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_public_snapshot_discards_unrecognized_values",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_refused_observation_invalidates_previous_token",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_refused_observation_invalidates_previous_token",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_wait_pending_then_match",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_wait_pending_then_match",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_failed_wait_has_no_token",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_failed_wait_has_no_token",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_disabled_action_is_not_ready",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_disabled_action_is_not_ready",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_cross_origin_navigation_has_no_dispatch",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_cross_origin_navigation_has_no_dispatch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_same_tab_serialized_other_tab_independent",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_same_tab_serialized_other_tab_independent",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_release_requires_semantic_readback",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_release_requires_semantic_readback",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_unknown_release_is_never_replayed",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_unknown_release_is_never_replayed",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_screenshot_guard_and_private_artifact",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_screenshot_guard_and_private_artifact",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_open_observation_failure_retains_handle",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_open_observation_failure_retains_handle",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_failed_bind_cleans_created_tab_before_connection_close",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_failed_bind_cleans_created_tab_before_connection_close",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_failed_attach_and_uncertain_cleanup_remain_visible",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_failed_attach_and_uncertain_cleanup_remain_visible",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_foreign_caller_cannot_observe_busy_state",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_foreign_caller_cannot_observe_busy_state",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_register_race_cannot_replace_existing_handle",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_register_race_cannot_replace_existing_handle",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_release_cannot_slip_between_a_calls_lookup_and_its_busy_lock",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_release_cannot_slip_between_a_calls_lookup_and_its_busy_lock",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_a_call_keeps_operating_on_the_tab_it_locked_when_its_handle_is_replaced",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_a_call_keeps_operating_on_the_tab_it_locked_when_its_handle_is_replaced",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_setup_publishes_a_new_tab_only_while_it_is_busy",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_setup_publishes_a_new_tab_only_while_it_is_busy",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controls_only_preserves_coverage",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controls_only_preserves_coverage",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controls_only_survives_automatic_post_action_observation",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controls_only_survives_automatic_post_action_observation",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controls_only_survives_action_wait",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controls_only_survives_action_wait",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controls_only_survives_standalone_wait_and_following_action",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controls_only_survives_standalone_wait_and_following_action",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controls_only_standalone_text_wait_reads_full_and_matches",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controls_only_standalone_text_wait_reads_full_and_matches",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_controls_only_text_expectation_reads_full_after_action",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_controls_only_text_expectation_reads_full_after_action",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_existing_claim_keeps_controls_only_preference",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_existing_claim_keeps_controls_only_preference",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_only_observe_resets_controls_only_preference",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_only_observe_resets_controls_only_preference",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_metadata_validation_invalidates_token",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_metadata_validation_invalidates_token",
+      "cases": 9,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_runs_steps_in_order_from_each_returned_snapshot",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_runs_steps_in_order_from_each_returned_snapshot",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_unresolved_label_stops_before_dispatch_with_usable_snapshot",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_unresolved_label_stops_before_dispatch_with_usable_snapshot",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_refuses_unsupported_control_before_dispatch",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_refuses_unsupported_control_before_dispatch",
+      "cases": 7,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_disabled_match_stops_before_dispatch_with_usable_snapshot",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_disabled_match_stops_before_dispatch_with_usable_snapshot",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_selects_the_enabled_action_among_disabled_duplicates",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_selects_the_enabled_action_among_disabled_duplicates",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_unconfirmed_dispatch_stops_without_replay",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_unconfirmed_dispatch_stops_without_replay",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_failed_wait_stops_after_dispatch_without_token",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_failed_wait_stops_after_dispatch_without_token",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_observation_failure_stops_with_its_gate",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_observation_failure_stops_with_its_gate",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_budget_stops_before_next_dispatch",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_budget_stops_before_next_dispatch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_budget_stops_before_wait_after_dispatch",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_budget_stops_before_wait_after_dispatch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_wait_is_capped_by_the_run_budget",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_wait_is_capped_by_the_run_budget",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_refuses_bad_input_before_any_socket_call",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_refuses_bad_input_before_any_socket_call",
+      "cases": 8,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_step_model_is_strict_and_bounded",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_step_model_is_strict_and_bounded",
+      "cases": 9,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_requires_the_current_snapshot",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_requires_the_current_snapshot",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_refuses_busy_tab_before_any_call",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_refuses_busy_tab_before_any_call",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_holds_the_tab_busy_for_the_whole_run",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_holds_the_tab_busy_for_the_whole_run",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_include_text_reads_only_the_final_view_full",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_include_text_reads_only_the_final_view_full",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_text_expectation_reads_full_under_controls_only",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_text_expectation_reads_full_under_controls_only",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_act_steps_accepts_strict_json_steps_through_mcp",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_act_steps_accepts_strict_json_steps_through_mcp",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_route_prefers_the_fixed_binding_then_the_callers_lease_then_the_users_chrome",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_route_prefers_the_fixed_binding_then_the_callers_lease_then_the_users_chrome",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_open_tab_binds_the_lease_and_later_tools_never_reroute",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_open_tab_binds_the_lease_and_later_tools_never_reroute",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_lease_tab_tools_pin_the_bound_lease_for_each_call",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_lease_tab_tools_pin_the_bound_lease_for_each_call",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_site_held_by_another_tenant_is_refused_before_any_tab_exists",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_site_held_by_another_tenant_is_refused_before_any_tab_exists",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_tabs_on_a_lease_route_lists_only_its_sites",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_tabs_on_a_lease_route_lists_only_its_sites",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_claim_tab_on_a_lease_route_refuses_other_sites_before_claiming",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_claim_tab_on_a_lease_route_refuses_other_sites_before_claiming",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_status_reports_only_the_callers_route_and_lease",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_status_reports_only_the_callers_route_and_lease",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_captures_are_written_under_the_tabs_own_artifact_root",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_captures_are_written_under_the_tabs_own_artifact_root",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_claim_browser_leases_shares_and_starts_only_isolated_profiles",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_claim_browser_leases_shares_and_starts_only_isolated_profiles",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_claim_browser_is_refused_on_a_fixed_numbered_entry",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_claim_browser_is_refused_on_a_fixed_numbered_entry",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_release_browser_needs_released_tabs_and_ignores_other_tenants",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_release_browser_needs_released_tabs_and_ignores_other_tenants",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_tool_calls_from_two_sessions_overlap_in_time",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_tool_calls_from_two_sessions_overlap_in_time",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_a_running_call_keeps_only_its_own_tab_busy",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_a_running_call_keeps_only_its_own_tab_busy",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_a_cancelled_caller_waits_for_the_running_body",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_a_cancelled_caller_waits_for_the_running_body",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_new_tools_take_no_session_argument_and_accept_json_input",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_new_tools_take_no_session_argument_and_accept_json_input",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_another_tenant_cannot_use_a_lease_tab_before_any_call_or_registry_write",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_another_tenant_cannot_use_a_lease_tab_before_any_call_or_registry_write",
+      "cases": 13,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_private_transfer_reports_the_lease_tab_handle",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_private_transfer_reports_the_lease_tab_handle",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_open_tab_refuses_before_dispatch_without_an_incomplete_receipt",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_open_tab_refuses_before_dispatch_without_an_incomplete_receipt",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_equal_chrome_tab_ids_in_two_chromes_stay_distinct_for_different_owners",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_equal_chrome_tab_ids_in_two_chromes_stay_distinct_for_different_owners",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_a_retained_user_tab_never_stands_in_for_a_leased_tab_with_the_same_id",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_a_retained_user_tab_never_stands_in_for_a_leased_tab_with_the_same_id",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_a_running_action_keeps_release_reclaim_and_other_input_off_its_tab",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_a_running_action_keeps_release_reclaim_and_other_input_off_its_tab",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_shutdown_stops_act_steps_before_further_input",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_shutdown_stops_act_steps_before_further_input",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_shutdown_refuses_new_calls_new_tabs_and_new_input",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_shutdown_refuses_new_calls_new_tabs_and_new_input",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_shutdown_during_a_new_tabs_pin_and_marker_write_sends_no_create_or_claim",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_shutdown_during_a_new_tabs_pin_and_marker_write_sends_no_create_or_claim",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_cleanup_finalizes_idle_tabs_and_bounds_hung_or_busy_ones",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_cleanup_finalizes_idle_tabs_and_bounds_hung_or_busy_ones",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_tab_call_refuses_input_once_shutdown_begins_but_still_reads_and_cleans_up",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_tab_call_refuses_input_once_shutdown_begins_but_still_reads_and_cleans_up",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_navigate_and_upload_bodies_already_running_send_no_input_after_shutdown",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_navigate_and_upload_bodies_already_running_send_no_input_after_shutdown",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_shutdown_during_private_transfer_sends_no_further_private_input",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_shutdown_during_private_transfer_sends_no_further_private_input",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_server.py::test_shutdown_during_a_private_field_read_stops_the_transfer_before_its_next_step",
+      "file": "test_native_server.py",
+      "class": null,
+      "name": "test_shutdown_during_a_private_field_read_stops_the_transfer_before_its_next_step",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_stdio.py::test_sigterm_finalizes_managed_tabs_the_same_way_as_stdin_eof",
+      "file": "test_native_stdio.py",
+      "class": null,
+      "name": "test_sigterm_finalizes_managed_tabs_the_same_way_as_stdin_eof",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_stdio.py::test_sigterm_stops_a_running_wait_at_once_then_finalizes",
+      "file": "test_native_stdio.py",
+      "class": null,
+      "name": "test_sigterm_stops_a_running_wait_at_once_then_finalizes",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_stdio.py::test_shutdown_during_a_long_act_steps_wait_stops_the_run_without_replay",
+      "file": "test_native_stdio.py",
+      "class": null,
+      "name": "test_shutdown_during_a_long_act_steps_wait_stops_the_run_without_replay",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_stdio.py::test_cleanup_ends_before_the_parent_kill_and_keeps_unconfirmed_markers",
+      "file": "test_native_stdio.py",
+      "class": null,
+      "name": "test_cleanup_ends_before_the_parent_kill_and_keeps_unconfirmed_markers",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_stdio.py::test_shutdown_during_private_transfer_sends_no_further_private_input",
+      "file": "test_native_stdio.py",
+      "class": null,
+      "name": "test_shutdown_during_private_transfer_sends_no_further_private_input",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_native_stdio.py::test_shutdown_ends_an_otp_field_wait_so_cleanup_finalizes_its_tab",
+      "file": "test_native_stdio.py",
+      "class": null,
+      "name": "test_shutdown_ends_an_otp_field_wait_so_cleanup_finalizes_its_tab",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_sync_vault_source_runs_inside_mcp_event_loop",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_sync_vault_source_runs_inside_mcp_event_loop",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_locked_vault_refuses_without_clipboard_access",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_locked_vault_refuses_without_clipboard_access",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_main_window_ignores_offscreen_menu_and_utility_windows",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_main_window_ignores_offscreen_menu_and_utility_windows",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_ordinary_window_selects_frontmost_of_multiple_chrome_windows",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_ordinary_window_selects_frontmost_of_multiple_chrome_windows",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_account_mismatch_restores_clipboard",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_account_mismatch_restores_clipboard",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_ambiguous_field_restores_clipboard",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_ambiguous_field_restores_clipboard",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_flat_real_projection_selects_only_bracketed_copy_controls",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_flat_real_projection_selects_only_bracketed_copy_controls",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_flat_projection_rejects_duplicate_or_cross_field_regions",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_flat_projection_rejects_duplicate_or_cross_field_regions",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_ambiguous_account_target_refuses_before_clipboard_access",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_ambiguous_account_target_refuses_before_clipboard_access",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_search_without_unique_matching_result_fails_closed",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_search_without_unique_matching_result_fails_closed",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_rich_clipboard_items_restore_with_exact_bytes_and_values",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_rich_clipboard_items_restore_with_exact_bytes_and_values",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_success_restores_clipboard_and_returns_only_secret",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_success_restores_clipboard_and_returns_only_secret",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_failure_during_second_copy_restores_clipboard",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_failure_during_second_copy_restores_clipboard",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_restore_failure_masks_value_with_static_error",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_restore_failure_masks_value_with_static_error",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_guard_start_failure_translates_without_clipboard_mutation",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_guard_start_failure_translates_without_clipboard_mutation",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_cancellation_after_secret_copy_restores_before_propagating",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_cancellation_after_secret_copy_restores_before_propagating",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_selected_item_switch_between_secret_and_recheck_returns_no_wrong_password",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_selected_item_switch_between_secret_and_recheck_returns_no_wrong_password",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_unverifiable_search_write_uses_verify_and_fresh_snapshot_without_replay",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_unverifiable_search_write_uses_verify_and_fresh_snapshot_without_replay",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_unverifiable_result_click_uses_fresh_snapshot_without_replay",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_unverifiable_result_click_uses_fresh_snapshot_without_replay",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_actual_menu_result_matches_unique_account_and_excludes_show_all",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_actual_menu_result_matches_unique_account_and_excludes_show_all",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_delayed_menu_result_is_polled_then_selected_without_replay",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_delayed_menu_result_is_polled_then_selected_without_replay",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_foreground_search_and_focused_input_are_explicitly_gated",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_foreground_search_and_focused_input_are_explicitly_gated",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_matching_selected_detail_bypasses_search_and_foreground_actions",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_matching_selected_detail_bypasses_search_and_foreground_actions",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_cold_search_clears_placeholder_then_types_and_presses_enter",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_cold_search_clears_placeholder_then_types_and_presses_enter",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_cold_search_selects_unique_result_when_enter_leaves_suggestions_open",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_cold_search_selects_unique_result_when_enter_leaves_suggestions_open",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_show_all_child_is_not_an_account_result",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_show_all_child_is_not_an_account_result",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_foreground_search_recovers_when_background_query_does_not_stick",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_foreground_search_recovers_when_background_query_does_not_stick",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_cold_search_recovers_when_background_clear_does_not_stick",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_cold_search_recovers_when_background_clear_does_not_stick",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_cold_search_stops_when_old_query_does_not_clear",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_cold_search_stops_when_old_query_does_not_clear",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_foreground_search_requires_exact_selected_detail_and_restores_prior_app",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_foreground_search_requires_exact_selected_detail_and_restores_prior_app",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_unverified_exact_vault_focus_blocks_input_and_attempts_restore",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_unverified_exact_vault_focus_blocks_input_and_attempts_restore",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_search_waits_for_transient_duplicate_results_to_settle",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_search_waits_for_transient_duplicate_results_to_settle",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_persistent_duplicate_results_remain_blocked",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_persistent_duplicate_results_remain_blocked",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_composite_menu_result_does_not_match_email_suffix",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_composite_menu_result_does_not_match_email_suffix",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_deadline_cancellation_restores_through_guard",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_deadline_cancellation_restores_through_guard",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_static_error_sanitizes_transport_exception",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_static_error_sanitizes_transport_exception",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_invalid_inputs_have_no_native_effect",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_invalid_inputs_have_no_native_effect",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_public_api_passes_explicit_foreground_search_permission",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_public_api_passes_explicit_foreground_search_permission",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_vault_error_rejects_arbitrary_public_code",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_vault_error_rejects_arbitrary_public_code",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_onepassword.py::test_mcp_context_preserves_body_vault_error_outside_transport_group",
+      "file": "test_onepassword.py",
+      "class": null,
+      "name": "test_mcp_context_preserves_body_vault_error_outside_transport_group",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_persistent_connection_and_independent_host_authorities",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_persistent_connection_and_independent_host_authorities",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_name_session_is_an_allowlisted_display_method",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_name_session_is_an_allowlisted_display_method",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_handshake_incompatible",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_handshake_incompatible",
+      "cases": 8,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_missing_socket",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_missing_socket",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_invalid_timeout",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_invalid_timeout",
+      "cases": 7,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_foreign_owner_refused",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_foreign_owner_refused",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_unsafe_endpoint",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_unsafe_endpoint",
+      "cases": 5,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_reject_caller_authority",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_reject_caller_authority",
+      "cases": 8,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_invalid_request_never_sent",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_invalid_request_never_sent",
+      "cases": 9,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_remote_error_is_redacted_and_notifications_excluded",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_remote_error_is_redacted_and_notifications_excluded",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_wrong_or_malformed_response_poisoned_without_replay",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_wrong_or_malformed_response_poisoned_without_replay",
+      "cases": 14,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_uncertain_outcome_no_reconnect_or_replay",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_uncertain_outcome_no_reconnect_or_replay",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_safe_refusal_diagnostics",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_safe_refusal_diagnostics",
+      "cases": 11,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_response_byte_bound",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_response_byte_bound",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_production_response_limit",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_production_response_limit",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_partial_response_eof",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_partial_response_eof",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_fragmented_response",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_fragmented_response",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_concurrent_calls_are_serialized",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_concurrent_calls_are_serialized",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_opchrome.py::test_upload_rpc_is_allowlisted",
+      "file": "test_opchrome.py",
+      "class": null,
+      "name": "test_upload_rpc_is_allowlisted",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_preview_password_uses_owned_connection_without_exposing_value",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_preview_password_uses_owned_connection_without_exposing_value",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_initially_disabled_submit_is_prepared_before_private_fill",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_initially_disabled_submit_is_prepared_before_private_fill",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_wrong_exact_url_and_recording_refuse_before_vault_read",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_wrong_exact_url_and_recording_refuse_before_vault_read",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_document_change_during_vault_read_does_not_fill",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_document_change_during_vault_read_does_not_fill",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_url_change_during_vault_read_does_not_fill",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_url_change_during_vault_read_does_not_fill",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_unknown_submit_is_not_retried_or_reflected",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_unknown_submit_is_not_retried_or_reflected",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_otp_requires_account_binding_and_runs_only_once",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_otp_requires_account_binding_and_runs_only_once",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_old_extension_without_exact_url_contract_is_rejected",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_old_extension_without_exact_url_contract_is_rejected",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_original_submit_is_bound_before_vault_read_without_label_reauthorization",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_original_submit_is_bound_before_vault_read_without_label_reauthorization",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_same_label_replacement_during_vault_read_is_not_reauthorized",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_same_label_replacement_during_vault_read_is_not_reauthorized",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_invalid_submit_capability_refuses_before_vault_read",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_invalid_submit_capability_refuses_before_vault_read",
+      "cases": 1,
+      "subtest_blocks": 1
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_expired_submit_capability_refuses_before_private_fill",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_expired_submit_capability_refuses_before_private_fill",
+      "cases": 1,
+      "subtest_blocks": 1
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_private_fill_unknown_is_one_use_and_does_not_submit",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_private_fill_unknown_is_one_use_and_does_not_submit",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_cross_document_otp_refuses_before_source_read",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_cross_document_otp_refuses_before_source_read",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_host_protocol_not_ready_is_known_no_fill",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_host_protocol_not_ready_is_known_no_fill",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_shutdown_during_vault_read_sends_no_private_input",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_shutdown_during_vault_read_sends_no_private_input",
+      "cases": 1,
+      "subtest_blocks": 1
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_shutdown_ends_the_otp_field_wait_before_another_read",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_shutdown_ends_the_otp_field_wait_before_another_read",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_shutdown_before_the_submit_is_prepared_sends_and_consumes_nothing",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_shutdown_before_the_submit_is_prepared_sends_and_consumes_nothing",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_shutdown_during_private_fill_is_unknown_and_never_submits",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_shutdown_during_private_fill_is_unknown_and_never_submits",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PrivateInputTests::test_extension_refusal_to_bind_submit_refuses_before_private_dispatch",
+      "file": "test_private_input.py",
+      "class": "PrivateInputTests",
+      "name": "test_extension_refusal_to_bind_submit_refuses_before_private_dispatch",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_input.py::PoolBindingTests::test_account_requires_exact_owned_lease",
+      "file": "test_private_input.py",
+      "class": "PoolBindingTests",
+      "name": "test_account_requires_exact_owned_lease",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_tool.py::test_foreign_owner_cannot_reach_source",
+      "file": "test_private_tool.py",
+      "class": null,
+      "name": "test_foreign_owner_cannot_reach_source",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_tool.py::test_busy_tab_refuses_concurrent_transfer",
+      "file": "test_private_tool.py",
+      "class": null,
+      "name": "test_busy_tab_refuses_concurrent_transfer",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_tool.py::test_other_origin_refuses_before_source",
+      "file": "test_private_tool.py",
+      "class": null,
+      "name": "test_other_origin_refuses_before_source",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_tool.py::test_only_fixed_errors_escape",
+      "file": "test_private_tool.py",
+      "class": null,
+      "name": "test_only_fixed_errors_escape",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_private_tool.py::test_foreground_permission_reaches_private_source_only_when_enabled",
+      "file": "test_private_tool.py",
+      "class": null,
+      "name": "test_foreground_permission_reaches_private_source_only_when_enabled",
+      "cases": 2,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_registrable_domain",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_registrable_domain",
+      "cases": 10,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_wildcard_and_exception_rules",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_wildcard_and_exception_rules",
+      "cases": 7,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_idn_hosts_use_punycode",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_idn_hosts_use_punycode",
+      "cases": 4,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_idna_2003_limitation_maps_sharp_s",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_idna_2003_limitation_maps_sharp_s",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_ip_literals_and_localhost_map_to_the_host",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_ip_literals_and_localhost_map_to_the_host",
+      "cases": 7,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_case_trailing_dot_and_port_are_ignored",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_case_trailing_dot_and_port_are_ignored",
+      "cases": 3,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_invalid_hosts_are_refused",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_invalid_hosts_are_refused",
+      "cases": 11,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_valid_site_accepts_only_canonical_keys",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_valid_site_accepts_only_canonical_keys",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_vendored_list_matches_its_pin",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_vendored_list_matches_its_pin",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_tampered_list_is_refused",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_tampered_list_is_refused",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_import_checks_the_hash",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_import_checks_the_hash",
+      "cases": 1,
+      "subtest_blocks": 0
+    },
+    {
+      "id": "test_sites.py::test_standard_library_only",
+      "file": "test_sites.py",
+      "class": null,
+      "name": "test_standard_library_only",
+      "cases": 2,
+      "subtest_blocks": 0
+    }
+  ]
+}

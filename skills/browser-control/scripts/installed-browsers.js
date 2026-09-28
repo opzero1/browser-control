@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
-const require_effect_services = require("../chunks/effect-services-DcZl9PNJ.js");
+const require_effect_services = require("../chunks/effect-services-Bn84osw6.js");
 //#region src/scripts/installed-browsers.ts
 var json = process.argv.includes("--json");
 function commandExists(command) {

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_rpc = require("../chunks/rpc-CKph8efs.js");
+const require_trusted_path = require("../chunks/trusted-path-OQ7soDSf.js");
 let node_fs = require("node:fs");
 node_fs = require_Layer.__toESM(node_fs);
 let node_net = require("node:net");
@@ -13,7 +14,8 @@ let node_process = require("node:process");
 node_process = require_Layer.__toESM(node_process);
 let node_crypto = require("node:crypto");
 //#region src/native-host/host.ts
-var socketPath = node_process.default.env.BROWSER_CONTROL_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock");
+var requestedSocket = node_process.default.env.BROWSER_CONTROL_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock");
+var socketPath = requestedSocket;
 var useTcp = node_process.default.platform === "win32" || node_process.default.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
 var port = Number(node_process.default.env.BROWSER_CONTROL_HOST_PORT || 17365);
 var epoch = (0, node_crypto.randomUUID)();
@@ -34,6 +36,8 @@ var startupLock;
 var startupLockPath = `${socketPath}.lock`;
 var orphanedStartupLockMs = 300 * 1e3;
 var tcpToken;
+/** The socket's directory, or one above it, fails the trusted-path rule or is not private; the message names it. */
+var UntrustedSocketDirectory = class extends Error {};
 function native(message) {
 	const body = Buffer.from(JSON.stringify(message));
 	if (body.length > maxBytes) return false;
@@ -270,13 +274,8 @@ try {
 		server.listen(port, "127.0.0.1");
 	} else {
 		node_process.default.umask(63);
-		const directory = node_path.default.dirname(socketPath);
-		node_fs.default.mkdirSync(directory, {
-			recursive: true,
-			mode: 448
-		});
-		const stat = node_fs.default.lstatSync(directory);
-		if (!stat.isDirectory() || stat.uid !== node_process.default.getuid?.() || (stat.mode & 63) !== 0) throw new Error("private socket directory required");
+		socketPath = privateSocketPath(requestedSocket);
+		startupLockPath = `${socketPath}.lock`;
 		if (!acquireStartupLock()) throw new Error("endpoint busy");
 		const existing = lstatIfExists(socketPath);
 		if (!existing) listenUnix();
@@ -285,12 +284,19 @@ try {
 			reclaimStaleSocket(existing);
 		}
 	}
-} catch {
-	refuseEndpoint();
+} catch (setupError) {
+	refuseEndpoint(setupError instanceof UntrustedSocketDirectory ? setupError.message : void 0);
 }
-function refuseEndpoint() {
-	node_process.default.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
+function refuseEndpoint(reason = "Native endpoint setup refused; use a private directory or authenticated TCP") {
+	node_process.default.stderr.write(`${reason}\n`);
 	shutdown(1);
+}
+function privateSocketPath(requested) {
+	const name = node_path.default.basename(requested);
+	if (!name || name === "." || name === "..") throw new Error("socket name required");
+	const directory = require_trusted_path.privateDirectory(node_path.default.dirname(requested), { create: 448 });
+	if ("unsafe" in directory) throw new UntrustedSocketDirectory(`Native endpoint setup refused for ${requested}: ${directory.unsafe} is not private to you, or another user could change it; use a private directory or authenticated TCP`);
+	return node_path.default.join(directory.path, name);
 }
 function lstatIfExists(file) {
 	try {
@@ -330,8 +336,13 @@ function removeOwnSocket() {
 }
 function createStartupLock() {
 	const staged = `${startupLockPath}.${node_process.default.pid}`;
-	node_fs.default.writeFileSync(staged, String(node_process.default.pid), { mode: 384 });
+	const fd = node_fs.default.openSync(staged, node_fs.default.constants.O_CREAT | node_fs.default.constants.O_EXCL | node_fs.default.constants.O_WRONLY | node_fs.default.constants.O_NOFOLLOW, 384);
 	try {
+		try {
+			node_fs.default.writeSync(fd, String(node_process.default.pid));
+		} finally {
+			node_fs.default.closeSync(fd);
+		}
 		node_fs.default.linkSync(staged, startupLockPath);
 		const info = node_fs.default.lstatSync(staged);
 		startupLock = {
@@ -400,7 +411,7 @@ function releaseStartupLock() {
 	} catch {}
 }
 function reclaimStaleSocket(stale) {
-	const probe = node_net.default.connect(socketPath);
+	const probe = node_net.default.connect(require_trusted_path.privateSocketEndpoint(socketPath));
 	probe.once("connect", () => {
 		probe.destroy();
 		refuseEndpoint();

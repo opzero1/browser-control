@@ -1,0 +1,2 @@
+data/public_suffix_list.dat -text
+native/clipboard-guard/clipboard_guard.swift -text

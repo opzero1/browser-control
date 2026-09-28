@@ -1,6 +1,7 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
 const require_rpc = require("../chunks/rpc-CKph8efs.js");
+const require_trusted_path = require("../chunks/trusted-path-OQ7soDSf.js");
 let node_net = require("node:net");
 node_net = require_Layer.__toESM(node_net);
 let node_path = require("node:path");
@@ -102,11 +103,21 @@ var ChromeTransport = class ChromeTransport {
 		this.session = session;
 		this.epoch = epoch;
 	}
+	/**
+	* Connect to the host's socket at `socketPath` by its canonical path, once privateSocketEndpoint
+	* (src/shared/trusted-path.ts) found it to be this user's socket in a private directory that no other user can
+	* change. The handshake does not authenticate the host, so nothing is sent to any other endpoint. A file system
+	* error, such as ENOENT for a host that is not running, is thrown as it is.
+	*/
 	static async connect(socketPath) {
-		const directory = await node_fs_promises.default.lstat(node_path.default.dirname(socketPath));
-		const endpoint = await node_fs_promises.default.lstat(socketPath);
-		if (!directory.isDirectory() || directory.uid !== process.getuid?.() || (directory.mode & 63) !== 0 || !endpoint.isSocket() || endpoint.uid !== process.getuid?.()) throw new Error("Explicit private owned Unix socket required");
-		const socket = node_net.default.createConnection(socketPath);
+		let canonical;
+		try {
+			canonical = require_trusted_path.privateSocketEndpoint(socketPath);
+		} catch (error) {
+			if (error.code) throw error;
+			throw new Error("Explicit private owned Unix socket required");
+		}
+		const socket = node_net.default.createConnection(canonical);
 		await new Promise((resolve, reject) => {
 			socket.once("connect", resolve);
 			socket.once("error", reject);
@@ -333,9 +344,9 @@ var ChromeTransport = class ChromeTransport {
 	async startRecording(page, artifactRoot, options = {}) {
 		const fps = options.fps ?? 5, maxSeconds = options.maxSeconds ?? 30;
 		if (!Number.isInteger(fps) || fps < 1 || fps > 15 || !Number.isFinite(maxSeconds) || maxSeconds < 1 || maxSeconds > 60 || this.#recordings.has(page.tabId)) throw new Error("Invalid or duplicate recording");
-		const stat = await node_fs_promises.default.lstat(artifactRoot);
-		if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 63) !== 0) throw new Error("Owned private artifact directory required");
-		const directory = await node_fs_promises.default.mkdtemp(node_path.default.join(artifactRoot, "tab-video-"));
+		const root = typeof artifactRoot === "string" && artifactRoot ? require_trusted_path.privateDirectory(artifactRoot) : { unsafe: String(artifactRoot) };
+		if ("unsafe" in root) throw new Error("Owned private artifact directory required");
+		const directory = await node_fs_promises.default.mkdtemp(node_path.default.join(root.path, "tab-video-"));
 		await node_fs_promises.default.chmod(directory, 448);
 		await this.#call("recordingState", {
 			...this.#owned(page),
@@ -411,6 +422,7 @@ var ChromeTransport = class ChromeTransport {
 					await node_fs_promises.default.chmod(output, 384);
 				} catch {
 					error ??= "Encoding failed; JPEG frames preserved";
+					await node_fs_promises.default.chmod(node_path.default.join(directory, "recording.mp4"), 384).catch(() => void 0);
 				}
 			}
 			const receipt = {

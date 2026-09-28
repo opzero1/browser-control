@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { parseJsonRpcMessage, isJsonRpcRequest } from "../shared/rpc";
+import { privateSocketEndpoint } from "../shared/trusted-path";
 
 const args = process.argv.slice(2);
 if (args[0] === "--") args.shift();
@@ -15,8 +16,22 @@ if (args.length > 1 || (!streaming && !["ping", "getInfo", "host.ping", "host.in
   process.exit(1);
 }
 const useTcp = process.platform === "win32" || process.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
-const socket = useTcp ? net.connect(Number(process.env.BROWSER_CONTROL_HOST_PORT || 17365), "127.0.0.1")
-  : net.connect(process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock"));
+/**
+ * The host's socket by its canonical path, once privateSocketEndpoint (src/shared/trusted-path.ts) found it to be
+ * this user's socket in a private directory that no other user can change; the handshake does not authenticate
+ * the host, so nothing is sent to any other endpoint. A missing socket is a host that is not running, reported as
+ * a failed connection is.
+ */
+function unixEndpoint(): string {
+  try {
+    return privateSocketEndpoint(process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock"));
+  } catch (error) {
+    process.stderr.write((error as NodeJS.ErrnoException).code === "ENOENT" ? "Private client stopped; outcome may be unknown; do not replay\n"
+      : "Refusing the native host socket: it must be your socket, in a private directory that no other user can change; nothing was sent\n");
+    process.exit(1);
+  }
+}
+const socket = useTcp ? net.connect(Number(process.env.BROWSER_CONTROL_HOST_PORT || 17365), "127.0.0.1") : net.connect(unixEndpoint());
 const pending = new Map<number | string, string>();
 let ready = false;
 let inputEnded = false;

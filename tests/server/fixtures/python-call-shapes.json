@@ -1,0 +1,195 @@
+{
+  "status-success": {
+    "name": "status",
+    "arguments": {},
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"backend\": \"op-chrome\",\n  \"ready\": true,\n  \"protocol\": 2,\n  \"page_protocol\": 2,\n  \"extension_version\": \"0.2.1\",\n  \"route\": \"user\"\n}"
+        }
+      ],
+      "isError": false
+    }
+  },
+  "status-no-session": {
+    "name": "status",
+    "arguments": {},
+    "meta": false,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool status: fast-chrome-session-required"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "tabs-unicode": {
+    "name": "tabs",
+    "arguments": {},
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"tabs\": [\n    {\n      \"tab_id\": \"7\",\n      \"url\": \"https://example.test/\u00e9\",\n      \"title\": \"Caf\u00e9 \ud83d\ude00\",\n      \"managed_by_session\": false\n    },\n    {\n      \"tab_id\": \"1\",\n      \"url\": \"https://example.test/\",\n      \"title\": \"Owned\",\n      \"managed_by_session\": true\n    }\n  ]\n}"
+        }
+      ],
+      "isError": false
+    }
+  },
+  "observe-not-owned": {
+    "name": "observe",
+    "arguments": {
+      "tab_id": "999"
+    },
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool observe: fast-chrome-tab-not-owned"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "observe-int-tab-id": {
+    "name": "observe",
+    "arguments": {
+      "tab_id": 5
+    },
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool observe: 1 validation error for observeArguments\ntab_id\n  Input should be a valid string [type=string_type, input_value=5, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "observe-missing-tab-id": {
+    "name": "observe",
+    "arguments": {},
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool observe: 1 validation error for observeArguments\ntab_id\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "act-steps-extra-field": {
+    "name": "act_steps",
+    "arguments": {
+      "tab_id": "1",
+      "steps": "[{\"label\":\"x\",\"extra\":1}]"
+    },
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool act_steps: 1 validation error for act_stepsArguments\nsteps.0.extra\n  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]\n    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "act-steps-empty": {
+    "name": "act_steps",
+    "arguments": {
+      "tab_id": "1",
+      "steps": []
+    },
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool act_steps: 1 validation error for act_stepsArguments\nsteps\n  List should have at least 1 item after validation, not 0 [type=too_short, input_value=[], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/too_short"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "wait-for-empty-expectation": {
+    "name": "wait_for",
+    "arguments": {
+      "tab_id": "1",
+      "expect": {}
+    },
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool wait_for: 1 validation error for wait_forArguments\nexpect\n  Value error, At least one public expectation is required [type=value_error, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "wait-for-gate-in-validator": {
+    "name": "wait_for",
+    "arguments": {
+      "tab_id": "1",
+      "expect": {
+        "url": "http://example.test/"
+      }
+    },
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Error executing tool wait_for: fast-chrome-approved-web-url-required"
+        }
+      ],
+      "isError": true
+    }
+  },
+  "screenshot": {
+    "name": "screenshot",
+    "arguments": {
+      "tab_id": "1"
+    },
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "image",
+          "data": "<base64 jpeg>",
+          "mimeType": "image/jpeg"
+        },
+        {
+          "type": "text",
+          "text": "Saved screenshot: <artifact>/chrome-capture-XXXX/screenshot.jpg"
+        }
+      ],
+      "isError": false
+    }
+  },
+  "unknown-tool": {
+    "name": "no_such_tool",
+    "arguments": {},
+    "meta": true,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Unknown tool: no_such_tool"
+        }
+      ],
+      "isError": true
+    }
+  }
+}
