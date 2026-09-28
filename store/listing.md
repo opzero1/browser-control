@@ -36,7 +36,7 @@ Lets an AI agent on your own computer work in your tabs. Does nothing until you 
 
 ### Detailed description
 
-2062 / 16,000 characters. Plain text. No testimonials, and no site list. Keyword check: no word other than common function words appears five or more times. The most frequent terms are "host" and "extension" (4 each); "Chrome", "tab", "agent", "AI", "helper", "page", "install", "control" and "software" (3 each). It names five brands: Google Chrome™, GitHub, Node.js, macOS and Linux. Chrome appears in the "Google Chrome™" compatibility form, so the last line is the trademark attribution. The count includes that line.
+2066 / 16,000 characters. Plain text. No testimonials, and no site list. Keyword check: no word other than common function words appears five or more times. The most frequent terms are "host" and "extension" (4 each); "Chrome", "tab", "agent", "AI", "helper", "page", "install", "control" and "software" (3 each). It names five brands: Google Chrome™, GitHub, Node.js, macOS and Linux. Chrome appears in the "Google Chrome™" compatibility form, so the last line is the trademark attribution. The count includes that line.
 
 ```text
 Browser Control lets an AI agent that you run on your own computer do work in Google Chrome™ for you. The extension talks to a small helper program, called a native messaging host, that you install on the same machine. Your agent sends requests to the helper, and the extension carries them out.
@@ -56,7 +56,7 @@ WHAT IT CAN DO WHEN ASKED
 
 SETUP
 1. Add this extension.
-2. Download the host program from the project on GitHub and run its installer. It needs Node.js 18 or later on macOS or Linux. Other systems need extra manual configuration.
+2. Download the host program from browser-control.pages.dev and run its installer. It needs Node.js 18 or later on macOS or Linux. Other systems need extra manual configuration.
 3. Open the popup and check that it shows "Connected".
 
 YOU STAY IN CONTROL
