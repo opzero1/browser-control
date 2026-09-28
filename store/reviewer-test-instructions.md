@@ -22,7 +22,7 @@ Full steps: https://browser-control.pages.dev/support/reviewers/
 - macOS or Linux, with Google Chrome™ 106 or later (`minimum_chrome_version` in `manifest.json`). Use one Chrome profile with Browser Control turned on. All profiles share one host socket, so a second profile cannot connect at the same time.
 - Node.js 18 or later on the `PATH`. Check with `node --version`. The host is a Node.js program.
 - `curl` and `unzip`. Both come with macOS. On Debian or Ubuntu: `sudo apt-get install curl unzip`.
-- Internet access to `browser-control.pages.dev` (to download the helper) and to `https://example.com/` (for the demo page).
+- Internet access to `browser-control.pages.dev` (to download the helper and to open the demo page).
 - No account, sign-in, API key or server is needed. `ffmpeg` is not needed.
 - Windows is not covered by these steps. A host started by Chrome on Windows needs a private token file that the installer does not create.
 
@@ -109,8 +109,8 @@ const socket = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir()
 (async () => {
   const browser = await ChromeTransport.connect(socket);
   try {
-    const page = await browser.open("https://example.com/");
-    const snapshot = await browser.waitFor(page, { text: "Example Domain" }, 15000);
+    const page = await browser.open("https://browser-control.pages.dev/");
+    const snapshot = await browser.waitFor(page, { text: "Browser Control lets an AI agent" }, 15000);
     console.log(JSON.stringify({ url: snapshot.url, title: snapshot.title, text: snapshot.text.slice(0, 200), actions: snapshot.actions }, null, 2));
     console.log("The tab stays open for 20 seconds. Click it in the \"Browser Control\" tab group to watch.");
     await new Promise((resolve) => setTimeout(resolve, 20000));
@@ -133,10 +133,10 @@ Expected:
 
 1. A new background tab opens in a tab group named **Browser Control**.
 2. Chrome shows its notice that Browser Control is debugging the browser.
-3. The script prints JSON with `"url": "https://example.com/"`, the page title, the start of the visible text, and an `actions` list with the page's link.
+3. The script prints JSON with `"url": "https://browser-control.pages.dev/"`, the page title, the start of the visible text, and an `actions` list with the page's links.
 4. After 20 seconds the script ends and the extension closes the tab that it opened. Your own tabs stay as they were.
 
-This uses the same client library (`native-host/transport.js`) that agent tools use. It opens the tab, attaches the debugger, binds the tab to `https://example.com`, navigates, and reads the page.
+This uses the same client library (`native-host/transport.js`) that agent tools use. It opens the tab, attaches the debugger, binds the tab to `https://browser-control.pages.dev`, navigates, and reads the page.
 
 ### 8. Pause and resume
 
