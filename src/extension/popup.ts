@@ -9,6 +9,7 @@ const errorText = document.getElementById("error-text") as HTMLElement;
 const version = document.getElementById("version") as HTMLElement;
 const reloadButton = document.getElementById("reload-host") as HTMLButtonElement;
 const pauseButton = document.getElementById("pause-host") as HTMLButtonElement;
+const extensionsLink = document.getElementById("open-extensions") as HTMLAnchorElement;
 
 version.textContent = `Version v${chrome.runtime.getManifest().version}`;
 
@@ -24,13 +25,19 @@ function renderStatus(status: Partial<NativeHostStatus> = {}) {
   currentState = state;
   const connected = state === "connected";
   const paused = state === "paused";
-  statusPill.className = `pill ${connected ? "connected" : paused ? "paused" : "disconnected"}`;
-  statusPill.textContent = connected ? "Connected" : paused ? "Paused" : "Disconnected";
+  const connecting = state === "connecting";
+  const hostMissing = !status.error || /not found/i.test(status.error);
+  statusPill.className = `pill ${connected ? "connected" : paused ? "paused" : connecting ? "pending" : "disconnected"}`;
+  statusPill.textContent = connected ? "Connected" : paused ? "Paused" : connecting ? "Connecting" : "Disconnected";
   summary.textContent = connected
-    ? "Control Chrome with Chrome Control."
+    ? "Connected to the local agent host."
     : paused
       ? "Native host paused. Resume to reconnect."
-      : "Install the native host to connect.";
+      : connecting
+        ? "Starting the local native host..."
+        : hostMissing
+          ? "Install the native host to connect."
+          : "Native host stopped. It restarts automatically, or click Reload host.";
   hostName.textContent = status.hostName || "-";
   lastChecked.textContent = formatTime(status.lastChecked);
   errorText.textContent = status.error || "-";
@@ -75,6 +82,10 @@ function refreshStatus() {
 
 reloadButton.addEventListener("click", () => sendControl("RELOAD_NATIVE_HOST"));
 pauseButton.addEventListener("click", () => sendControl(currentState === "paused" ? "RESUME_NATIVE_HOST" : "PAUSE_NATIVE_HOST"));
+extensionsLink.addEventListener("click", (event) => {
+  event.preventDefault();
+  void chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+});
 
 chrome.storage.onChanged.addListener((changes, area) => {
   const status = parseWithSchema(NativeHostStatusSchema, changes.NATIVE_HOST_STATUS?.newValue);

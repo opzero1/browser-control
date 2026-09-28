@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-const require_NodeRuntime = require("../chunks/NodeRuntime-CfddDOOs.js");
-const require_effect_services = require("../chunks/effect-services-BrlJlqgg.js");
+const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
+const require_effect_services = require("../chunks/effect-services-DcZl9PNJ.js");
 //#region src/scripts/open-chrome-window.ts
 var json = process.argv.includes("--json");
 var dryRun = process.argv.includes("--dry-run");
 var url = process.argv.find((arg) => !arg.startsWith("--") && arg !== process.argv[0] && arg !== process.argv[1]) || "about:blank";
-require_effect_services.runScript(require_NodeRuntime.gen(function* () {
+require_effect_services.runScript(require_Layer.gen(function* () {
 	const io = yield* require_effect_services.ScriptIo;
-	const [command, args] = yield* require_NodeRuntime.try_({
+	const [command, args] = yield* require_Layer.try_({
 		try: () => {
 			if (process.platform === "darwin") return ["open", [
 				"-na",

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Steps for Chrome Web Store reviewers to install the Browser Control native messaging host and see the extension work.">
+  <title>Reviewer test steps – Browser Control</title>
+  <link rel="icon" type="image/png" href="../../icon.png">
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="../../"><img src="../../icon.png" alt="" width="32" height="32">Browser Control</a>
+      <nav class="nav" aria-label="Main">
+        <ul>
+          <li><a href="../../">Home</a></li>
+          <li><a href="../../privacy/">Privacy</a></li>
+          <li><a href="../">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <h1>Reviewer test steps</h1>
+    <p class="lead">These steps show Browser Control working, for Chrome Web Store reviewers and anyone else who wants to try it.</p>
+    <div class="note">
+      <p>Browser Control does nothing until its local native messaging host is installed. Until then, the popup shows <strong>Disconnected</strong>. For other help, see <a href="../">Support</a>.</p>
+    </div>
+
+    <!-- Generated from store/reviewer-test-instructions.md, from "What you need" to the end. Keep both copies in sync. -->
+    <h2 id="what-you-need">What you need</h2>
+    <ul>
+      <li>macOS or Linux, with Google Chrome™ 106 or later (<code>minimum_chrome_version</code> in <code>manifest.json</code>). Use one Chrome profile with Browser Control turned on. All profiles share one host socket, so a second profile cannot connect at the same time.</li>
+      <li>Node.js 18 or later on the <code>PATH</code>. Check with <code>node --version</code>. The host is a Node.js program.</li>
+      <li><code>curl</code> and <code>unzip</code>. Both come with macOS. On Debian or Ubuntu: <code>sudo apt-get install curl unzip</code>.</li>
+      <li>Internet access to <code>browser-control.pages.dev</code> (to download the helper) and to <code>https://example.com/</code> (for the demo page).</li>
+      <li>No account, sign-in, API key or server is needed. <code>ffmpeg</code> is not needed.</li>
+      <li>Windows is not covered by these steps. A host started by Chrome on Windows needs a private token file that the installer does not create.</li>
+    </ul>
+    <h2 id="steps">Steps</h2>
+    <h3 id="step-1">1. Install the extension and see the idle state</h3>
+    <ol>
+      <li>Install Browser Control.</li>
+      <li>Click the Browser Control icon in the toolbar.</li>
+    </ol>
+    <p>Expected: the popup shows <strong>Disconnected</strong> and "Install the native host to connect." Nothing else happens. The extension has no network code, so it stays idle until a host exists.</p>
+    <h3 id="step-2">2. Download the helper</h3>
+    <pre><code>mkdir -p ~/browser-control-review
+cd ~/browser-control-review
+curl -fsSL -o chrome-control-skill.zip https://browser-control.pages.dev/download/chrome-control-skill.zip
+unzip -o chrome-control-skill.zip -d helper
+cd helper
+ls</code></pre>
+    <p>Expected: the folder contains <code>SKILL.md</code>, <code>native-host/</code>, <code>scripts/</code> and <code>chunks/</code>. Run all later commands in this <code>helper</code> folder.</p>
+    <p>The link downloads <code>chrome-control-skill.zip</code> for version 0.2.1 from this website. The same file is built from the source at <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>.</p>
+    <h3 id="step-3">3. Install the native messaging host</h3>
+    <pre><code>node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld
+node scripts/check-native-host-manifest.js --json</code></pre>
+    <p>Expected:</p>
+    <ul>
+      <li>The installer prints <code>Installed native messaging manifest:</code> with the manifest path, <code>Allowed extension origin: chrome-extension://dcnjjnecbhipdbngkhjppkckpkellmld/</code>, and <code>Host executable:</code> with the path of <code>native-host/opzero-chrome-host</code>.</li>
+      <li>The check prints JSON with <code>"ok": true</code> and <code>"status": "valid"</code>.</li>
+    </ul>
+    <p>The manifest is written to <code>~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.opzero.chrome.json</code> on macOS, or <code>~/.config/google-chrome/NativeMessagingHosts/com.opzero.chrome.json</code> on Linux.</p>
+    <h3 id="step-4">4. Connect</h3>
+    <ol>
+      <li>Open the Browser Control popup.</li>
+      <li>Click <strong>Reload host</strong>.</li>
+    </ol>
+    <p>Expected: the popup shows <strong>Connected</strong> and "Connected to the local agent host." If it still shows Disconnected, wait 30 seconds (the extension retries automatically) or click <strong>Reload host</strong> again.</p>
+    <h3 id="step-5">5. Check the connection from the command line</h3>
+    <pre><code>node native-host/client.js ping
+node native-host/client.js getInfo</code></pre>
+    <p>Expected:</p>
+    <ul>
+      <li><code>ping</code> prints <code>{"jsonrpc":"2.0","id":1,"result":"pong"}</code>. The answer comes from the extension through the host.</li>
+      <li><code>getInfo</code> prints one JSON line with <code>"version":"0.2.1"</code>, <code>"protocolVersion":2</code>, <code>"pageProtocolVersion":2</code> and <code>"extensionId":"dcnjjnecbhipdbngkhjppkckpkellmld"</code>.</li>
+    </ul>
+    <p>If <code>ping</code> reports <code>Extension protocol v2 is not ready</code>, wait a few seconds and run it again. The host checks the extension for up to 10 seconds after it starts.</p>
+    <h3 id="step-6">6. List open tabs (read only)</h3>
+    <p>The client accepts request data only on standard input:</p>
+    <pre><code>echo '{"jsonrpc":"2.0","id":1,"method":"getUserTabs","params":{}}' | node native-host/client.js --stdio</code></pre>
+    <p>Expected: one JSON line whose <code>result</code> lists your open tabs with <code>id</code>, <code>title</code>, <code>url</code>, <code>windowId</code> and <code>groupId</code>. Chrome internal pages, such as <code>chrome://extensions</code>, are left out.</p>
+    <h3 id="step-7">7. Open and read a tab</h3>
+    <p>Save this file as <code>review-demo.js</code> in the <code>helper</code> folder:</p>
+    <pre><code>const os = require("node:os");
+const path = require("node:path");
+const { ChromeTransport } = require("./native-host/transport.js");
+
+const socket = process.env.OPZERO_CHROME_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
+
+(async () =&gt; {
+  const browser = await ChromeTransport.connect(socket);
+  try {
+    const page = await browser.open("https://example.com/");
+    const snapshot = await browser.waitFor(page, { text: "Example Domain" }, 15000);
+    console.log(JSON.stringify({ url: snapshot.url, title: snapshot.title, text: snapshot.text.slice(0, 200), actions: snapshot.actions }, null, 2));
+    console.log("The tab stays open for 20 seconds. Click it in the \"Browser Control\" tab group to watch.");
+    await new Promise((resolve) =&gt; setTimeout(resolve, 20000));
+  } finally {
+    await browser.close();
+  }
+})().catch((error) =&gt; {
+  console.error(error.message);
+  process.exit(1);
+});</code></pre>
+    <p>Then run:</p>
+    <pre><code>node review-demo.js</code></pre>
+    <p>Expected:</p>
+    <ol>
+      <li>A new background tab opens in a tab group named <strong>Browser Control</strong>.</li>
+      <li>Chrome shows its notice that Browser Control is debugging the browser.</li>
+      <li>The script prints JSON with <code>"url": "https://example.com/"</code>, the page title, the start of the visible text, and an <code>actions</code> list with the page's link.</li>
+      <li>After 20 seconds the script ends and the extension closes the tab that it opened. Your own tabs stay as they were.</li>
+    </ol>
+    <p>This uses the same client library (<code>native-host/transport.js</code>) that agent tools use. It opens the tab, attaches the debugger, binds the tab to <code>https://example.com</code>, navigates, and reads the page.</p>
+    <h3 id="step-8">8. Pause and resume</h3>
+    <ol>
+      <li>In the popup, click <strong>Pause host</strong>. The popup shows <strong>Paused</strong>, and the button changes to <strong>Resume host</strong>.</li>
+      <li>Run <code>node native-host/client.js ping</code>. It fails with <code>Private client stopped; outcome may be unknown; do not replay</code>, because pausing stops the host.</li>
+      <li>Click <strong>Resume host</strong>. The popup shows <strong>Connected</strong> again, and <code>ping</code> prints <code>pong</code>.</li>
+    </ol>
+    <h3 id="step-9">9. Clean up</h3>
+    <ol>
+      <li>Remove the extension on <code>chrome://extensions</code>.</li>
+      <li>Remove the host manifest and the socket folder:
+        <ul>
+          <li>macOS: <code>rm "$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.opzero.chrome.json"</code></li>
+          <li>Linux: <code>rm "$HOME/.config/google-chrome/NativeMessagingHosts/com.opzero.chrome.json"</code></li>
+          <li>Both: <code>rm -r "$HOME/.opzero-chrome" ~/browser-control-review</code></li>
+        </ul>
+      </li>
+    </ol>
+    <h2 id="where-to-look-in-the-code">Where to look in the code</h2>
+    <div class="table-scroll" role="region" aria-label="Behavior and Source" tabindex="0">
+      <table>
+        <thead><tr><th scope="col">Behavior</th><th scope="col">Source</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Connection, reconnect and heartbeat</th><td><code>src/extension/background.ts</code>, <code>NativeTransport</code></td></tr>
+          <tr><th scope="row">Request handlers (<code>getUserTabs</code>, <code>createTab</code>, <code>observePage</code>, <code>capturePage</code>, <code>executeCdp</code> and others)</th><td><code>src/extension/background.ts</code>, the <code>api</code> object</td></tr>
+          <tr><th scope="row">Page reading and actions</th><td><code>src/extension/page-control.ts</code></td></tr>
+          <tr><th scope="row">Private credential fill</th><td><code>src/extension/private-input.ts</code></td></tr>
+          <tr><th scope="row">Cursor overlay</th><td><code>src/extension/content-scripts/opzero-chrome.ts</code></td></tr>
+          <tr><th scope="row">Native messaging host</th><td><code>src/native-host/host.ts</code></td></tr>
+          <tr><th scope="row">Command-line client and client library</th><td><code>src/native-host/client.ts</code>, <code>src/native-host/transport.ts</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav aria-label="Footer">
+        <ul class="footer-links">
+          <li><a href="../../">Home</a></li>
+          <li><a href="../../privacy/">Privacy</a></li>
+          <li><a href="../">Support</a></li>
+          <li><a href="https://github.com/opzero1/browser-control">GitHub</a></li>
+        </ul>
+      </nav>
+      <p>Published by the Browser Control maintainers.</p>
+      <p>Google Chrome is a trademark of Google LLC.</p>
+    </div>
+  </footer>
+</body>
+</html>

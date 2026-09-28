@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-const require_NodeRuntime = require("../chunks/NodeRuntime-CfddDOOs.js");
-const require_effect_services = require("../chunks/effect-services-BrlJlqgg.js");
+const require_Layer = require("../chunks/Layer-Dc3MJVHo.js");
+const require_effect_services = require("../chunks/effect-services-DcZl9PNJ.js");
 let node_os = require("node:os");
-node_os = require_NodeRuntime.__toESM(node_os);
+node_os = require_Layer.__toESM(node_os);
 let node_path = require("node:path");
-node_path = require_NodeRuntime.__toESM(node_path);
+node_path = require_Layer.__toESM(node_path);
 //#region src/scripts/check-native-host-manifest.ts
 var hostName = "com.opzero.chrome";
 var json = process.argv.includes("--json");
@@ -16,7 +16,7 @@ function defaultManifestPath() {
 }
 var manifestPath = require_effect_services.argValue("manifest-path", defaultManifestPath());
 function configuredExtensionId() {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
 		const explicit = require_effect_services.argValue("extension-id", process.env.OPZERO_CHROME_EXTENSION_ID);
 		if (explicit) return explicit;
@@ -26,11 +26,11 @@ function configuredExtensionId() {
 	});
 }
 function checkWindowsRegistry(expectedPath) {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		if (process.platform !== "win32") return [];
 		const io = yield* require_effect_services.ScriptIo;
 		const key = `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${hostName}`;
-		const output = yield* require_NodeRuntime.either(io.execFile("reg", [
+		const output = yield* require_Layer.either(io.execFile("reg", [
 			"query",
 			key,
 			"/ve"
@@ -40,7 +40,7 @@ function checkWindowsRegistry(expectedPath) {
 	});
 }
 function output(result, exitCode) {
-	return require_NodeRuntime.gen(function* () {
+	return require_Layer.gen(function* () {
 		const io = yield* require_effect_services.ScriptIo;
 		if (json) yield* io.stdout(`${JSON.stringify(result, null, 2)}\n`);
 		else if (result.ok) yield* io.stdout(`${result.message}\n`);
@@ -58,7 +58,7 @@ function repairCommand(extensionId) {
 		manifestPath
 	];
 }
-require_effect_services.runScript(require_NodeRuntime.gen(function* () {
+require_effect_services.runScript(require_Layer.gen(function* () {
 	const io = yield* require_effect_services.ScriptIo;
 	const extensionId = yield* configuredExtensionId();
 	if (!extensionId) {

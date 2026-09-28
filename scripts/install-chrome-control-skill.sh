@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-RELEASE_URL="${CHROME_CONTROL_SKILL_URL:-https://github.com/opzero1/op-chrome/releases/latest/download/chrome-control-skill.zip}"
+RELEASE_URL="${CHROME_CONTROL_SKILL_URL:-https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip}"
 INSTALL_DIR="${CHROME_CONTROL_SKILL_DIR:-$HOME/.config/opencode/skills/chrome-control}"
 TMP_DIR="$(mktemp -d)"
 ZIP_PATH="$TMP_DIR/chrome-control-skill.zip"

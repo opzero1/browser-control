@@ -4,3 +4,6 @@ node_modules/
 coverage/
 dist/
 scripts/extension-id.json
+experiments/artifacts/
+experiments/chrome-jev/ready.json
+site/download/

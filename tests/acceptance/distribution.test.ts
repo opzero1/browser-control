@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { testTemp } from "../support/temp";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -39,14 +40,15 @@ function runNode(args: string[], env: NodeJS.ProcessEnv = {}) {
   });
 }
 
-describe("Chrome Control distribution", () => {
+describe("Browser Control distribution", () => {
   it("builds a loadable MV3 extension with self-contained browser entrypoints", () => {
     const manifest = readJson("dist/extension/manifest.json");
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.name).toBe("Chrome Control");
+    expect(manifest.name).toBe("Browser Control");
     expect(manifest.background.service_worker).toBe("background.js");
     expect(manifest.permissions).toEqual(expect.arrayContaining(["nativeMessaging", "debugger", "scripting", "tabs"]));
-    expect(manifest.permissions).not.toEqual(expect.arrayContaining(["bookmarks", "downloads.ui", "favicon", "notifications", "readingList", "sessions", "topSites"]));
+    expect(manifest.permissions).toEqual(["alarms", "debugger", "nativeMessaging", "scripting", "storage", "tabGroups", "tabs"]);
+    expect(manifest.host_permissions).toEqual(["<all_urls>"]);
 
     for (const [size, file] of Object.entries({
       "16": "images/icon-16.png",
@@ -80,7 +82,7 @@ describe("Chrome Control distribution", () => {
       "dist/skill/chrome-control/chunks",
       "dist/skill/chrome-control/scripts/install-native-host.js",
       "dist/skill/chrome-control/scripts/check-native-host-manifest.js",
-      "dist/release/opzero-chrome-extension.zip",
+      "dist/release/browser-control-extension.zip",
       "dist/release/chrome-control-skill.zip"
     ];
     for (const file of files) {
@@ -131,7 +133,7 @@ describe("Chrome Control distribution", () => {
   });
 
   it("installs and validates a native host manifest using the packaged skill", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opzero-chrome-test-"));
+    const tempDir = testTemp();
     const skillDir = path.join(tempDir, "chrome-control");
     copyDir(path.join(root, "dist/skill/chrome-control"), skillDir);
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
@@ -168,13 +170,13 @@ describe("Chrome Control distribution", () => {
   });
 
   it("reports a repair command for an invalid native host manifest", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opzero-chrome-test-"));
+    const tempDir = testTemp();
     const skillDir = path.join(tempDir, "chrome-control");
     copyDir(path.join(root, "dist/skill/chrome-control"), skillDir);
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
     fs.writeFileSync(manifestPath, `${JSON.stringify({
       name: "com.opzero.chrome",
-      description: "Opzero Chrome native messaging host",
+      description: "Browser Control native messaging host",
       type: "stdio",
       path: process.execPath,
       allowed_origins: []
@@ -203,7 +205,7 @@ describe("Chrome Control distribution", () => {
   });
 
   it("detects extensions registered in Chrome Secure Preferences", async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "opzero-chrome-test-"));
+    const tempDir = testTemp();
     const profileDir = path.join(tempDir, "Default");
     fs.mkdirSync(profileDir, { recursive: true });
     fs.writeFileSync(path.join(tempDir, "Local State"), `${JSON.stringify({ profile: { last_used: "Default" } })}\n`);
@@ -238,8 +240,10 @@ describe("Chrome Control distribution", () => {
   });
 
   it("responds to native messaging ping frames", async () => {
+    const tempDir = testTemp();
     const child = spawn(process.execPath, ["dist/native-host/host.js"], {
       cwd: root,
+      env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: path.join(tempDir, "s") },
       stdio: ["pipe", "pipe", "pipe"]
     });
 
@@ -252,12 +256,20 @@ describe("Chrome Control distribution", () => {
 
       child.stdout.on("data", (chunk) => {
         buffer = Buffer.concat([buffer, chunk]);
-        if (buffer.length < 4) return;
-        const length = buffer.readUInt32LE(0);
-        if (buffer.length < 4 + length) return;
-        clearTimeout(timeout);
-        child.kill();
-        resolve(JSON.parse(buffer.subarray(4, 4 + length).toString("utf8")));
+        while (buffer.length >= 4 && buffer.length >= 4 + buffer.readUInt32LE(0)) {
+          const length = buffer.readUInt32LE(0);
+          const message = JSON.parse(buffer.subarray(4, 4 + length).toString("utf8"));
+          buffer = buffer.subarray(4 + length);
+          if (message.method === "getInfo") {
+            const body = Buffer.from(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: 2 } }));
+            const header = Buffer.alloc(4); header.writeUInt32LE(body.length);
+            child.stdin.write(Buffer.concat([header, body]));
+            continue;
+          }
+          clearTimeout(timeout);
+          child.kill();
+          resolve(message);
+        }
       });
       child.on("error", reject);
 
@@ -271,7 +283,7 @@ describe("Chrome Control distribution", () => {
   });
 
   it("lets pnpm-style script forwarding call the built client", async () => {
-    const socketPath = path.join(os.tmpdir(), `opzero-chrome-client-test-${process.pid}.sock`);
+    const socketPath = path.join(os.tmpdir(), "opencode", `oc-${process.pid}.sock`);
     fs.rmSync(socketPath, { force: true });
 
     const server = net.createServer();

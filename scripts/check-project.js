@@ -58,9 +58,9 @@ for (const file of requiredFiles) {
 }
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "dist/extension/manifest.json"), "utf8"));
-for (const permission of ["debugger", "nativeMessaging", "scripting", "downloads", "history", "tabGroups", "tabs"]) {
-  if (!manifest.permissions.includes(permission)) failures.push(`Manifest missing ${permission}`);
-}
+const expectedPermissions = ["alarms", "debugger", "nativeMessaging", "scripting", "storage", "tabGroups", "tabs"];
+if (JSON.stringify(manifest.permissions) !== JSON.stringify(expectedPermissions)) failures.push(`Manifest permissions must be exactly ${expectedPermissions.join(", ")}`);
+if ("key" in manifest) failures.push("Store package manifest must not contain a key field");
 if (manifest.manifest_version !== 3) failures.push("Manifest is not MV3");
 if (manifest.background?.service_worker !== "background.js") failures.push("Manifest background service worker mismatch");
 for (const [size, file] of Object.entries({ 16: "images/icon-16.png", 32: "images/icon-32.png", 48: "images/icon-48.png", 128: "images/icon-128.png" })) {

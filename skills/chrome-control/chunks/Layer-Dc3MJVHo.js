@@ -8036,10 +8036,6 @@ var zip = /* @__PURE__ */ dual(2, (self, that) => flatMap$2(self, (a) => map$1(t
 var zipLeft = /* @__PURE__ */ dual(2, (self, that) => flatMap$2(self, (a) => as(that, a)));
 var zipRight = /* @__PURE__ */ dual(2, (self, that) => flatMap$2(self, () => that));
 var zipWith = /* @__PURE__ */ dual(3, (self, that, f) => flatMap$2(self, (a) => map$1(that, (b) => f(a, b))));
-var never$1 = /* @__PURE__ */ asyncInterrupt(() => {
-	const interval = setInterval(() => {}, 2 ** 31 - 1);
-	return sync$1(() => clearInterval(interval));
-});
 var interruptFiber = (self) => flatMap$2(fiberId, (fiberId) => pipe(self, interruptAsFiber(fiberId)));
 var interruptAsFiber = /* @__PURE__ */ dual(2, (self, fiberId) => flatMap$2(self.interruptAsFork(fiberId), () => self.await));
 /** @internal */
@@ -9681,30 +9677,6 @@ var tapErrorCause$1 = /* @__PURE__ */ dual(2, (self, f) => matchCauseEffect$1(se
 	onFailure: (cause) => zipRight(f(cause), failCause$1(cause)),
 	onSuccess: succeed$3
 }));
-var tryPromise$1 = (arg) => {
-	let evaluate;
-	let catcher = void 0;
-	if (typeof arg === "function") evaluate = arg;
-	else {
-		evaluate = arg.try;
-		catcher = arg.catch;
-	}
-	const fail = (e) => catcher ? failSync(() => catcher(e)) : fail$2(new UnknownException(e, "An unknown error occurred in Effect.tryPromise"));
-	if (evaluate.length >= 1) return async_((resolve, signal) => {
-		try {
-			evaluate(signal).then((a) => resolve(succeed$3(a)), (e) => resolve(fail(e)));
-		} catch (e) {
-			resolve(fail(e));
-		}
-	});
-	return async_((resolve) => {
-		try {
-			evaluate().then((a) => resolve(succeed$3(a)), (e) => resolve(fail(e)));
-		} catch (e) {
-			resolve(fail(e));
-		}
-	});
-};
 var updateFiberRefs = (f) => withFiberRuntime((state) => {
 	state.setFiberRefs(f(state.id(), state.getFiberRefs()));
 	return void_$1;
@@ -10960,7 +10932,7 @@ var prettyLoggerBrowser = (options) => {
 	});
 };
 /** @internal */
-var prettyLoggerDefault$1 = /* @__PURE__ */ globalValue("effect/Logger/prettyLoggerDefault", () => prettyLogger());
+var prettyLoggerDefault = /* @__PURE__ */ globalValue("effect/Logger/prettyLoggerDefault", () => prettyLogger());
 //#endregion
 //#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/internal/metric/boundaries.js
 /** @internal */
@@ -12469,7 +12441,7 @@ var FiberRuntime = class extends Class {
 		this._observers = [];
 	}
 	getLoggers() {
-		return this.getFiberRef(currentLoggers$1);
+		return this.getFiberRef(currentLoggers);
 	}
 	log(message, cause, overrideLogLevel) {
 		const logLevel = isSome(overrideLogLevel) ? overrideLogLevel.value : this.getFiberRef(currentLogLevel);
@@ -12871,7 +12843,7 @@ var loggerWithConsoleLog = (self) => makeLogger((opts) => {
 	get$6(getOrDefault(opts.context, currentServices), consoleTag).unsafe.log(self.log(opts));
 });
 /** @internal */
-var defaultLogger$1 = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/Logger/defaultLogger"), () => loggerWithConsoleLog(stringLogger));
+var defaultLogger = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/Logger/defaultLogger"), () => loggerWithConsoleLog(stringLogger));
 /** @internal */
 var tracerLogger = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/Logger/tracerLogger"), () => makeLogger(({ annotations, cause, context, fiberId, logLevel, message }) => {
 	const span = filterDisablePropagation(getOption(getOrDefault$1(context, currentContext), spanTag));
@@ -12885,7 +12857,7 @@ var tracerLogger = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effec
 	span.value.event(toStringUnknown(Array.isArray(message) && message.length === 1 ? message[0] : message), clockService.unsafeCurrentTimeNanos(), attributes);
 }));
 /** @internal */
-var currentLoggers$1 = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/FiberRef/currentLoggers"), () => fiberRefUnsafeMakeHashSet(make$15(defaultLogger$1, tracerLogger)));
+var currentLoggers = /* @__PURE__ */ globalValue(/* @__PURE__ */ Symbol.for("effect/FiberRef/currentLoggers"), () => fiberRefUnsafeMakeHashSet(make$15(defaultLogger, tracerLogger)));
 var allResolveInput = (input) => {
 	if (Array.isArray(input) || isIterable(input)) return [input, none$4()];
 	const keys = Object.keys(input);
@@ -13572,26 +13544,6 @@ var unsafeRunSyncExit = /* @__PURE__ */ makeDual((runtime, effect) => {
 	return exitDie$1(capture(asyncFiberException(fiberRuntime), currentSpanFromFiber(fiberRuntime)));
 });
 /** @internal */
-var unsafeRunPromise = /* @__PURE__ */ makeDual((runtime, effect, options) => unsafeRunPromiseExit(runtime, effect, options).then((result) => {
-	switch (result._tag) {
-		case OP_SUCCESS: return result.effect_instruction_i0;
-		case OP_FAILURE: throw fiberFailure(result.effect_instruction_i0);
-	}
-}));
-/** @internal */
-var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime, effect, options) => new Promise((resolve) => {
-	const op = fastPath(effect);
-	if (op) resolve(op);
-	const fiber = unsafeFork(runtime)(effect);
-	fiber.addObserver((exit) => {
-		resolve(exit);
-	});
-	if (options?.signal !== void 0) if (options.signal.aborted) fiber.unsafeInterruptAsFork(fiber.id());
-	else options.signal.addEventListener("abort", () => {
-		fiber.unsafeInterruptAsFork(fiber.id());
-	}, { once: true });
-}));
-/** @internal */
 var RuntimeImpl = class {
 	context;
 	runtimeFlags;
@@ -13615,8 +13567,6 @@ var defaultRuntime = /* @__PURE__ */ make({
 });
 /** @internal */
 var unsafeForkEffect = /* @__PURE__ */ unsafeFork(defaultRuntime);
-/** @internal */
-var unsafeRunPromiseEffect = /* @__PURE__ */ unsafeRunPromise(defaultRuntime);
 /** @internal */
 var unsafeRunSyncEffect = /* @__PURE__ */ unsafeRunSync(defaultRuntime);
 //#endregion
@@ -13941,21 +13891,6 @@ var fail = fail$2;
 */
 var gen = gen$1;
 /**
-* An effect that that runs indefinitely and never produces any result. The
-* moral equivalent of `while(true) {}`, only without the wasted CPU cycles.
-*
-* **When to Use**
-*
-* It could be useful for long-running background tasks or to simulate waiting
-* behavior without actually consuming resources. This effect is ideal for cases
-* where you want to keep the program alive or in a certain state without
-* performing any active work.
-*
-* @since 2.0.0
-* @category Creating Effects
-*/
-var never = never$1;
-/**
 * Delays the creation of an `Effect` until it is actually needed.
 *
 * **Details**
@@ -14150,71 +14085,6 @@ var _void = void_$1;
 */
 var catchAll = catchAll$1;
 var try_ = try_$1;
-/**
-* Creates an `Effect` that represents an asynchronous computation that might
-* fail.
-*
-* **When to Use**
-*
-* In situations where you need to perform asynchronous operations that might
-* fail, such as fetching data from an API, you can use the `tryPromise`
-* constructor. This constructor is designed to handle operations that could
-* throw exceptions by capturing those exceptions and transforming them into
-* manageable errors.
-*
-* **Error Handling**
-*
-* There are two ways to handle errors with `tryPromise`:
-*
-* 1. If you don't provide a `catch` function, the error is caught and the
-*    effect fails with an `UnknownException`.
-* 2. If you provide a `catch` function, the error is caught and the `catch`
-*    function maps it to an error of type `E`.
-*
-* **Interruptions**
-*
-* An optional `AbortSignal` can be provided to allow for interruption of the
-* wrapped `Promise` API.
-*
-* **Example** (Fetching a TODO Item)
-*
-* ```ts
-* import { Effect } from "effect"
-*
-* const getTodo = (id: number) =>
-*   // Will catch any errors and propagate them as UnknownException
-*   Effect.tryPromise(() =>
-*     fetch(`https://jsonplaceholder.typicode.com/todos/${id}`)
-*   )
-*
-* //      ┌─── Effect<Response, UnknownException, never>
-* //      ▼
-* const program = getTodo(1)
-* ```
-*
-* **Example** (Custom Error Handling)
-*
-* ```ts
-* import { Effect } from "effect"
-*
-* const getTodo = (id: number) =>
-*   Effect.tryPromise({
-*     try: () => fetch(`https://jsonplaceholder.typicode.com/todos/${id}`),
-*     // remap the error
-*     catch: (unknown) => new Error(`something went wrong ${unknown}`)
-*   })
-*
-* //      ┌─── Effect<Response, Error, never>
-* //      ▼
-* const program = getTodo(1)
-* ```
-*
-* @see {@link promise} if the effectful computation is asynchronous and does not throw errors.
-*
-* @since 2.0.0
-* @category Creating Effects
-*/
-var tryPromise = tryPromise$1;
 /**
 * Transforms the value inside an effect by applying a function to it.
 *
@@ -14642,51 +14512,6 @@ var logError = logError$1;
 */
 var runFork = unsafeForkEffect;
 /**
-* Executes an effect and returns the result as a `Promise`.
-*
-* **Details**
-*
-* This function runs an effect and converts its result into a `Promise`. If the
-* effect succeeds, the `Promise` will resolve with the successful result. If
-* the effect fails, the `Promise` will reject with an error, which includes the
-* failure details of the effect.
-*
-* The optional `options` parameter allows you to pass an `AbortSignal` for
-* cancellation, enabling more fine-grained control over asynchronous tasks.
-*
-* **When to Use**
-*
-* Use this function when you need to execute an effect and work with its result
-* in a promise-based system, such as when integrating with third-party
-* libraries that expect `Promise` results.
-*
-* **Example** (Running a Successful Effect as a Promise)
-*
-* ```ts
-* import { Effect } from "effect"
-*
-* Effect.runPromise(Effect.succeed(1)).then(console.log)
-* // Output: 1
-* ```
-*
-* **Example** (Handling a Failing Effect as a Rejected Promise)
-*
-* ```ts
-* import { Effect } from "effect"
-*
-* Effect.runPromise(Effect.fail("my error")).catch(console.error)
-* // Output:
-* // (FiberFailure) Error: my error
-* ```
-*
-* @see {@link runPromiseExit} for a version that returns an `Exit` type instead
-* of rejecting.
-*
-* @since 2.0.0
-* @category Running Effects
-*/
-var runPromise = unsafeRunPromiseEffect;
-/**
 * Executes an effect synchronously, running it immediately and returning the
 * result.
 *
@@ -14765,13 +14590,6 @@ var runPromise = unsafeRunPromiseEffect;
 */
 var runSync = unsafeRunSyncEffect;
 //#endregion
-//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/FiberRef.js
-/**
-* @since 2.0.0
-* @category fiberRefs
-*/
-var currentLoggers = currentLoggers$1;
-//#endregion
 //#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Layer.js
 /**
 * Constructs a layer from the specified value.
@@ -14780,85 +14598,6 @@ var currentLoggers = currentLoggers$1;
 * @category constructors
 */
 var succeed = succeed$1;
-//#endregion
-//#region node_modules/.pnpm/effect@3.21.2/node_modules/effect/dist/esm/Logger.js
-/**
-* @since 2.0.0
-* @category constructors
-*/
-var defaultLogger = defaultLogger$1;
-/**
-* A default version of the pretty logger.
-*
-* @since 3.8.0
-* @category constructors
-*/
-var prettyLoggerDefault = prettyLoggerDefault$1;
-//#endregion
-//#region node_modules/.pnpm/@effect+platform@0.96.1_effect@3.21.2/node_modules/@effect/platform/dist/esm/Runtime.js
-/**
-* @since 1.0.0
-*/
-/**
-* @category teardown
-* @since 1.0.0
-*/
-var defaultTeardown = (exit, onExit) => {
-	onExit(isFailure(exit) && !isInterruptedOnly(exit.cause) ? 1 : 0);
-};
-var addPrettyLogger = (refs, fiberId) => {
-	const loggers = getOrDefault(refs, currentLoggers);
-	if (!has$1(loggers, defaultLogger)) return refs;
-	return updateAs(refs, {
-		fiberId,
-		fiberRef: currentLoggers,
-		value: loggers.pipe(remove(defaultLogger), add(prettyLoggerDefault))
-	});
-};
-/**
-* @category constructors
-* @since 1.0.0
-*/
-var makeRunMain = (f) => dual((args) => isEffect(args[0]), (effect, options) => {
-	return f({
-		fiber: options?.disableErrorReporting === true ? runFork(effect, { updateRefs: options?.disablePrettyLogger === true ? void 0 : addPrettyLogger }) : runFork(tapErrorCause(effect, (cause) => {
-			if (isInterruptedOnly(cause)) return _void;
-			return logError(cause);
-		}), { updateRefs: options?.disablePrettyLogger === true ? void 0 : addPrettyLogger }),
-		teardown: options?.teardown ?? defaultTeardown
-	});
-});
-//#endregion
-//#region node_modules/.pnpm/@effect+platform-node@0.106.0_@effect+cluster@0.58.2_@effect+platform@0.96.1_effect@3.2_a80e93d5c9b0cafd3a2a57951ab69ada/node_modules/@effect/platform-node/dist/esm/NodeRuntime.js
-/**
-* @since 1.0.0
-*/
-/**
-* @since 1.0.0
-* @category runtime
-*/
-var runMain = /* @__PURE__ */ makeRunMain(({ fiber, teardown }) => {
-	const keepAlive = setInterval(constVoid, 2 ** 31 - 1);
-	let receivedSignal = false;
-	fiber.addObserver((exit) => {
-		if (!receivedSignal) {
-			process.removeListener("SIGINT", onSigint);
-			process.removeListener("SIGTERM", onSigint);
-		}
-		clearInterval(keepAlive);
-		teardown(exit, (code) => {
-			if (receivedSignal || code !== 0) process.exit(code);
-		});
-	});
-	function onSigint() {
-		receivedSignal = true;
-		process.removeListener("SIGINT", onSigint);
-		process.removeListener("SIGTERM", onSigint);
-		fiber.unsafeInterruptAsFork(fiber.id());
-	}
-	process.on("SIGINT", onSigint);
-	process.on("SIGTERM", onSigint);
-});
 //#endregion
 Object.defineProperty(exports, "Date", {
 	enumerable: true,
@@ -14920,6 +14659,12 @@ Object.defineProperty(exports, "_void", {
 		return _void;
 	}
 });
+Object.defineProperty(exports, "add", {
+	enumerable: true,
+	get: function() {
+		return add;
+	}
+});
 Object.defineProperty(exports, "allocate", {
 	enumerable: true,
 	get: function() {
@@ -14950,10 +14695,28 @@ Object.defineProperty(exports, "composite", {
 		return composite;
 	}
 });
+Object.defineProperty(exports, "constVoid", {
+	enumerable: true,
+	get: function() {
+		return constVoid;
+	}
+});
 Object.defineProperty(exports, "copy", {
 	enumerable: true,
 	get: function() {
 		return copy$1;
+	}
+});
+Object.defineProperty(exports, "currentLoggers", {
+	enumerable: true,
+	get: function() {
+		return currentLoggers;
+	}
+});
+Object.defineProperty(exports, "defaultLogger", {
+	enumerable: true,
+	get: function() {
+		return defaultLogger;
 	}
 });
 Object.defineProperty(exports, "dual", {
@@ -15076,6 +14839,12 @@ Object.defineProperty(exports, "getEquivalence$1", {
 		return getEquivalence$3;
 	}
 });
+Object.defineProperty(exports, "getOrDefault", {
+	enumerable: true,
+	get: function() {
+		return getOrDefault;
+	}
+});
 Object.defineProperty(exports, "getOrElse", {
 	enumerable: true,
 	get: function() {
@@ -15110,6 +14879,12 @@ Object.defineProperty(exports, "globalValue", {
 	enumerable: true,
 	get: function() {
 		return globalValue;
+	}
+});
+Object.defineProperty(exports, "has", {
+	enumerable: true,
+	get: function() {
+		return has$1;
 	}
 });
 Object.defineProperty(exports, "hasProperty", {
@@ -15184,6 +14959,12 @@ Object.defineProperty(exports, "isFailType", {
 		return isFailType;
 	}
 });
+Object.defineProperty(exports, "isFailure", {
+	enumerable: true,
+	get: function() {
+		return isFailure;
+	}
+});
 Object.defineProperty(exports, "isFiberId", {
 	enumerable: true,
 	get: function() {
@@ -15194,6 +14975,12 @@ Object.defineProperty(exports, "isFinite", {
 	enumerable: true,
 	get: function() {
 		return isFinite;
+	}
+});
+Object.defineProperty(exports, "isInterruptedOnly", {
+	enumerable: true,
+	get: function() {
+		return isInterruptedOnly;
 	}
 });
 Object.defineProperty(exports, "isLeft", {
@@ -15322,6 +15109,12 @@ Object.defineProperty(exports, "liftThrowable", {
 		return liftThrowable;
 	}
 });
+Object.defineProperty(exports, "logError", {
+	enumerable: true,
+	get: function() {
+		return logError;
+	}
+});
 Object.defineProperty(exports, "make", {
 	enumerable: true,
 	get: function() {
@@ -15406,12 +15199,6 @@ Object.defineProperty(exports, "nanos", {
 		return nanos;
 	}
 });
-Object.defineProperty(exports, "never", {
-	enumerable: true,
-	get: function() {
-		return never;
-	}
-});
 Object.defineProperty(exports, "none", {
 	enumerable: true,
 	get: function() {
@@ -15472,10 +15259,22 @@ Object.defineProperty(exports, "prettyErrorMessage", {
 		return prettyErrorMessage;
 	}
 });
+Object.defineProperty(exports, "prettyLoggerDefault", {
+	enumerable: true,
+	get: function() {
+		return prettyLoggerDefault;
+	}
+});
 Object.defineProperty(exports, "provide", {
 	enumerable: true,
 	get: function() {
 		return provide;
+	}
+});
+Object.defineProperty(exports, "remove", {
+	enumerable: true,
+	get: function() {
+		return remove;
 	}
 });
 Object.defineProperty(exports, "right", {
@@ -15488,18 +15287,6 @@ Object.defineProperty(exports, "runFork", {
 	enumerable: true,
 	get: function() {
 		return runFork;
-	}
-});
-Object.defineProperty(exports, "runMain", {
-	enumerable: true,
-	get: function() {
-		return runMain;
-	}
-});
-Object.defineProperty(exports, "runPromise", {
-	enumerable: true,
-	get: function() {
-		return runPromise;
 	}
 });
 Object.defineProperty(exports, "runSync", {
@@ -15562,6 +15349,12 @@ Object.defineProperty(exports, "sync", {
 		return sync;
 	}
 });
+Object.defineProperty(exports, "tapErrorCause", {
+	enumerable: true,
+	get: function() {
+		return tapErrorCause;
+	}
+});
 Object.defineProperty(exports, "toMillis", {
 	enumerable: true,
 	get: function() {
@@ -15574,12 +15367,6 @@ Object.defineProperty(exports, "toNanos", {
 		return toNanos;
 	}
 });
-Object.defineProperty(exports, "tryPromise", {
-	enumerable: true,
-	get: function() {
-		return tryPromise;
-	}
-});
 Object.defineProperty(exports, "try_", {
 	enumerable: true,
 	get: function() {
@@ -15590,5 +15377,11 @@ Object.defineProperty(exports, "try_$1", {
 	enumerable: true,
 	get: function() {
 		return try_$2;
+	}
+});
+Object.defineProperty(exports, "updateAs", {
+	enumerable: true,
+	get: function() {
+		return updateAs;
 	}
 });
