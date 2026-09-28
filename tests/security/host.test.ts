@@ -158,6 +158,42 @@ it("protects Unix endpoint permissions and never steals a running endpoint", asy
   await vi.waitFor(() => expect(a.messages[0]?.result).toBe("pong"));
 });
 
+it("reclaims the stale endpoint of a host that was killed without cleanup", async () => {
+  const h = await host();
+  const exited = new Promise(resolve => h.child.once("exit", resolve));
+  h.child.kill("SIGKILL");
+  await exited;
+  expect(fs.lstatSync(h.endpoint).isSocket()).toBe(true);
+  const child = spawn(process.execPath, ["dist/native-host/host.js"], {
+    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
+  });
+  cleanup.push(() => child.kill());
+  await vi.waitFor(async () => {
+    const pong = await new Promise<string>((resolve, reject) => {
+      const socket = net.connect(h.endpoint);
+      socket.setEncoding("utf8");
+      socket.once("error", reject);
+      socket.once("connect", () => socket.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "host.ping" })}\n`));
+      socket.once("data", chunk => { socket.destroy(); resolve(JSON.parse(String(chunk)).result); });
+    });
+    expect(pong).toBe("pong");
+  });
+  expect(fs.statSync(h.endpoint).mode & 0o777).toBe(0o600);
+});
+
+it("refuses an endpoint path that holds something other than a socket", async () => {
+  const directory = testTemp();
+  cleanup.push(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const endpoint = path.join(directory, "s");
+  fs.writeFileSync(endpoint, "not a socket");
+  const child = spawn(process.execPath, ["dist/native-host/host.js"], {
+    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
+  });
+  cleanup.push(() => child.kill());
+  expect(await new Promise(resolve => child.on("exit", resolve))).toBe(1);
+  expect(fs.readFileSync(endpoint, "utf8")).toBe("not a socket");
+});
+
 it.each(["dispatch", "release"])("removes its own endpoint when the native output pipe breaks during %s", async mode => {
   const h = await host(); const a = await h.connect();
   a.request(1, "host.info");

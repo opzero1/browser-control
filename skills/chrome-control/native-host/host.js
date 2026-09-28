@@ -274,15 +274,45 @@ try {
 		});
 		const stat = node_fs.default.lstatSync(directory);
 		if (!stat.isDirectory() || stat.uid !== node_process.default.getuid?.() || (stat.mode & 63) !== 0) throw new Error("private socket directory required");
-		if (node_fs.default.existsSync(socketPath)) throw new Error("endpoint exists");
-		server.listen(socketPath, () => {
-			ownsSocket = true;
-			node_fs.default.chmodSync(socketPath, 384);
-		});
+		if (!node_fs.default.existsSync(socketPath)) listenUnix();
+		else {
+			const existing = node_fs.default.lstatSync(socketPath);
+			if (!existing.isSocket() || existing.uid !== node_process.default.getuid?.()) throw new Error("endpoint exists");
+			reclaimStaleSocket();
+		}
 	}
 } catch {
+	refuseEndpoint();
+}
+function refuseEndpoint() {
 	node_process.default.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
 	shutdown(1);
+}
+function listenUnix() {
+	server.listen(socketPath, () => {
+		ownsSocket = true;
+		node_fs.default.chmodSync(socketPath, 384);
+	});
+}
+function reclaimStaleSocket() {
+	const probe = node_net.default.connect(socketPath);
+	probe.once("connect", () => {
+		probe.destroy();
+		refuseEndpoint();
+	});
+	probe.once("error", (probeError) => {
+		if (probeError.code !== "ECONNREFUSED") {
+			refuseEndpoint();
+			return;
+		}
+		try {
+			node_fs.default.unlinkSync(socketPath);
+		} catch {
+			refuseEndpoint();
+			return;
+		}
+		listenUnix();
+	});
 }
 var buffer = Buffer.alloc(0);
 node_process.default.stdin.on("data", (chunk) => {

@@ -210,12 +210,36 @@ try {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     const stat = fs.lstatSync(directory);
     if (!stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) throw new Error("private socket directory required");
-    if (fs.existsSync(socketPath)) throw new Error("endpoint exists");
-    server.listen(socketPath, () => { ownsSocket = true; fs.chmodSync(socketPath, 0o600); });
+    if (!fs.existsSync(socketPath)) listenUnix();
+    else {
+      const existing = fs.lstatSync(socketPath);
+      if (!existing.isSocket() || existing.uid !== process.getuid?.()) throw new Error("endpoint exists");
+      reclaimStaleSocket();
+    }
   }
 } catch {
+  refuseEndpoint();
+}
+
+function refuseEndpoint() {
   process.stderr.write("Native endpoint setup refused; use a private directory or authenticated TCP\n");
   shutdown(1);
+}
+
+function listenUnix() {
+  server.listen(socketPath, () => { ownsSocket = true; fs.chmodSync(socketPath, 0o600); });
+}
+
+// A host killed without cleanup leaves its socket file behind. Only a
+// refused connection proves no live host owns it; anything else is left alone.
+function reclaimStaleSocket() {
+  const probe = net.connect(socketPath);
+  probe.once("connect", () => { probe.destroy(); refuseEndpoint(); });
+  probe.once("error", (probeError: NodeJS.ErrnoException) => {
+    if (probeError.code !== "ECONNREFUSED") { refuseEndpoint(); return; }
+    try { fs.unlinkSync(socketPath); } catch { refuseEndpoint(); return; }
+    listenUnix();
+  });
 }
 
 let buffer = Buffer.alloc(0);

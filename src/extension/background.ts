@@ -482,11 +482,14 @@ class NativeTransport {
     if (this.paused || this.port) return;
     try {
       this.port = chrome.runtime.connectNative(this.hostName);
-      this.connected = true;
-      this.reconnectAttempt = 0;
-      this.setStatus("connected").catch(() => undefined);
+      this.connected = false;
+      this.setStatus("connecting").catch(() => undefined);
       const port = this.port;
-      port.onMessage.addListener((message) => { if (this.port === port) this.onMessage(message); });
+      port.onMessage.addListener((message) => {
+        if (this.port !== port) return;
+        this.markConnected();
+        this.onMessage(message);
+      });
       port.onDisconnect.addListener(() => { if (this.port === port) this.onDisconnect(); });
     } catch (error) {
       this.connected = false;
@@ -497,6 +500,15 @@ class NativeTransport {
         nextRetryMs: 5000
       }).catch(() => undefined);
     }
+  }
+
+  // connectNative returns a port even when no host is installed, so only a
+  // message from the host proves that it is running.
+  markConnected() {
+    if (this.connected) return;
+    this.connected = true;
+    this.reconnectAttempt = 0;
+    this.setStatus("connected").catch(() => undefined);
   }
 
   onDisconnect() {
