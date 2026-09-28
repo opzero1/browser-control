@@ -5,8 +5,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { packageAssets, type PackageAssets } from "./assets";
 import { HOST_SOCKET_ENV, ISOLATED_EXTENSION_ID, ISOLATED_EXTENSION_KEY, statePaths, type Env } from "./config";
-import { childDirectory, existingDirectory, io, openDirectory, readPrivate, syncDirectory, verified, writePrivate, type PrivateDir } from "./fs-private";
+import { childDirectory, entryStats, existingDirectory, io, openDirectory, readPrivate, syncDirectory, verified, writePrivate, type PrivateDir } from "./fs-private";
 import { Gate } from "./gate";
+import { lockWait } from "./lock";
 
 export function sha256(data: Uint8Array | string): string {
   return createHash("sha256").update(data).digest("hex");
@@ -27,14 +28,32 @@ export function extensionIdFromKey(key: string): string {
   return chromeId(sha256(Buffer.from(key, "base64")));
 }
 
+/** The lock in each parent that serializes publications into it across processes. */
+export const PUBLISH_LOCK = ".publish.lock";
+
 /**
  * Publish `files` as <parent>/<name>/ atomically: build a private temporary directory beside it, fsync, then
- * rename. An existing copy whose files differ is replaced the same way.
+ * rename it into place. Publications into one parent are serialized, and the target is checked again under
+ * the lock, so a valid copy that another process published (and may be using) is never touched.
  */
-export function publishTree(parent: PrivateDir, name: string, files: ReadonlyMap<string, Uint8Array>): string {
+export async function publishTree(parent: PrivateDir, name: string, files: ReadonlyMap<string, Uint8Array>): Promise<string> {
   const target = path.join(verified(parent), name);
   if (treeMatches(target, files)) return target;
+  const lock = await lockWait(parent, PUBLISH_LOCK, true);
+  try {
+    if (!treeMatches(target, files)) replaceTree(parent, name, files);
+  } finally {
+    lock.release();
+  }
+  if (!treeMatches(target, files)) throw new Gate("browser-controller-unsafe-directory");
+  return target;
+}
+
+/** Under PUBLISH_LOCK: stage the tree, move a damaged copy aside with one rename, then rename the new one in. */
+function replaceTree(parent: PrivateDir, name: string, files: ReadonlyMap<string, Uint8Array>): void {
+  const target = path.join(verified(parent), name);
   const temporary = `.tmp-${randomUUID()}`;
+  const displaced = `.old-${randomUUID()}`;
   const staging = childDirectory(parent, temporary);
   try {
     for (const [relative, data] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
@@ -43,19 +62,15 @@ export function publishTree(parent: PrivateDir, name: string, files: ReadonlyMap
       for (const part of parts.slice(0, -1)) directory = childDirectory(directory, part);
       writePrivate(directory, parts[parts.length - 1], data, 0o600, ".write-");
     }
-    if (fs.existsSync(target)) io(() => fs.rmSync(target, { recursive: true, force: true }));
-    try {
-      io(() => fs.renameSync(staging.path, target));
-    } catch (error) {
-      // Another process published the same name first.
-      if (!treeMatches(target, files)) throw error;
-    }
+    // Names are content-addressed, so an existing copy that differs is damaged. It is never deleted in place:
+    // the name holds either that copy or the complete new one, apart from the moment between the two renames.
+    if (entryStats(parent, name)) io(() => fs.renameSync(target, path.join(parent.path, displaced)));
+    io(() => fs.renameSync(staging.path, target));
     syncDirectory(parent);
   } finally {
     fs.rmSync(path.join(parent.path, temporary), { recursive: true, force: true });
+    fs.rmSync(path.join(parent.path, displaced), { recursive: true, force: true });
   }
-  if (!treeMatches(target, files)) throw new Gate("browser-controller-unsafe-directory");
-  return target;
 }
 
 /** Read-only: `target` is a private directory holding exactly `files`, each an owner-only regular file. */
@@ -122,7 +137,7 @@ export function stableHostPlan(env: Env = process.env, assets: PackageAssets = p
 export async function ensureStableHost(env: Env = process.env, assets: PackageAssets = packageAssets()): Promise<StableHost> {
   const { dir: planned, version, digest, data } = stableHostPlan(env, assets);
   const hosts = openDirectory(path.dirname(planned));
-  const dir = publishTree(hosts, path.basename(planned), new Map([["native-host.js", data]]));
+  const dir = await publishTree(hosts, path.basename(planned), new Map([["native-host.js", data]]));
   return { dir, hostScript: path.join(dir, "native-host.js"), version, digest };
 }
 
@@ -140,7 +155,7 @@ export async function ensureStableExtension(env: Env = process.env, assets: Pack
   const parsed = JSON.parse(Buffer.from(manifest).toString("utf8")) as Record<string, unknown>;
   files.set("manifest.json", Buffer.from(`${JSON.stringify({ ...parsed, key: ISOLATED_EXTENSION_KEY }, null, 2)}\n`));
   const extensions = openDirectory(statePaths(env).extensions);
-  const dir = publishTree(extensions, `${assets.version}-${treeDigest(files).slice(0, 12)}`, files);
+  const dir = await publishTree(extensions, `${assets.version}-${treeDigest(files).slice(0, 12)}`, files);
   const id = extensionIdFromKey(ISOLATED_EXTENSION_KEY);
   if (id !== ISOLATED_EXTENSION_ID) throw new Error("isolated extension key and ID disagree");
   return { dir, id, origin: `chrome-extension://${id}/` };

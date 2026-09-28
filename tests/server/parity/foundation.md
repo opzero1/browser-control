@@ -75,3 +75,12 @@ These cover the design's foundation assertions (sections 3.1, 4.4, 4.6, 4.8 and 
   fallback and D9, stable host and extension copies, the Q1 extension key and ID, and the D19 host variable.
 - tests/server/foundation/runtime.test.ts and entry.test.ts: shutdown, busy flag, mutex, Python rounding, and
   the stdio server's EOF, close, SIGTERM and backstop paths.
+- tests/server/foundation/entry.test.ts (fix round 1): the SIGTERM listener stays registered through cleanup and
+  is removed only at exit.
+- tests/server/foundation/config.test.ts (fix round 1): stable-copy publication raced by six processes, and a
+  publisher that waits for another's lock and keeps the copy it published.
+- tests/server/foundation/host-connection.test.ts and python-corpus.test.ts (fix round 1): float literals such as
+  `2.0` and `3.0` in the handshake, the response id and the error code are refused as Python's
+  `type(value) is int` refused them; `isPyInt` keeps int and float apart.
+- tests/server/foundation/check-parity.test.ts (fix round 1): the parity checker's completeness, approved
+  removals, skipped titles and it.each rules.

@@ -63,7 +63,9 @@ npx -y @op1/browser-control doctor --json
 
 ## Know the state root
 
-Browser Control keeps all its state under one directory: `BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`. The path must be absolute, or the server fails with `browser-control-invalid-state-dir`. It holds the pool registry, the controller profiles, the native-host copies, sockets, artifacts, locks, and the clipboard-guard binary. Do not edit registry files by hand; use the [pool CLI](browser-pool.md#operate-the-pool-from-the-cli).
+Browser Control keeps its state under one directory: `BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`. The path must be absolute, or the server fails with `browser-control-invalid-state-dir`. It holds the pool registry, the controller profiles, the native-host copies, the isolated controllers' sockets, artifacts, locks, and the clipboard-guard binary. Do not edit registry files by hand; use the [pool CLI](browser-pool.md#operate-the-pool-from-the-cli).
+
+One path stays outside the state root on purpose, even when `BROWSER_CONTROL_STATE_DIR` is set: the native host of the user's Chrome creates `~/.opzero-chrome` and listens on `~/.opzero-chrome/default.sock`. That is the published extension's native-host default, so the server and a host installed by the [bundled host scripts](native-host.md) use the same socket. To use another socket, set `BROWSER_CONTROL_HOST_SOCKET` to the same path for `install` and for the server.
 
 ## Set the environment
 

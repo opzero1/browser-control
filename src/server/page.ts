@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import { allowLoopback, type Env } from "./config";
 import { Gate } from "./gate";
+import { isPyInt } from "./pyjson";
 import { pyLen, pyLower, pySlice, pyStrip } from "./pystr";
 import { idnaEncode } from "./unicode/idna2003";
 import { urlsplit } from "./urlsplit";
@@ -20,7 +21,10 @@ export function get(value: Dict, key: string, fallback: unknown = null): unknown
   return Object.prototype.hasOwnProperty.call(value, key) ? value[key] : fallback;
 }
 
-/** type(value) is int: a JSON integer, never a bool (D20: an integral float literal also passes). */
+/**
+ * type(value) is int for a number, never a bool. It cannot see a float literal such as 5.0; for values read from
+ * the native host, use isPyInt(container, key), which can.
+ */
 export function isInt(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
@@ -75,7 +79,7 @@ export interface TabRow { tab_id: string; url: string; title: string }
 
 /** A host tab row: a positive integer id, a URL and a title (cut to 200 characters). */
 export function tabInfo(raw: unknown): TabRow {
-  if (!isDict(raw) || !isInt(get(raw, "id")) || (raw.id as number) <= 0) throw new Gate("fast-chrome-invalid-tab-response");
+  if (!isDict(raw) || !isPyInt(raw, "id") || (raw.id as number) <= 0) throw new Gate("fast-chrome-invalid-tab-response");
   const url = get(raw, "url");
   const title = get(raw, "title", "");
   if (typeof url !== "string" || typeof title !== "string") throw new Gate("fast-chrome-invalid-tab-response");

@@ -23,7 +23,7 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "pnpm run build && pnpm run typecheck && pnpm run test && node scripts/check-project.js && node scripts/check-parity.mjs",
+    "check": "pnpm run build && pnpm run typecheck && pnpm run test && node scripts/check-project.js && node scripts/check-parity.mjs --complete",
     "install-native-host": "pnpm -s run build && node dist/scripts/install-native-host.js",
     "check-native-host": "pnpm -s run build && node dist/scripts/check-native-host-manifest.js",
     "check-extension": "pnpm -s run build && node dist/scripts/check-extension-installed.js",

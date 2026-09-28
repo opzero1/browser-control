@@ -8,14 +8,21 @@ import {
   allowLoopback, envLimit, HOST_SOCKET_ENV, HOST_WRAPPER_NAME, ISOLATED_EXTENSION_ID, ISOLATED_EXTENSION_KEY, nodeExecutable,
   resolveCuaDriver, SERVER_NAME, statePaths, STORE_EXTENSION_ID, unsharedSites, userArtifactRoot, userSocket, whichExecutable
 } from "../../../src/server/config";
+import { openDirectory } from "../../../src/server/fs-private";
 import { Gate } from "../../../src/server/gate";
 import { processSessionId, sessionFromMeta } from "../../../src/server/session";
 import {
-  clipboardGuardBinary, ensureStableExtension, ensureStableHost, extensionIdFromKey, hostWrapper, unpackedExtensionId
+  clipboardGuardBinary, ensureStableExtension, ensureStableHost, extensionIdFromKey, hostWrapper, PUBLISH_LOCK, publishTree, treeMatches,
+  unpackedExtensionId
 } from "../../../src/server/stable-copy";
+import { killChildren, startChild } from "../support/children";
+import { publishFixture } from "../support/publish-fixture";
 import { privateTemp, removeTempRoots, testEnv } from "../support/temp";
 
-afterEach(() => removeTempRoots());
+afterEach(() => {
+  killChildren();
+  removeTempRoots();
+});
 
 function gateCode(body: () => unknown): string | null {
   try {
@@ -197,6 +204,53 @@ describe("packaged assets and stable copies (C3, Q1)", () => {
     const source = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../src/extension/manifest.json"), "utf8"));
     expect(source.key).toBeUndefined();
   });
+
+  it("publishes one copy when processes race, never replacing a copy another process already uses", async () => {
+    const root = privateTemp();
+    const parent = path.join(root, "state/extensions");
+    openDirectory(parent);
+    const barrier = path.join(root, "go");
+    const children = Array.from({ length: 6 }, () => startChild("child-foundation", ["publish", parent, "1.2.3-race", "120", barrier]));
+    // Every child is waiting at the barrier before any publishes, so all of them find the copy missing.
+    expect(await Promise.all(children.map((child) => child.line(10000)))).toEqual(children.map(() => "waiting"));
+    fs.writeFileSync(barrier, "");
+    const codes = await Promise.all(children.map((child) => child.exited));
+    expect(children.map((child) => child.stderr())).toEqual(children.map(() => ""));
+    expect(codes).toEqual(children.map(() => 0));
+    const lines = await Promise.all(children.map((child) => child.line(1000)));
+    const inode = fs.lstatSync(path.join(parent, "1.2.3-race")).ino;
+    expect(lines).toEqual(children.map(() => `published ${inode} true`));
+    expect(treeMatches(path.join(parent, "1.2.3-race"), publishFixture(120))).toBe(true);
+    expect(fs.readdirSync(parent).filter((name) => name.startsWith(".tmp-") || name.startsWith(".old-"))).toEqual([]);
+  }, 30000);
+
+  it("waits for a publication in progress and keeps the copy it published", async () => {
+    const root = privateTemp();
+    const parent = openDirectory(path.join(root, "state/hosts"));
+    const files = publishFixture(8);
+    const barrier = path.join(root, "released");
+    // Another publisher holds the parent's publication lock; it has seen the copy missing and is writing it.
+    const holder = startChild("child-foundation", ["lock", parent.path, PUBLISH_LOCK, "exclusive", "hold", barrier]);
+    expect(await holder.line()).toBe("held");
+    let settled = false;
+    const waiting = publishTree(parent, "1.2.3-host", files).finally(() => { settled = true; });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(settled).toBe(false);
+    expect(fs.existsSync(path.join(parent.path, "1.2.3-host"))).toBe(false);
+    // The other publisher's copy lands (same content-addressed name), then it releases the lock.
+    const other = path.join(parent.path, "1.2.3-host");
+    for (const [relative, data] of files) {
+      fs.mkdirSync(path.dirname(path.join(other, relative)), { recursive: true, mode: 0o700 });
+      fs.writeFileSync(path.join(other, relative), data, { mode: 0o600 });
+    }
+    const inode = fs.lstatSync(other).ino;
+    fs.writeFileSync(barrier, "");
+    expect(await holder.exited).toBe(0);
+    expect(await waiting).toBe(other);
+    expect(fs.lstatSync(other).ino).toBe(inode);
+    expect(treeMatches(other, files)).toBe(true);
+    expect(fs.readdirSync(parent.path).filter((name) => name.startsWith(".tmp-") || name.startsWith(".old-"))).toEqual([]);
+  }, 15000);
 
   it("computes Chrome's unpacked extension ID like extension-id.py", () => {
     // Chrome hashes the absolute path. This rule reproduced pncpgnbanebkeopjghjleodgmphmmmcp, the ID Chrome gave the

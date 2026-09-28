@@ -259,6 +259,39 @@ describe("stdio server", () => {
       expect(server.child.stderr()).toBe("");
     }, 15000);
 
+  it("keeps cleaning up when the parent's SIGTERM follows EOF during cleanup, then exits 0", async () => {
+    // finalizeTabs answers 2.2 s after it arrives, inside the 2.5 s bound; SIGTERM lands 2 s after EOF, while
+    // cleanup still waits for it, as OpenCode's client escalates. Cleanup must finish rather than die by signal.
+    const s = await stdio();
+    const finalizing = deferred();
+    const answer = reply();
+    const host = await s.lease({
+      handler: (socket, request, authority) => {
+        if (request.method !== "finalizeTabs") return answer(socket, request, authority);
+        finalizing.resolve();
+        setTimeout(() => result(socket, request, { closedOrReleased: true }), 2200);
+      }
+    });
+    const server = await s.start();
+    expect(bodyOf(await server.call("open_tab", { url: "https://example.test/" })).tab_id).toBe("isolated-1:5");
+    expect(markers(s.root)).toHaveLength(1);
+    const started = monotonic();
+    server.begin("eof");
+    await finalizing.promise;
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, 2000 - (monotonic() - started) * 1000)));
+    expect(server.child.process.exitCode).toBeNull();
+    server.begin("sigterm");
+    const code = await server.child.exited;
+    const elapsed = monotonic() - started;
+    expect(code).toBe(0);
+    expect(elapsed).toBeGreaterThan(2);
+    expect(elapsed).toBeLessThan(KILL_AFTER_EOF);
+    // Cleanup completed: the delayed finalization was read back and the tab's marker removed.
+    expect(tabMethods(host).slice(-3)).toEqual(["finalizeTabs", "getTabs", "getUserTabs"]);
+    expect(markers(s.root)).toEqual([]);
+    expect(server.child.stderr()).toBe("");
+  }, 15000);
+
   const SENDS_NO_FURTHER_PRIVATE_CASES = [["vault", "sigterm"], ["vault", "eof"], ["fill", "sigterm"], ["hung-fill", "eof"]] as const;
   it.each(SENDS_NO_FURTHER_PRIVATE_CASES)(
     "sends no further private input when shutdown begins during the %s step (%s)", async (stage, how) => {

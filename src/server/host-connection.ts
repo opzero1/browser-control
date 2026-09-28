@@ -3,7 +3,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { Gate } from "./gate";
-import { parseStrictJson, pyDumps, type JsonObject } from "./pyjson";
+import { isPyInt, parseStrictJson, pyDumps, type JsonObject } from "./pyjson";
 import { AsyncMutex } from "./runtime/mutex";
 import { monotonic } from "./time";
 
@@ -72,10 +72,6 @@ function valid(value: unknown, depth = 0): boolean {
     || (typeof value === "number" && Number.isFinite(value));
 }
 
-function isInt(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value);
-}
-
 export class Connection implements HostConnection {
   private socket: net.Socket | null = null;
   private readonly mutex = new AsyncMutex();
@@ -120,12 +116,13 @@ export class Connection implements HostConnection {
     }
     try {
       const host = await connection.call("host.info");
-      if (!isRecord(host) || !isInt(host.protocolVersion) || host.protocolVersion !== 2 || host.extensionProtocol !== "ready") {
+      // isPyInt keeps Python's type(value) is int: a float literal such as 2.0 is not protocol 2.
+      if (!isRecord(host) || !isPyInt(host, "protocolVersion") || host.protocolVersion !== 2 || host.extensionProtocol !== "ready") {
         throw new Gate("browser-control-protocol-mismatch");
       }
       const extension = await connection.call("getInfo");
-      if (!isRecord(extension) || !isInt(extension.protocolVersion) || extension.protocolVersion !== 2
-          || !isInt(extension.pageProtocolVersion) || extension.pageProtocolVersion !== 2) {
+      if (!isRecord(extension) || !isPyInt(extension, "protocolVersion") || extension.protocolVersion !== 2
+          || !isPyInt(extension, "pageProtocolVersion") || extension.pageProtocolVersion !== 2) {
         throw new Gate("browser-control-protocol-mismatch");
       }
     } catch (error) {
@@ -288,12 +285,12 @@ export class Connection implements HostConnection {
         }
         continue;
       }
-      if (!isInt(message.id) || message.id !== requestId || has(message, "method") || has(message, "result") === has(message, "error")) {
+      if (!isPyInt(message, "id") || message.id !== requestId || has(message, "method") || has(message, "result") === has(message, "error")) {
         throw new Invalid();
       }
       if (has(message, "error")) {
         const error = message.error;
-        if (!isRecord(error) || !isInt(error.code) || typeof error.message !== "string") throw new Invalid();
+        if (!isRecord(error) || !isPyInt(error, "code") || typeof error.message !== "string") throw new Invalid();
         const text = error.message;
         if (text === "Outcome unknown; connection revoked; do not replay") throw new Invalid();
         if (text === "Page origin not ready or mismatch" || text === "Frame with ID 0 was removed.") throw new Gate("browser-control-page-not-ready");

@@ -48,6 +48,32 @@ export class JsonEncodeError extends TypeError {
 /** CPython's C scanner refuses deeper nesting with RecursionError (captured: 9998). */
 export const MAX_PARSE_DEPTH = 9998;
 
+/**
+ * Parsed objects and arrays, mapped to the keys or indexes whose number was written with a fraction or an
+ * exponent. Python keeps such a number a float even when it is integral (2.0); a JS number cannot.
+ */
+const floatLiterals = new WeakMap<object, Set<string | number>>();
+
+/**
+ * type(container[key]) is int for a value this module parsed: an integral number written without a fraction or
+ * exponent. A bool is never an int here, as Python's `type(value) is int` excludes it.
+ */
+export function isPyInt(container: unknown, key: string | number): boolean {
+  if (typeof container !== "object" || container === null || !Object.prototype.hasOwnProperty.call(container, key)) return false;
+  const value = (container as Record<string | number, unknown>)[key];
+  return typeof value === "number" && Number.isInteger(value) && !floatLiterals.get(container)?.has(key);
+}
+
+function markFloat(container: object, key: string | number, float: boolean): void {
+  let keys = floatLiterals.get(container);
+  if (float) {
+    if (!keys) floatLiterals.set(container, keys = new Set());
+    keys.add(key);
+  } else {
+    keys?.delete(key);
+  }
+}
+
 interface ParseOptions {
   /** Accept NaN, Infinity and -Infinity (json.loads default); false mirrors parse_constant raising. */
   constants: boolean;
@@ -103,6 +129,8 @@ function parse(text: string, options: ParseOptions): unknown {
       start = index;
     }
   };
+  /** Whether the scalar just read was a float literal; assign() records it for isPyInt. */
+  let floatLiteral = false;
   const number = (): unknown => {
     NUMBER.lastIndex = index;
     const match = NUMBER.exec(text);
@@ -110,6 +138,7 @@ function parse(text: string, options: ParseOptions): unknown {
     index += match[0].length;
     const source = match[0];
     if (options.lossless) return new LosslessNumber(source);
+    floatLiteral = Boolean(match[1] || match[2]);
     if (!match[1] && !match[2]) {
       const value = Number(source);
       return Object.is(value, -0) ? 0 : value;
@@ -142,7 +171,7 @@ function parse(text: string, options: ParseOptions): unknown {
   const stack: Frame[] = [];
   let root: unknown;
   let hasRoot = false;
-  const assign = (value: unknown) => {
+  const assign = (value: unknown, float = false) => {
     const frame = stack[stack.length - 1];
     if (!frame) {
       root = value;
@@ -150,6 +179,7 @@ function parse(text: string, options: ParseOptions): unknown {
       return;
     }
     if (Array.isArray(frame.container)) {
+      if (float) markFloat(frame.container, frame.container.length, true);
       frame.container.push(value);
       return;
     }
@@ -158,8 +188,13 @@ function parse(text: string, options: ParseOptions): unknown {
       if (frame.keys?.has(key)) fail();
       frame.keys?.add(key);
     }
-    if (frame.container instanceof Map) frame.container.set(key, value);
-    else Object.defineProperty(frame.container, key, { value, writable: true, enumerable: true, configurable: true });
+    if (frame.container instanceof Map) {
+      frame.container.set(key, value);
+    } else {
+      // A repeated key keeps the last value (duplicates "last"), and with it the last value's number type.
+      if (float || options.duplicates === "last") markFloat(frame.container, key, float);
+      Object.defineProperty(frame.container, key, { value, writable: true, enumerable: true, configurable: true });
+    }
     frame.key = null;
   };
   const open = (container: Frame["container"]) => {
@@ -208,7 +243,9 @@ function parse(text: string, options: ParseOptions): unknown {
         key();
         continue;
       }
-      assign(scalar());
+      floatLiteral = false;
+      const value = scalar();
+      assign(value, floatLiteral);
       expectValue = false;
       continue;
     }

@@ -59,16 +59,21 @@ export async function runStdioServer(options: StdioServerOptions = {}): Promise<
 
   return new Promise<number>((resolve) => {
     let finishing = false;
+    const signals = options.installSignalHandlers ?? true;
+    // Both stay registered until exit: the parent's SIGTERM usually follows EOF during cleanup, and Node's
+    // default action would kill the process before cleanup ends. A second trigger is a no-op.
     const onSignal = () => shutdown.begin();
     const onEnd = () => shutdown.begin();
+    const detach = () => {
+      stdin.removeListener("end", onEnd);
+      stdin.removeListener("close", onEnd);
+      if (signals) process.removeListener("SIGTERM", onSignal);
+    };
     const finish = async () => {
       if (finishing) return;
       finishing = true;
       const deadline = shutdown.deadline as number;
       const backstop = setTimeout(() => exit(0), (shutdown.seconds + BACKSTOP_SECONDS) * 1000);
-      stdin.removeListener("end", onEnd);
-      stdin.removeListener("close", onEnd);
-      if (options.installSignalHandlers ?? true) process.removeListener("SIGTERM", onSignal);
       // Stop reading stdin; running bodies still settle and cleanup waits for them up to the deadline.
       await transport.close().catch(() => undefined);
       try {
@@ -78,13 +83,14 @@ export async function runStdioServer(options: StdioServerOptions = {}): Promise<
       }
       await flush(stdout);
       clearTimeout(backstop);
+      detach();
       resolve(0);
       exit(0);
     };
     shutdown.onBegin(() => { void finish(); });
     stdin.on("end", onEnd);
     stdin.on("close", onEnd);
-    if (options.installSignalHandlers ?? true) process.on("SIGTERM", onSignal);
+    if (signals) process.on("SIGTERM", onSignal);
     server.connect(transport).catch(() => shutdown.begin());
   });
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AUTHORITY_KEYS, Connection, METHODS, REQUEST_LIMIT, RESPONSE_LIMIT } from "../../../src/server/host-connection";
 import { Gate } from "../../../src/server/gate";
-import { FakeHost, result, send, type FakeHostOptions, type Request } from "../support/fake-host";
+import { FakeHost, RawJson, result, send, type FakeHostOptions, type Request } from "../support/fake-host";
 import { code } from "../support/renames";
 import { privateTemp, removeTempRoots, socketPath } from "../support/temp";
 
@@ -89,7 +89,11 @@ describe("host connection (test_opchrome.py)", () => {
     { name: "extension protocol 1", extensionInfo: { protocolVersion: 1, pageProtocolVersion: 1 } },
     { name: "page protocol 1", extensionInfo: { protocolVersion: 2, pageProtocolVersion: 1 } },
     { name: "boolean page protocol", extensionInfo: { protocolVersion: 2, pageProtocolVersion: true } },
-    { name: "list extension info", extensionInfo: [] }
+    { name: "list extension info", extensionInfo: [] },
+    // Python's type(value) is int refuses a float literal even when its value is 2.
+    { name: "float host protocol", hostInfo: new RawJson("{\"protocolVersion\":2.0,\"extensionProtocol\":\"ready\"}") },
+    { name: "float extension protocol", extensionInfo: new RawJson("{\"protocolVersion\":2e0,\"pageProtocolVersion\":2}") },
+    { name: "float page protocol", extensionInfo: new RawJson("{\"protocolVersion\":2,\"pageProtocolVersion\":2.0}") }
   ];
   it.each(HANDSHAKES)("refuses an incompatible handshake: $name", async ({ hostInfo, extensionInfo }) => {
     const host = await hostFactory({ hostInfo, extensionInfo });
@@ -200,6 +204,9 @@ describe("host connection (test_opchrome.py)", () => {
   const MALFORMED: Array<{ name: string; payload: Buffer }> = [
     ["a wrong id", "{\"jsonrpc\":\"2.0\",\"id\":99,\"result\":\"sensitive\"}\n"],
     ["a boolean id", "{\"jsonrpc\":\"2.0\",\"id\":true,\"result\":null}\n"],
+    ["a float id equal to the request id", "{\"jsonrpc\":\"2.0\",\"id\":3.0,\"result\":\"sensitive\"}\n"],
+    ["an exponent id equal to the request id", "{\"jsonrpc\":\"2.0\",\"id\":3e0,\"result\":\"sensitive\"}\n"],
+    ["an error with a float code", "{\"jsonrpc\":\"2.0\",\"id\":3,\"error\":{\"code\":-32000.0,\"message\":\"sensitive\"}}\n"],
     ["result and error", "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":null,\"error\":{}}\n"],
     ["neither result nor error", "{\"jsonrpc\":\"2.0\",\"id\":3}\n"],
     ["an error without a code", "{\"jsonrpc\":\"2.0\",\"id\":3,\"error\":{\"message\":\"sensitive\"}}\n"],

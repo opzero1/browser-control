@@ -86,6 +86,31 @@ describe("runStdioServer", () => {
     expect(exitedAt - start).toBeLessThan(1.5);
   });
 
+  it("keeps its SIGTERM listener through cleanup and removes it only at exit", async () => {
+    const { stdin, stdout, client } = streams();
+    const before = process.listenerCount("SIGTERM");
+    let finishCleanup!: () => void;
+    const cleaning = new Promise<void>((resolve) => { finishCleanup = resolve; });
+    let cleanupStarted = false;
+    const exits: number[] = [];
+    const done = runStdioServer({
+      stdin, stdout, exit: (code) => exits.push(code),
+      app: fakeApp({ cleanup: async () => { cleanupStarted = true; await cleaning; } })
+    });
+    await client.initialize();
+    expect(process.listenerCount("SIGTERM")).toBe(before + 1);
+    stdin.end();
+    await expect.poll(() => cleanupStarted).toBe(true);
+    // A SIGTERM during cleanup still reaches the idempotent handler instead of Node's default action.
+    expect(process.listenerCount("SIGTERM")).toBe(before + 1);
+    for (const listener of process.listeners("SIGTERM").slice(before)) listener("SIGTERM");
+    expect(exits).toEqual([]);
+    finishCleanup();
+    expect(await done).toBe(0);
+    expect(exits).toEqual([0]);
+    expect(process.listenerCount("SIGTERM")).toBe(before);
+  });
+
   it("treats a stdin close like EOF", async () => {
     const { stdin, stdout, client } = streams();
     const seen = { deadlines: [] as number[] };

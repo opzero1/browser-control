@@ -161,6 +161,11 @@ The child is tests/server/support/child-server.ts, bundled by the global setup a
 "No Traceback" becomes "stderr is empty". The lease socket is `<state>/sockets/isolated-1.sock` (D1) and the
 user route reads `BROWSER_CONTROL_HOST_SOCKET` (D19).
 
+Added in fix round 1, with no Python counterpart: "keeps cleaning up when the parent's SIGTERM follows EOF during
+cleanup, then exits 0" covers the escalation that the Python comment describes (EOF, then SIGTERM 2 s later)
+with both signals landing inside one cleanup. tests/server/server/native-numbers.test.ts sends a tab id `5.0`,
+an observed pageProtocolVersion `2.0` and a submit lifetime `90000.0` through a real `Connection` (D20).
+
 ## test_private_tool.py -> app.ts paste_1password_field (5 functions, 7 of 7 cases)
 
 test_private_tool.py::test_foreign_owner_cannot_reach_source -> tests/server/server/private-tool.test.ts::keeps a foreign owner from reaching the source
@@ -190,10 +195,11 @@ Each is required by C1-C8, the coordinator decisions or the platform; everything
 - S5 (D2) Without `FAST_CHROME_ARTIFACT_ROOT`, user-route captures go under `<state>/artifacts/user`, created
   0700 on the first capture; Python raised `fast-chrome-private-artifact-root-required`.
 - S6 (D10) Validation error text keeps pydantic's first lines (`N validation error(s) for <tool>Arguments`, the
-  location, the message and `[type=...`) but drops `input_value`, `input_type` and the help URL.
+  location, the message and `[type=...`) but drops `input_value`, `input_type` and the help URL. This is an
+  accepted deviation: the text never echoes an argument value.
 - S7 (D13) The stdio transport keeps integral float literals (such as `100.0`) in `tools/call` arguments as
   floats, so strict int fields refuse them as Python did; an in-process caller passes plain JS numbers, which
-  count as ints.
+  count as ints. Host results keep them apart too (D20).
 - S8 (D11) A cancelled call gets no response; its body still runs to completion and its tab stays busy.
 - S9 During shutdown a call is refused before argument validation by the stdio entry (the transport is closing
   then); Python validated first. The app itself validates first, then refuses.

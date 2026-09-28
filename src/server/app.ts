@@ -18,7 +18,7 @@ import { ensure, type StartRuntime } from "./pool/start";
 import { locked, markers, Pin, poolContext, release as releaseLease, type PoolContext } from "./pool/registry";
 import { createReadField, VaultError, type ReadField, type VaultField } from "./private/onepassword";
 import { paste, type PasteRequest, type PasteResult, type PrivateSource, type PrivateTab } from "./private/private-input";
-import { pydanticDumps } from "./pyjson";
+import { isPyInt, pydanticDumps } from "./pyjson";
 import { pyLen, pySlice } from "./pystr";
 import { chromeId, resolveRoute, routeLists, routePrefix, type Route } from "./route";
 import type { Shutdown } from "./runtime/shutdown";
@@ -308,7 +308,7 @@ export class BrowserControl implements App {
   private checkedPage(tab: Tab, raw: unknown, controlsOnly: boolean): Page {
     if (!isDict(raw)) throw new Invalid();
     const version = get(raw, "pageProtocolVersion");
-    if (need(raw, "status") !== "observed" || !isInt(version) || version !== 2 || get(raw, "mode") !== (controlsOnly ? "controls-only" : "full")) {
+    if (need(raw, "status") !== "observed" || !isPyInt(raw, "pageProtocolVersion") || version !== 2 || get(raw, "mode") !== (controlsOnly ? "controls-only" : "full")) {
       throw new Invalid();
     }
     if (origin(need(raw, "url"), this.env) !== tab.origin) throw new Gate("fast-chrome-origin-changed");

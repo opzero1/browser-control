@@ -9,7 +9,16 @@ export function send(socket: net.Socket, message: unknown): void {
   if (!socket.destroyed) socket.write(`${JSON.stringify(message)}\n`);
 }
 
+/** JSON text sent verbatim as a result, for number forms JSON.stringify cannot write (such as 2.0). */
+export class RawJson {
+  constructor(readonly text: string) {}
+}
+
 export function result(socket: net.Socket, request: Request, value: unknown): void {
+  if (value instanceof RawJson) {
+    if (!socket.destroyed) socket.write(`{"jsonrpc":"2.0","id":${JSON.stringify(request.id)},"result":${value.text}}\n`);
+    return;
+  }
   send(socket, { jsonrpc: "2.0", id: request.id, result: value });
 }
 

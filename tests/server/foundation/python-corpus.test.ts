@@ -6,7 +6,7 @@ import { strictBase64 } from "../../../src/server/captures";
 import { Gate } from "../../../src/server/gate";
 import { ipAddressString } from "../../../src/server/ipaddress";
 import { inspectJpeg } from "../../../src/server/jpeg";
-import { JsonDecodeError, LosslessNumber, parseLosslessJson, parsePythonJson, parseStrictJson, pydanticDumps, pyDumps } from "../../../src/server/pyjson";
+import { isPyInt, JsonDecodeError, LosslessNumber, parseLosslessJson, parsePythonJson, parseStrictJson, pydanticDumps, pyDumps } from "../../../src/server/pyjson";
 import { casefold, pyIsAlnum, pyIsSpace, pyLen, pyLower, pyStrip } from "../../../src/server/pystr";
 import { asciiHost, cookieSite, ipLiteral, validSite } from "../../../src/server/sites";
 import { idnaEncode, nameprep, nfkc32, punycode } from "../../../src/server/unicode/idna2003";
@@ -166,6 +166,19 @@ describe("JSON matches the json module", () => {
     const deep = corpus.max_parse_depth;
     expect(() => parsePythonJson(`${"[".repeat(deep)}${"]".repeat(deep)}`)).not.toThrow();
     expect(() => parsePythonJson(`${"[".repeat(deep + 1)}${"]".repeat(deep + 1)}`)).toThrow(RangeError);
+  });
+
+  it("keeps Python's int and float types apart for isPyInt", () => {
+    // type(json.loads(text)[key]) is int in CPython: only integer literals; 2.0, 2e0 and true are not ints.
+    const value = parseStrictJson("{\"int\":2,\"float\":2.0,\"exponent\":2e0,\"fraction\":2.5,\"bool\":true,\"string\":\"2\",\"list\":[1,1.0],\"nested\":{\"id\":7.0}}") as Record<string, unknown>;
+    expect(["int", "float", "exponent", "fraction", "bool", "string", "missing"].map((key) => isPyInt(value, key))).toEqual([true, false, false, false, false, false, false]);
+    expect(value.float).toBe(2);
+    expect([isPyInt(value.list, 0), isPyInt(value.list, 1), isPyInt(value.nested, "id")]).toEqual([true, false, false]);
+    // A repeated key keeps its last value, and that value's type.
+    const repeated = parsePythonJson("{\"a\":1.0,\"a\":1,\"b\":1,\"b\":1.0}") as Record<string, unknown>;
+    expect([isPyInt(repeated, "a"), isPyInt(repeated, "b")]).toEqual([true, false]);
+    // A value built in JS has no source text: an integral number is an int.
+    expect(isPyInt({ id: 5 }, "id")).toBe(true);
   });
 });
 

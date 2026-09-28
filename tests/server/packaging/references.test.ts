@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { userSocket } from "../../../src/server/config";
 
 const repository = path.resolve(__dirname, "../../..");
 const self = path.relative(repository, __filename);
@@ -50,6 +51,17 @@ describe("references in the server, its tests, skills and docs", () => {
     }
     expect(scanned).toBeGreaterThan(100);
     expect(found).toEqual([]);
+  });
+
+  it("state the user's Chrome socket as the one exception to the state root", () => {
+    // The server keeps the published extension's native-host default even with a custom state root.
+    expect(userSocket({ HOME: "/h", BROWSER_CONTROL_STATE_DIR: "/custom/state" })).toBe("/h/.opzero-chrome/default.sock");
+    for (const file of ["skills/browser-control/references/setup.md", "docs/server/INSTALL.md"]) {
+      const text = fs.readFileSync(path.join(repository, file), "utf8");
+      expect(text, file).not.toMatch(/\ball (?:its|the|runtime) (?:runtime )?state\b/i);
+      expect(text, file).toContain("`~/.opzero-chrome/default.sock`");
+      expect(text, file).toContain("even when `BROWSER_CONTROL_STATE_DIR` is set");
+    }
   });
 
   it("ship skills whose frontmatter names their directory", () => {

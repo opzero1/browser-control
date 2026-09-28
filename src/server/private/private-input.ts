@@ -7,7 +7,7 @@ import type { Env } from "../config";
 import { allowLoopback } from "../config";
 import { Gate } from "../gate";
 import type { HostConnection } from "../host-connection";
-import type { JsonObject } from "../pyjson";
+import { isPyInt, type JsonObject } from "../pyjson";
 import { pyIsSpace, pyLen } from "../pystr";
 import { monotonic, sleep } from "../time";
 import { urlsplit } from "../urlsplit";
@@ -113,9 +113,12 @@ export async function observeFields(tab: PrivateTab, expectedUrl: string, select
 export async function prepareSubmit(tab: PrivateTab, extensionSnapshot: string, actionId: string, documentId: string): Promise<[Record<string, unknown>, number]> {
   const started = monotonic();
   const prepared = await tab.call("preparePrivateSubmit", { snapshot: extensionSnapshot, actionId });
-  const lifetime = isDict(prepared) ? (Object.prototype.hasOwnProperty.call(prepared, "expiresInMs") ? prepared.expiresInMs : LEGACY_SUBMIT_LIFETIME_MS) : null;
+  const given = isDict(prepared) && Object.prototype.hasOwnProperty.call(prepared, "expiresInMs");
+  const lifetime = isDict(prepared) ? (given ? prepared.expiresInMs : LEGACY_SUBMIT_LIFETIME_MS) : null;
+  // type(lifetime) is int: a host float literal such as 90000.0 is refused, as Python refused it.
+  const integer = given ? isPyInt(prepared, "expiresInMs") : typeof lifetime === "number" && Number.isInteger(lifetime);
   if (!isDict(prepared) || prepared.status !== "prepared" || prepared.documentId !== documentId || typeof prepared.submitToken !== "string"
-    || typeof lifetime !== "number" || !Number.isInteger(lifetime) || !(lifetime > 0 && lifetime <= MAX_SUBMIT_LIFETIME_MS)) {
+    || !integer || typeof lifetime !== "number" || !(lifetime > 0 && lifetime <= MAX_SUBMIT_LIFETIME_MS)) {
     throw new Gate("fast-chrome-private-submit-not-prepared");
   }
   return [prepared, started + lifetime / 1000 - SUBMIT_MARGIN_SECONDS];

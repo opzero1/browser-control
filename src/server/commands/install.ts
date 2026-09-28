@@ -229,7 +229,7 @@ function lstat(file: string): fs.Stats | null {
  * into the npx cache. An older version's link is ours to move; anything else needs --force, and a real
  * directory is never removed. Without --skills-dir nothing is linked.
  */
-function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
+async function skillSteps(env: Env, assets: PackageAssets, options: Options): Promise<Step[]> {
   const directories = skillsDirectories(options);
   if (!directories.length) {
     return [step("skills", "ok", "skipped", "No skills directory was given, so no skill was linked. Pass --skills-dir <dir> to link the bundled skills.")];
@@ -269,7 +269,7 @@ function skillSteps(env: Env, assets: PackageAssets, options: Options): Step[] {
         else steps.push(step(id, "ok", "would-replace", "Would replace the link to another skill with this name.", { path: link, previous }));
         continue;
       }
-      publishTree(openDirectory(path.dirname(target)), path.basename(target), files);
+      await publishTree(openDirectory(path.dirname(target)), path.basename(target), files);
       if (previous !== target) linkSkill(link, target);
       if (!stats) steps.push(step(id, "ok", "linked", "Linked the skill.", { path: link }));
       else if (ours) steps.push(step(id, "ok", "updated", "Linked the skill to this version.", { path: link }));

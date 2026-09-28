@@ -47,7 +47,12 @@ Install is idempotent. Run it again after each upgrade. It does these steps:
 Chrome manifests and skill links point only at copies under the state directory, never into the npx cache.
 
 `<state>` is `BROWSER_CONTROL_STATE_DIR`, by default `~/.local/state/browser-control`. The state directory
-also holds the isolated profiles, the pool registry, sockets, locks and artifacts.
+also holds the isolated profiles, the pool registry, the isolated controllers' sockets, locks and artifacts.
+
+The user's Chrome is the exception. Its native host creates `~/.opzero-chrome` and listens on
+`~/.opzero-chrome/default.sock` even when `BROWSER_CONTROL_STATE_DIR` is set, because that path is the published
+extension's native-host default. To use another socket, set `BROWSER_CONTROL_HOST_SOCKET` to the same path for
+`install` and for the server.
 
 ### Options
 
