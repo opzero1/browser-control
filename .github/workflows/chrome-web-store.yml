@@ -105,6 +105,7 @@ jobs:
           set -euo pipefail
           response="$(curl -sS -w '\n%{http_code}' -X POST \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Length: 0" \
             "https://chromewebstore.googleapis.com/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:publish")"
           status="$(printf '%s' "$response" | tail -n 1)"
           body="$(printf '%s' "$response" | sed '$d')"
@@ -122,6 +123,7 @@ jobs:
           set -euo pipefail
           response="$(curl -sS -w '\n%{http_code}' -X POST \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Length: 0" \
             "https://chromewebstore.googleapis.com/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:cancelSubmission")"
           status="$(printf '%s' "$response" | tail -n 1)"
           body="$(printf '%s' "$response" | sed '$d')"
