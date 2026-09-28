@@ -12,7 +12,7 @@ async function host(env: NodeJS.ProcessEnv = {}, protocolVersion = 2) {
   const directory = testTemp();
   const endpoint = path.join(directory, "s");
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint, ...env }, stdio: ["pipe", "pipe", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint, ...env }, stdio: ["pipe", "pipe", "pipe"]
   });
   child.stdin.on("error", () => undefined);
   cleanup.push(() => { child.kill(); fs.rmSync(directory, { recursive: true, force: true }); });
@@ -137,7 +137,7 @@ it("revokes disconnected clients and creates a fresh session on reconnect", asyn
 });
 
 it("revokes unknown outcomes on timeout without replaying requests", async () => {
-  const h = await host({ OPZERO_CHROME_REQUEST_TIMEOUT_MS: "50" }); const a = await h.connect();
+  const h = await host({ BROWSER_CONTROL_REQUEST_TIMEOUT_MS: "50" }); const a = await h.connect();
   a.request(1, "createTab");
   await vi.waitFor(() => expect(a.messages).toHaveLength(1));
   expect(a.messages[0].error.message).toContain("Outcome unknown");
@@ -149,7 +149,7 @@ it("protects Unix endpoint permissions and never steals a running endpoint", asy
   const h = await host();
   expect(fs.statSync(h.endpoint).mode & 0o777).toBe(0o600);
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
   });
   cleanup.push(() => child.kill());
   const code = await new Promise(resolve => child.on("exit", resolve));
@@ -166,7 +166,7 @@ it("reclaims the stale endpoint of a host that was killed without cleanup", asyn
   await exited;
   expect(fs.lstatSync(h.endpoint).isSocket()).toBe(true);
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: h.endpoint }, stdio: ["pipe", "ignore", "pipe"]
   });
   cleanup.push(() => child.kill());
   await vi.waitFor(async () => {
@@ -184,7 +184,7 @@ it("reclaims the stale endpoint of a host that was killed without cleanup", asyn
 
 function spawnHost(endpoint: string) {
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
   });
   child.stdin.on("error", () => undefined);
   cleanup.push(() => child.kill());
@@ -283,7 +283,7 @@ it("refuses an endpoint path that holds something other than a socket", async ()
   const endpoint = path.join(directory, "s");
   fs.writeFileSync(endpoint, "not a socket");
   const child = spawn(process.execPath, ["dist/native-host/host.js"], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint }, stdio: ["pipe", "ignore", "pipe"]
   });
   cleanup.push(() => child.kill());
   expect(await new Promise(resolve => child.on("exit", resolve))).toBe(1);

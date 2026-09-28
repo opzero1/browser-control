@@ -17,7 +17,7 @@ echo "$EXT_ID" > "$BC_STATE/extension-id"
 # Wrapper and manifest follow the same shape as a normal install, but point at a private socket.
 cat > "$BC_HOSTDIR/host" <<EOF
 #!/bin/sh
-export OPZERO_CHROME_HOST_SOCKET='$BC_SOCKET'
+export BROWSER_CONTROL_HOST_SOCKET='$BC_SOCKET'
 exec '$NODE' '$BC_HOST_JS'
 EOF
 chmod 700 "$BC_HOSTDIR/host"

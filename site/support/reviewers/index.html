@@ -48,22 +48,22 @@
       <li>Install Browser Control.</li>
       <li>Click the Browser Control icon in the toolbar.</li>
     </ol>
-    <p>Expected: the popup shows <strong>Disconnected</strong> and "Install the native host to connect." Nothing else happens. The extension has no network code, so it stays idle until a host exists.</p>
+    <p>Expected: the popup shows <strong>Disconnected</strong> and "Install the native host to connect." It may show <strong>Connecting</strong> for a moment first, and it can also show "Error: Specified native messaging host not found." Nothing else happens. The extension has no network code, so it stays idle until a host exists.</p>
     <h3 id="step-2">2. Download the helper</h3>
     <pre><code>mkdir -p ~/browser-control-review
 cd ~/browser-control-review
-curl -fsSL -o chrome-control-skill.zip https://browser-control.pages.dev/download/chrome-control-skill.zip
-unzip -o chrome-control-skill.zip -d helper
+curl -fsSL -o browser-control-skill.zip https://browser-control.pages.dev/download/browser-control-skill.zip
+unzip -o browser-control-skill.zip -d helper
 cd helper
 ls</code></pre>
-    <p>Expected: the folder contains <code>SKILL.md</code>, <code>native-host/</code>, <code>scripts/</code> and <code>chunks/</code>. Run all later commands in this <code>helper</code> folder.</p>
-    <p>The link downloads <code>chrome-control-skill.zip</code> for version 0.2.1 from this website. The same file is built from the source at <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>.</p>
+    <p>Expected: the folder contains <code>SKILL.md</code>, <code>chunks/</code>, <code>native-host/</code>, <code>references/</code> and <code>scripts/</code>. Run all later commands in this <code>helper</code> folder.</p>
+    <p>The link downloads <code>browser-control-skill.zip</code> for version 0.2.2 from this website. The same file is built from the source at <a href="https://github.com/opzero1/browser-control">github.com/opzero1/browser-control</a>. The short instructions in the store dashboard link to <code>chrome-control-skill.zip</code>, the helper's name before 0.2.2. That link downloads the same file.</p>
     <h3 id="step-3">3. Install the native messaging host</h3>
     <pre><code>node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld
 node scripts/check-native-host-manifest.js --json</code></pre>
     <p>Expected:</p>
     <ul>
-      <li>The installer prints <code>Installed native messaging manifest:</code> with the manifest path, <code>Allowed extension origin: chrome-extension://dcnjjnecbhipdbngkhjppkckpkellmld/</code>, and <code>Host executable:</code> with the path of <code>native-host/opzero-chrome-host</code>.</li>
+      <li>The installer prints <code>Installed native messaging manifest:</code> with the manifest path, <code>Allowed extension origin: chrome-extension://dcnjjnecbhipdbngkhjppkckpkellmld/</code>, and <code>Host executable:</code> with the path of <code>native-host/browser-control-host</code>.</li>
       <li>The check prints JSON with <code>"ok": true</code> and <code>"status": "valid"</code>.</li>
     </ul>
     <p>The manifest is written to <code>~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.opzero.chrome.json</code> on macOS, or <code>~/.config/google-chrome/NativeMessagingHosts/com.opzero.chrome.json</code> on Linux.</p>
@@ -79,7 +79,7 @@ node native-host/client.js getInfo</code></pre>
     <p>Expected:</p>
     <ul>
       <li><code>ping</code> prints <code>{"jsonrpc":"2.0","id":1,"result":"pong"}</code>. The answer comes from the extension through the host.</li>
-      <li><code>getInfo</code> prints one JSON line with <code>"version":"0.2.1"</code>, <code>"protocolVersion":2</code>, <code>"pageProtocolVersion":2</code> and <code>"extensionId":"dcnjjnecbhipdbngkhjppkckpkellmld"</code>.</li>
+      <li><code>getInfo</code> prints one JSON line with <code>"version":"0.2.2"</code>, <code>"protocolVersion":2</code>, <code>"pageProtocolVersion":2</code> and <code>"extensionId":"dcnjjnecbhipdbngkhjppkckpkellmld"</code>.</li>
     </ul>
     <p>If <code>ping</code> reports <code>Extension protocol v2 is not ready</code>, wait a few seconds and run it again. The host checks the extension for up to 10 seconds after it starts.</p>
     <h3 id="step-6">6. List open tabs (read only)</h3>
@@ -92,7 +92,7 @@ node native-host/client.js getInfo</code></pre>
 const path = require("node:path");
 const { ChromeTransport } = require("./native-host/transport.js");
 
-const socket = process.env.OPZERO_CHROME_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
+const socket = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
 
 (async () =&gt; {
   const browser = await ChromeTransport.connect(socket);

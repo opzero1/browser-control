@@ -23,10 +23,10 @@ Chrome derives an unpacked extension's ID from its folder path, so every checkou
 2. Install the native host. It needs Node.js 18 or later on macOS or Linux:
 
    ```sh
-   mkdir -p ~/.config/opencode/skills/chrome-control
-   curl -fsSL https://github.com/opzero1/browser-control/releases/latest/download/chrome-control-skill.zip -o /tmp/chrome-control-skill.zip
-   unzip -o /tmp/chrome-control-skill.zip -d ~/.config/opencode/skills/chrome-control
-   cd ~/.config/opencode/skills/chrome-control
+   mkdir -p ~/.config/opencode/skills/browser-control
+   curl -fsSL https://github.com/opzero1/browser-control/releases/latest/download/browser-control-skill.zip -o /tmp/browser-control-skill.zip
+   unzip -o /tmp/browser-control-skill.zip -d ~/.config/opencode/skills/browser-control
+   cd ~/.config/opencode/skills/browser-control
    node scripts/install-native-host.js --extension-id dcnjjnecbhipdbngkhjppkckpkellmld
    ```
 
@@ -37,7 +37,7 @@ The popup also has **Pause host**, which disconnects the host and ends every age
 To install the agent skill with one command instead:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/opzero1/browser-control/main/scripts/install-chrome-control-skill.sh | sh
+curl -fsSL https://raw.githubusercontent.com/opzero1/browser-control/main/scripts/install-browser-control-skill.sh | sh
 ```
 
 ## Verify
@@ -58,7 +58,7 @@ pnpm install
 pnpm run check
 ```
 
-`pnpm run check` builds the extension, native host and installable skill, then runs type checks, tests and the project checks. The headless-browser tests for private input run only when `OPZERO_SYNTHETIC_CHROME` names a Chrome for Testing binary.
+`pnpm run check` builds the extension, native host and installable skill, then runs type checks, tests and the project checks. The headless-browser tests for private input run only when `BROWSER_CONTROL_SYNTHETIC_CHROME` names a Chrome for Testing binary.
 
 ## Release
 

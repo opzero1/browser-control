@@ -50,8 +50,8 @@ for (const [index, entry] of ["background", "content-scripts/opzero-chrome", "po
     stdio: "inherit",
     env: {
       ...process.env,
-      OPZERO_EXTENSION_ENTRY: entry,
-      OPZERO_EXTENSION_EMPTY: index === 0 ? "1" : "0"
+      BROWSER_CONTROL_EXTENSION_ENTRY: entry,
+      BROWSER_CONTROL_EXTENSION_EMPTY: index === 0 ? "1" : "0"
     }
   });
 }
@@ -61,7 +61,7 @@ copyFile("src/extension/popup.css", "dist/extension/popup.css");
 copyDir("src/extension/images", "dist/extension/images");
 
 run("pnpm", ["exec", "vite", "build", "--config", "vite.node.config.ts"]);
-writeExecutable("dist/native-host/opzero-chrome-host", `#!/usr/bin/env sh
+writeExecutable("dist/native-host/browser-control-host", `#!/usr/bin/env sh
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if command -v node >/dev/null 2>&1; then
   exec node "$SCRIPT_DIR/host.js"
@@ -72,16 +72,16 @@ fi
 if [ -x /usr/local/bin/node ]; then
   exec /usr/local/bin/node "$SCRIPT_DIR/host.js"
 fi
-echo "Unable to find node executable for opzero-chrome-host" >&2
+echo "Unable to find node executable for browser-control-host" >&2
 exit 127
 `);
-writeExecutable("dist/native-host/opzero-chrome-host.cmd", `@echo off
+writeExecutable("dist/native-host/browser-control-host.cmd", `@echo off
 node "%~dp0host.js"
 `);
 copyFile("scripts/extension-id.example.json", "dist/scripts/extension-id.example.json");
-if (process.env.OPZERO_CHROME_EXTENSION_ID) {
+if (process.env.BROWSER_CONTROL_EXTENSION_ID) {
   fs.writeFileSync("dist/scripts/extension-id.json", `${JSON.stringify({
-    extensionId: process.env.OPZERO_CHROME_EXTENSION_ID,
+    extensionId: process.env.BROWSER_CONTROL_EXTENSION_ID,
     extensionHostName: "com.opzero.chrome"
   }, null, 2)}\n`);
 } else if (fs.existsSync("scripts/extension-id.store.json")) {
@@ -90,7 +90,11 @@ if (process.env.OPZERO_CHROME_EXTENSION_ID) {
 
 function syncInstallableSkill(skillDir) {
   fs.mkdirSync(skillDir, { recursive: true });
-  copyFile("skills/chrome-control/SKILL.md", path.join(skillDir, "SKILL.md"));
+  copyFile("skills/browser-control/SKILL.md", path.join(skillDir, "SKILL.md"));
+  const references = path.join(root, "skills", "browser-control", "references");
+  if (path.resolve(skillDir) !== path.dirname(references) && fs.existsSync(references)) {
+    copyDir(references, path.join(skillDir, "references"));
+  }
   for (const generatedPath of ["native-host", "scripts", "chunks"]) {
     fs.rmSync(path.join(skillDir, generatedPath), { recursive: true, force: true });
   }
@@ -99,13 +103,13 @@ function syncInstallableSkill(skillDir) {
   if (fs.existsSync(path.join(dist, "chunks"))) copyDir("dist/chunks", path.join(skillDir, "chunks"));
 }
 
-const sourceSkill = path.join(root, "skills", "chrome-control");
-const skillDist = path.join(dist, "skill", "chrome-control");
+const sourceSkill = path.join(root, "skills", "browser-control");
+const skillDist = path.join(dist, "skill", "browser-control");
 syncInstallableSkill(sourceSkill);
 syncInstallableSkill(skillDist);
 
 fs.mkdirSync(path.join(dist, "release"), { recursive: true });
 zipDir(path.join(dist, "extension"), path.join(dist, "release", "browser-control-extension.zip"));
-zipDir(skillDist, path.join(dist, "release", "chrome-control-skill.zip"));
+zipDir(skillDist, path.join(dist, "release", "browser-control-skill.zip"));
 
-process.stdout.write("Built dist/extension and dist/skill/chrome-control\n");
+process.stdout.write("Built dist/extension and dist/skill/browser-control\n");

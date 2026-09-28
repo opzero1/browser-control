@@ -32,8 +32,8 @@ function registerWindowsManifest(manifestPath: string) {
 
 function nativeHostLauncher() {
   const nodeFallback = JSON.stringify(process.execPath);
-  const socketPath = argValue("socket-path", process.env.OPZERO_CHROME_HOST_SOCKET);
-  const socketExport = socketPath ? `export OPZERO_CHROME_HOST_SOCKET=${JSON.stringify(socketPath)}\n` : "";
+  const socketPath = argValue("socket-path", process.env.BROWSER_CONTROL_HOST_SOCKET);
+  const socketExport = socketPath ? `export BROWSER_CONTROL_HOST_SOCKET=${JSON.stringify(socketPath)}\n` : "";
   return `#!/usr/bin/env sh
 ${socketExport}SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if command -v node >/dev/null 2>&1; then
@@ -48,14 +48,14 @@ fi
 if [ -x ${nodeFallback} ]; then
   exec ${nodeFallback} "$SCRIPT_DIR/host.js"
 fi
-echo "Unable to find node executable for opzero-chrome-host" >&2
+echo "Unable to find node executable for browser-control-host" >&2
 exit 127
 `;
 }
 
 function windowsNativeHostLauncher() {
-  const socketPath = argValue("socket-path", process.env.OPZERO_CHROME_HOST_SOCKET);
-  const socketSet = socketPath ? `set "OPZERO_CHROME_HOST_SOCKET=${socketPath.replace(/"/g, "\"\"")}"\r\n` : "";
+  const socketPath = argValue("socket-path", process.env.BROWSER_CONTROL_HOST_SOCKET);
+  const socketSet = socketPath ? `set "BROWSER_CONTROL_HOST_SOCKET=${socketPath.replace(/"/g, "\"\"")}"\r\n` : "";
   return `@echo off
 ${socketSet}"${process.execPath.replace(/"/g, "\"\"")}" "%~dp0host.js"
 `;
@@ -63,7 +63,7 @@ ${socketSet}"${process.execPath.replace(/"/g, "\"\"")}" "%~dp0host.js"
 
 runScript(Effect.gen(function* () {
   const io = yield* ScriptIo;
-  const extensionId = argValue("extension-id", process.env.OPZERO_CHROME_EXTENSION_ID);
+  const extensionId = argValue("extension-id", process.env.BROWSER_CONTROL_EXTENSION_ID);
   if (!extensionId) {
     yield* io.stderr("Missing extension ID. Pass --extension-id <id> after loading extension/ unpacked in Chrome.\n");
     process.exitCode = 1;
@@ -71,8 +71,8 @@ runScript(Effect.gen(function* () {
   }
 
   const hostPath = process.platform === "win32"
-    ? path.join(root, "native-host", "opzero-chrome-host.cmd")
-    : path.join(root, "native-host", "opzero-chrome-host");
+    ? path.join(root, "native-host", "browser-control-host.cmd")
+    : path.join(root, "native-host", "browser-control-host");
   const manifestPath = argValue("manifest-path", chromeManifestPath()) as string;
   yield* io.mkdir(path.dirname(hostPath));
   yield* io.writeText(hostPath, process.platform === "win32" ? windowsNativeHostLauncher() : nativeHostLauncher());

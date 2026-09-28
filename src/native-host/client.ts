@@ -14,9 +14,9 @@ if (args.length > 1 || (!streaming && !["ping", "getInfo", "host.ping", "host.in
   process.stderr.write("Payloads are accepted only through --stdio JSONL; never pass private values in argv\n");
   process.exit(1);
 }
-const useTcp = process.platform === "win32" || process.env.OPZERO_CHROME_HOST_TRANSPORT === "tcp";
-const socket = useTcp ? net.connect(Number(process.env.OPZERO_CHROME_HOST_PORT || 17365), "127.0.0.1")
-  : net.connect(process.env.OPZERO_CHROME_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock"));
+const useTcp = process.platform === "win32" || process.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
+const socket = useTcp ? net.connect(Number(process.env.BROWSER_CONTROL_HOST_PORT || 17365), "127.0.0.1")
+  : net.connect(process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock"));
 const pending = new Map<number | string, string>();
 let ready = false;
 let inputEnded = false;
@@ -68,7 +68,7 @@ socket.on("timeout", fail);
 socket.on("connect", () => {
   if (!useTcp) { start(); return; }
   try {
-    const file = process.env.OPZERO_CHROME_HOST_TOKEN_FILE;
+    const file = process.env.BROWSER_CONTROL_HOST_TOKEN_FILE;
     if (!file) throw new Error();
     socket.write(`${JSON.stringify({ jsonrpc: "2.0", id: "__auth", method: "host.authenticate", params: { token: fs.readFileSync(file, "utf8").trim() } })}\n`);
   } catch { fail(); }

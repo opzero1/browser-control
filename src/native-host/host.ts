@@ -7,9 +7,9 @@ import process from "node:process";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { isJsonRpcRequest, parseJsonRpcMessage, type JsonRpcMessage } from "../shared/rpc";
 
-const socketPath = process.env.OPZERO_CHROME_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
-const useTcp = process.platform === "win32" || process.env.OPZERO_CHROME_HOST_TRANSPORT === "tcp";
-const port = Number(process.env.OPZERO_CHROME_HOST_PORT || 17365);
+const socketPath = process.env.BROWSER_CONTROL_HOST_SOCKET || path.join(os.homedir(), ".opzero-chrome", "default.sock");
+const useTcp = process.platform === "win32" || process.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
+const port = Number(process.env.BROWSER_CONTROL_HOST_PORT || 17365);
 const epoch = randomUUID();
 const protocolRequestId = `protocol:${epoch}`;
 let extensionProtocol: "checking" | "ready" | "unsupported" = "checking";
@@ -79,7 +79,7 @@ function handleNative(message: JsonRpcMessage) {
   if (message.id != null) {
     if (message.method === "ping") native(result(message.id, "pong"));
     else if (message.method === "getHostInfo") native(result(message.id, {
-      name: "opzero-chrome-native-host", version: "0.2.1", protocolVersion: 2, extensionProtocol, epoch, pid: process.pid,
+      name: "browser-control-native-host", version: "0.2.2", protocolVersion: 2, extensionProtocol, epoch, pid: process.pid,
       transport: useTcp ? "tcp" : "unix", endpoint: useTcp ? `127.0.0.1:${port}` : socketPath
     }));
     else native(error(message.id, "Unsupported native host method"));
@@ -157,7 +157,7 @@ function handleClient(socket: net.Socket, message: JsonRpcMessage) {
     reply(socket, error(message.id, "Outcome unknown; connection revoked; do not replay"));
     release(socket);
     socket.end();
-  }, Number(process.env.OPZERO_CHROME_REQUEST_TIMEOUT_MS || 30000));
+  }, Number(process.env.BROWSER_CONTROL_REQUEST_TIMEOUT_MS || 30000));
   pending.set(extensionId, { socket, id: message.id, private: message.method === "privateFill", timer });
   const sent = native({ jsonrpc: "2.0", id: extensionId, method: message.method,
     params: { ...params, session_id: client.session, sessionId: client.session, turn_id: epoch, turnId: epoch } });
@@ -202,7 +202,7 @@ server.on("error", () => {
 
 try {
   if (useTcp) {
-    const file = process.env.OPZERO_CHROME_HOST_TOKEN_FILE;
+    const file = process.env.BROWSER_CONTROL_HOST_TOKEN_FILE;
     if (!file) throw new Error("token file required");
     const stat = fs.lstatSync(file);
     if (!stat.isFile() || (process.platform !== "win32" && (stat.mode & 0o077) !== 0)) throw new Error("private token file required");

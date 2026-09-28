@@ -12,7 +12,7 @@ A release has four parts: the extension package on the Chrome Web Store, the Git
 | Privacy policy | <https://browser-control.pages.dev/privacy/> |
 | Store API service account | `cws-publisher@opzero-chrome.iam.gserviceaccount.com` (Google Cloud project `opzero-chrome`) |
 
-Release builds embed the store extension ID from `scripts/extension-id.store.json` in the packaged skill, so the native host installer allows the store extension by default. Set `OPZERO_CHROME_EXTENSION_ID` only to build a package for a different extension ID.
+Release builds embed the store extension ID from `scripts/extension-id.store.json` in the packaged skill, so the native host installer allows the store extension by default. Set `BROWSER_CONTROL_EXTENSION_ID` only to build a package for a different extension ID. The `Release` workflow reads it from the repository variable of the same name, and falls back to the store ID when the variable is unset.
 
 The store package must not contain a manifest `key`. `pnpm run check` refuses one, and it also pins the exact permission list. Unpacked builds get their ID from their folder path.
 
@@ -20,7 +20,7 @@ The store package must not contain a manifest `key`. `pnpm run check` refuses on
 
 1. Raise `version` in `src/extension/manifest.json` and `package.json`, and the host version in `src/native-host/host.ts`. The version must be higher than every version the store has, including rejected drafts. Check the dashboard's **Package** page or run the workflow with `action: status`.
 2. If a permission, data flow or stored key changes, update `store/listing.md`, `site/privacy/index.html` and `docs/PRIVACY.md` together. The dashboard's Privacy tab must match the privacy policy.
-3. Run `pnpm run check`. It rebuilds `dist/` and the committed `skills/chrome-control` files. Commit the regenerated files.
+3. Run `pnpm run check`. It rebuilds `dist/` and the committed `skills/browser-control` files. Commit the regenerated files.
 
 ## 2. Merge and tag
 
@@ -31,7 +31,7 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-The `Release` workflow creates the GitHub Release with `browser-control-extension.zip` and `chrome-control-skill.zip`. The reviewer instructions and the README download `chrome-control-skill.zip` from the latest release, so publish the release before you submit to the store.
+The `Release` workflow creates the GitHub Release with `browser-control-extension.zip` and `browser-control-skill.zip`. The README downloads `browser-control-skill.zip` from the latest release, so publish the release before you submit to the store.
 
 ## 3. Deploy the website
 
@@ -40,11 +40,33 @@ Deploy after every release, and whenever anything under `site/` changes. The sit
 ```sh
 pnpm run build
 mkdir -p site/download
-cp dist/release/chrome-control-skill.zip site/download/
+cp dist/release/browser-control-skill.zip site/download/browser-control-skill.zip
+cp dist/release/browser-control-skill.zip site/download/chrome-control-skill.zip
 npx wrangler pages deploy site --project-name browser-control --branch main
 ```
 
-Check that `/`, `/privacy/`, `/support/`, `/support/reviewers/` and `/download/chrome-control-skill.zip` return HTTP 200. Keep the `google-site-verification` meta tag in `site/index.html`. It proves ownership of the site in Google Search Console, which the listing's official URL requires. Cloudflare Pages redirects `.html` URLs to extensionless ones, so the HTML-file verification method does not work on this site.
+`/download/chrome-control-skill.zip` is an alias that serves the same file as `/download/browser-control-skill.zip`. It exists for the dashboard's "Additional instructions for reviewers" field. That field links to the old path, and the Chrome Web Store API cannot change it. After the field is updated in the dashboard to link to `/download/browser-control-skill.zip`, the alias can go: update the short form in `store/reviewer-test-instructions.md` and `store/listing.md`, delete `site/download/chrome-control-skill.zip`, remove the second `cp` line, and deploy again.
+
+Check that `/`, `/privacy/`, `/support/`, `/support/reviewers/`, `/download/browser-control-skill.zip` and `/download/chrome-control-skill.zip` return HTTP 200, and that both zips match the build:
+
+```sh
+shasum -a 256 dist/release/browser-control-skill.zip
+curl -fsSL https://browser-control.pages.dev/download/browser-control-skill.zip | shasum -a 256
+curl -fsSL https://browser-control.pages.dev/download/chrome-control-skill.zip | shasum -a 256
+```
+
+Keep the `google-site-verification` meta tag in `site/index.html`. It proves ownership of the site in Google Search Console, which the listing's official URL requires. Cloudflare Pages redirects `.html` URLs to extensionless ones, so the HTML-file verification method does not work on this site.
+
+### Renamed helper
+
+0.2.2 is the first release after the rename. Its extension code is the same as in 0.2.1 apart from the version. The skill is `browser-control` and its zip is `browser-control-skill.zip`. The host, client and scripts read `BROWSER_CONTROL_*` variables and no longer read the `OPZERO_CHROME_*` names. The installer writes a `browser-control-host` wrapper. The native host name `com.opzero.chrome` and the default socket `~/.opzero-chrome/default.sock` are unchanged.
+
+What changed with it:
+
+- 0.2.2 replaces the pending 0.2.1 submission, which still describes the old helper. Cancel that review with `action: cancel` before you upload 0.2.2.
+- `store/listing.md`, `store/reviewer-test-instructions.md` and the pages under `site/` describe the 0.2.2 helper: the `/download/browser-control-skill.zip` link, the `browser-control-host` wrapper, the `BROWSER_CONTROL_HOST_SOCKET` excerpt and `"version":"0.2.2"` from `getInfo`. Only the dashboard short form still links to `/download/chrome-control-skill.zip`, through the alias above.
+- Create the repository variable `BROWSER_CONTROL_EXTENSION_ID` if the old `OPZERO_CHROME_EXTENSION_ID` variable was set. The `Release` workflow no longer reads the old name.
+- Existing installs keep working until they are reinstalled. A reinstall from the new zip goes to `~/.config/opencode/skills/browser-control`, so remove the old `skills/chrome-control` folder.
 
 ## 4. Upload to the Chrome Web Store
 
@@ -59,6 +81,7 @@ gh workflow run chrome-web-store.yml -f ref=vX.Y.Z -f action=upload
 | `status` | Reads the published and submitted state of the item. Changes nothing. |
 | `upload` | Builds `ref`, runs the checks, and replaces the draft package. |
 | `submit` | Same as `upload`, then submits the draft for review. |
+| `cancel` | Cancels the pending review submission. It does not build `ref` or change the package. The status in the same run is read before the cancel, so run `status` again to confirm. |
 
 The workflow signs in to Google through Workload Identity Federation. GitHub's OIDC token is exchanged for a short-lived access token for the `cws-publisher` service account, so the repository holds no Google credential. The trust is limited to workflows in `opzero1/browser-control`.
 

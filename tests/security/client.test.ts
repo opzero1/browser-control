@@ -10,7 +10,7 @@ afterEach(() => cleanup.splice(0).reverse().forEach(fn => fn()));
 
 function client(args: string[], endpoint?: string) {
   const child = spawn(process.execPath, ["dist/native-host/client.js", ...args], {
-    env: { ...process.env, OPZERO_CHROME_HOST_SOCKET: endpoint }, stdio: ["pipe", "pipe", "pipe"]
+    env: { ...process.env, BROWSER_CONTROL_HOST_SOCKET: endpoint }, stdio: ["pipe", "pipe", "pipe"]
   });
   cleanup.push(() => child.kill());
   let stdout = ""; let stderr = "";

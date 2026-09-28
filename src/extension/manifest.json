@@ -3,7 +3,7 @@
   "minimum_chrome_version": "106",
   "name": "Browser Control",
   "description": "Connects browser tabs to a local AI agent on your computer through a native messaging host that you install.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "background": {
     "service_worker": "background.js"
   },

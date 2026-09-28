@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       action:
-        description: "status reads the item state; upload replaces the draft package; submit uploads and submits for review"
+        description: "status reads the item state; upload replaces the draft package; submit uploads and submits for review; cancel cancels the pending review"
         required: true
         default: status
         type: choice
@@ -16,6 +16,7 @@ on:
           - status
           - upload
           - submit
+          - cancel
 
 run-name: Chrome Web Store ${{ inputs.action }} ${{ inputs.ref }}
 
@@ -35,20 +36,20 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - uses: pnpm/action-setup@v4
-        if: ${{ inputs.action != 'status' }}
+        if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         with:
           version: 10.33.2
 
       - uses: actions/setup-node@v4
-        if: ${{ inputs.action != 'status' }}
+        if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         with:
           node-version: 22
           cache: pnpm
 
-      - if: ${{ inputs.action != 'status' }}
+      - if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         run: pnpm install --frozen-lockfile
 
-      - if: ${{ inputs.action != 'status' }}
+      - if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         run: pnpm run check
 
       - name: Get Chrome Web Store access token
@@ -78,7 +79,7 @@ jobs:
           fi
 
       - name: Upload extension package
-        if: ${{ inputs.action != 'status' }}
+        if: ${{ inputs.action == 'upload' || inputs.action == 'submit' }}
         shell: bash
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
@@ -104,10 +105,29 @@ jobs:
           set -euo pipefail
           response="$(curl -sS -w '\n%{http_code}' -X POST \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Length: 0" \
             "https://chromewebstore.googleapis.com/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:publish")"
           status="$(printf '%s' "$response" | tail -n 1)"
           body="$(printf '%s' "$response" | sed '$d')"
           printf 'Chrome Web Store publish returned HTTP %s:\n%s\n' "$status" "$body"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            exit 1
+          fi
+
+      - name: Cancel pending review
+        if: ${{ inputs.action == 'cancel' }}
+        shell: bash
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          response="$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Length: 0" \
+            "https://chromewebstore.googleapis.com/v2/publishers/${CHROME_PUBLISHER_ID}/items/${EXTENSION_ID}:cancelSubmission")"
+          status="$(printf '%s' "$response" | tail -n 1)"
+          body="$(printf '%s' "$response" | sed '$d')"
+          printf 'Chrome Web Store cancelSubmission returned HTTP %s:\n%s\n' "$status" "$body"
           if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
             exit 1
           fi

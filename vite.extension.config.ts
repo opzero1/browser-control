@@ -1,7 +1,7 @@
 import { basename, dirname, resolve } from "node:path";
 import { defineConfig } from "vite";
 
-const entry = process.env.OPZERO_EXTENSION_ENTRY || "background";
+const entry = process.env.BROWSER_CONTROL_EXTENSION_ENTRY || "background";
 const entryMap: Record<string, string> = {
   background: "src/extension/background.ts",
   "content-scripts/opzero-chrome": "src/extension/content-scripts/opzero-chrome.ts",
@@ -11,7 +11,7 @@ const entryMap: Record<string, string> = {
 export default defineConfig({
   build: {
     outDir: "dist/extension",
-    emptyOutDir: process.env.OPZERO_EXTENSION_EMPTY === "1",
+    emptyOutDir: process.env.BROWSER_CONTROL_EXTENSION_EMPTY === "1",
     sourcemap: false,
     target: "es2022",
     lib: {

@@ -13,9 +13,9 @@ let node_process = require("node:process");
 node_process = require_Layer.__toESM(node_process);
 let node_crypto = require("node:crypto");
 //#region src/native-host/host.ts
-var socketPath = node_process.default.env.OPZERO_CHROME_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock");
-var useTcp = node_process.default.platform === "win32" || node_process.default.env.OPZERO_CHROME_HOST_TRANSPORT === "tcp";
-var port = Number(node_process.default.env.OPZERO_CHROME_HOST_PORT || 17365);
+var socketPath = node_process.default.env.BROWSER_CONTROL_HOST_SOCKET || node_path.default.join(node_os.default.homedir(), ".opzero-chrome", "default.sock");
+var useTcp = node_process.default.platform === "win32" || node_process.default.env.BROWSER_CONTROL_HOST_TRANSPORT === "tcp";
+var port = Number(node_process.default.env.BROWSER_CONTROL_HOST_PORT || 17365);
 var epoch = (0, node_crypto.randomUUID)();
 var protocolRequestId = `protocol:${epoch}`;
 var extensionProtocol = "checking";
@@ -101,8 +101,8 @@ function handleNative(message) {
 	if (message.id != null) {
 		if (message.method === "ping") native(result(message.id, "pong"));
 		else if (message.method === "getHostInfo") native(result(message.id, {
-			name: "opzero-chrome-native-host",
-			version: "0.2.1",
+			name: "browser-control-native-host",
+			version: "0.2.2",
 			protocolVersion: 2,
 			extensionProtocol,
 			epoch,
@@ -192,7 +192,7 @@ function handleClient(socket, message) {
 		reply(socket, error(message.id, "Outcome unknown; connection revoked; do not replay"));
 		release(socket);
 		socket.end();
-	}, Number(node_process.default.env.OPZERO_CHROME_REQUEST_TIMEOUT_MS || 3e4));
+	}, Number(node_process.default.env.BROWSER_CONTROL_REQUEST_TIMEOUT_MS || 3e4));
 	pending.set(extensionId, {
 		socket,
 		id: message.id,
@@ -261,7 +261,7 @@ server.on("error", () => {
 });
 try {
 	if (useTcp) {
-		const file = node_process.default.env.OPZERO_CHROME_HOST_TOKEN_FILE;
+		const file = node_process.default.env.BROWSER_CONTROL_HOST_TOKEN_FILE;
 		if (!file) throw new Error("token file required");
 		const stat = node_fs.default.lstatSync(file);
 		if (!stat.isFile() || node_process.default.platform !== "win32" && (stat.mode & 63) !== 0) throw new Error("private token file required");
