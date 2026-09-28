@@ -21,6 +21,14 @@ export type ActionOutcome = { status: "executed" | "not-executed" | "unknown"; r
 export type UploadOutcome = { status: "attached" | "not-executed" | "unknown"; retry: false; name?: string; mime?: "application/pdf"; size?: number };
 export type RecordingReceipt = { path: string | null; directory: string; seconds: number; frames: { file: string; seconds: number; sha256: string }[]; error: string | null; encodeMs: number; captureMs: number; sampleFps: number };
 
+const transientObservationErrors = ["Page origin not ready or mismatch", "Frame with ID 0 was removed.", "Capture or observation blocked: private fields or frames", "Private document quarantined until cross-document navigation"];
+
+// Chrome refuses to inject into a new tab until its first navigation leaves
+// about:blank, so an observation made in that window is safe to repeat.
+function isTransientObservationError(message: string) {
+  return transientObservationErrors.includes(message) || message.startsWith('Cannot access contents of url "about:blank".');
+}
+
 export class ChromeTransport {
   #socket: net.Socket;
   #next = 0;
@@ -116,7 +124,7 @@ export class ChromeTransport {
         const snapshot = await this.observe(page);
         if ((!expect.text || snapshot.text.includes(expect.text)) && (!expect.url || snapshot.url === expect.url)) return snapshot;
       } catch (error) {
-        if (!(error instanceof Error) || !["Page origin not ready or mismatch", "Frame with ID 0 was removed.", "Capture or observation blocked: private fields or frames", "Private document quarantined until cross-document navigation"].includes(error.message)) throw error;
+        if (!(error instanceof Error) || !isTransientObservationError(error.message)) throw error;
       }
       if (performance.now() >= deadline) throw new Error("Read-only wait timed out; no input replayed");
       await sleep(50);

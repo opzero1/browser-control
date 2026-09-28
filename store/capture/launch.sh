@@ -9,7 +9,7 @@ source "$(dirname "$0")/env.sh"
 umask 077
 mkdir -p "$BC_PROFILE/NativeMessagingHosts" "$BC_HOSTDIR" "$BC_STATE" "$BC_RAW"
 chmod 700 "$BC_PROFILE" "$BC_HOSTDIR" "$BC_STATE" "$BC_RAW"
-rm -f "$BC_SOCKET"
+# The host removes a stale socket itself; never delete one that may be live.
 
 EXT_ID=$(python3 "$(dirname "$0")/extension-id.py" "$BC_EXTENSION")
 echo "$EXT_ID" > "$BC_STATE/extension-id"

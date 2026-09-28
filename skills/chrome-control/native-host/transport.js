@@ -80,6 +80,15 @@ function string(value) {
 	if (typeof value !== "string") throw new Error("Invalid string response");
 	return value;
 }
+var transientObservationErrors = [
+	"Page origin not ready or mismatch",
+	"Frame with ID 0 was removed.",
+	"Capture or observation blocked: private fields or frames",
+	"Private document quarantined until cross-document navigation"
+];
+function isTransientObservationError(message) {
+	return transientObservationErrors.includes(message) || message.startsWith("Cannot access contents of url \"about:blank\".");
+}
 var ChromeTransport = class ChromeTransport {
 	#socket;
 	#next = 0;
@@ -219,12 +228,7 @@ var ChromeTransport = class ChromeTransport {
 				const snapshot = await this.observe(page);
 				if ((!expect.text || snapshot.text.includes(expect.text)) && (!expect.url || snapshot.url === expect.url)) return snapshot;
 			} catch (error) {
-				if (!(error instanceof Error) || ![
-					"Page origin not ready or mismatch",
-					"Frame with ID 0 was removed.",
-					"Capture or observation blocked: private fields or frames",
-					"Private document quarantined until cross-document navigation"
-				].includes(error.message)) throw error;
+				if (!(error instanceof Error) || !isTransientObservationError(error.message)) throw error;
 			}
 			if (performance.now() >= deadline) throw new Error("Read-only wait timed out; no input replayed");
 			await sleep(50);
