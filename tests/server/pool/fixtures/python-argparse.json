@@ -1,0 +1,1471 @@
+{
+ "python": "3.13.13",
+ "cases": [
+  {
+   "argv": [],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: command"
+  },
+  {
+   "argv": [
+    "status"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "status"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "status",
+    "extra"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "unrecognized arguments: extra"
+  },
+  {
+   "argv": [
+    "status",
+    "--owner",
+    "x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "unrecognized arguments: --owner x"
+  },
+  {
+   "argv": [
+    "unknown"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument command: invalid choice: 'unknown' (choose from status, claim, ensure, release, reap, reset, migrate)"
+  },
+  {
+   "argv": [
+    "migrate"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "migrate"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": "ses_a"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "isolated-2",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": "isolated-2",
+    "owner": "ses_a"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "ses_a",
+    "isolated-2"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": "isolated-2",
+    "owner": "ses_a"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner=ses_a"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": "ses_a"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--own",
+    "ses_a"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": "ses_a"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--o",
+    "ses_a"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": "ses_a"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: --owner"
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --owner: expected one argument"
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "--x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --owner: expected one argument"
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "-1"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": "-1"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "-x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --owner: expected one argument"
+  },
+  {
+   "argv": [
+    "claim",
+    "isolated-9",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "claim",
+    "isolated-0",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "claim",
+    "isolated-1",
+    "isolated-2",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "unrecognized arguments: isolated-2"
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "ses_a",
+    "--owner",
+    "ses_b"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": "ses_b"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    ""
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": ""
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner=",
+    "isolated-3"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": "isolated-3",
+    "owner": ""
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--",
+    "isolated-1",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: --owner"
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "ses_a",
+    "--",
+    "isolated-1"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": "isolated-1",
+    "owner": "ses_a"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--bogus",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "unrecognized arguments: --bogus"
+  },
+  {
+   "argv": [
+    "claim",
+    "-o",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--shared"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": false
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--exclusive"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--shared",
+    "--exclusive"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --exclusive: not allowed with argument --shared"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--shared",
+    "--shared"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": false
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "0"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 0.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "-1"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": -1.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "1.5"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 1.5,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    " 7 "
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 7.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "1_0"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 10.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "nan"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": "nan",
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "inf"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": "inf",
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "-inf"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --timeout: expected one argument"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "Infinity"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": "inf",
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "1e2"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 100.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    ".5"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 0.5,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "5."
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 5.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "abc"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --timeout: invalid float value: 'abc'"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    ""
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --timeout: invalid float value: ''"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout=-2"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": -2.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--timeout",
+    "-.5"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": -0.5,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--site",
+    "https://example.com/"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": "https://example.com/",
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--site=example.com"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": "example.com",
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--s",
+    "x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "ambiguous option: --s could match --site, --shared"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--sh"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": false
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--si",
+    "x"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": "x",
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--ex"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--e"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--t",
+    "3"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 3.0,
+    "site": null,
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "isolated-4",
+    "--owner",
+    "ses_a",
+    "--shared"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": "isolated-4",
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": null,
+    "exclusive": false
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--shared=1"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --shared: ignored explicit argument '1'"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--site",
+    "-x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --site: expected one argument"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--site",
+    "-5"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "ensure",
+    "controller": null,
+    "owner": "ses_a",
+    "timeout": 30,
+    "site": "-5",
+    "exclusive": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "release",
+    "--owner",
+    "ses_a",
+    "--lease",
+    "00000000-0000-0000-0000-000000000000"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "release",
+    "owner": "ses_a",
+    "lease": "00000000-0000-0000-0000-000000000000"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "release",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: --lease"
+  },
+  {
+   "argv": [
+    "release",
+    "--lease",
+    "x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: --owner"
+  },
+  {
+   "argv": [
+    "release"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: --owner, --lease"
+  },
+  {
+   "argv": [
+    "release",
+    "--owner",
+    "a",
+    "--lease",
+    "b",
+    "isolated-1"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "unrecognized arguments: isolated-1"
+  },
+  {
+   "argv": [
+    "release",
+    "--o",
+    "a",
+    "--l",
+    "b"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "release",
+    "owner": "a",
+    "lease": "b"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": null,
+    "dry_run": false
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap",
+    "isolated-3"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": "isolated-3",
+    "dry_run": false
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap",
+    "--dry-run"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": null,
+    "dry_run": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap",
+    "isolated-1",
+    "--dry-run"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": "isolated-1",
+    "dry_run": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap",
+    "--dry"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": null,
+    "dry_run": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap",
+    "--d"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": null,
+    "dry_run": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap",
+    "--dry-run",
+    "isolated-8"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": "isolated-8",
+    "dry_run": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reap",
+    "isolated-9"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "reap",
+    "--dry-run=yes"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --dry-run: ignored explicit argument 'yes'"
+  },
+  {
+   "argv": [
+    "reset",
+    "isolated-2"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reset",
+    "controller": "isolated-2",
+    "confirm": false
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reset",
+    "isolated-2",
+    "--confirm"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reset",
+    "controller": "isolated-2",
+    "confirm": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reset"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: controller"
+  },
+  {
+   "argv": [
+    "reset",
+    "--confirm"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: controller"
+  },
+  {
+   "argv": [
+    "reset",
+    "--confirm",
+    "isolated-1"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reset",
+    "controller": "isolated-1",
+    "confirm": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "reset",
+    "isolated-1",
+    "isolated-2"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "unrecognized arguments: isolated-2"
+  },
+  {
+   "argv": [
+    "reset",
+    "--conf",
+    "isolated-1"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reset",
+    "controller": "isolated-1",
+    "confirm": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "-h"
+   ],
+   "code": 0,
+   "namespace": null,
+   "help": true,
+   "error": null
+  },
+  {
+   "argv": [
+    "status",
+    "-h"
+   ],
+   "code": 0,
+   "namespace": null,
+   "help": true,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--help"
+   ],
+   "code": 0,
+   "namespace": null,
+   "help": true,
+   "error": null
+  },
+  {
+   "argv": [
+    "--help"
+   ],
+   "code": 0,
+   "namespace": null,
+   "help": true,
+   "error": null
+  },
+  {
+   "argv": [
+    "--version"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: command"
+  },
+  {
+   "argv": [
+    "-x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "the following arguments are required: command"
+  },
+  {
+   "argv": [
+    "--",
+    "status"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "status"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "ses_a",
+    "--exclusive",
+    "--shared"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --shared: not allowed with argument --exclusive"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--shared",
+    "--owner",
+    "ses_a",
+    "--ex"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --exclusive: not allowed with argument --shared"
+  },
+  {
+   "argv": [
+    "reset",
+    "--h"
+   ],
+   "code": 0,
+   "namespace": null,
+   "help": true,
+   "error": null
+  },
+  {
+   "argv": [
+    "--h"
+   ],
+   "code": 0,
+   "namespace": null,
+   "help": true,
+   "error": null
+  },
+  {
+   "argv": [
+    "--he"
+   ],
+   "code": 0,
+   "namespace": null,
+   "help": true,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "a b"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "claim",
+    "controller": null,
+    "owner": "a b"
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "ensure",
+    "--owner",
+    "s",
+    "--s=x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "ambiguous option: --s=x could match --site, --shared"
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "ses_a",
+    "--",
+    "--",
+    "x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "claim",
+    "--owner",
+    "--",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument --owner: expected one argument"
+  },
+  {
+   "argv": [
+    "ensure",
+    "isolated-9",
+    "--s",
+    "x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "claim",
+    "-",
+    "--owner",
+    "ses_a"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "argument controller: expected isolated-1 to isolated-8"
+  },
+  {
+   "argv": [
+    "reap",
+    "--dry-run",
+    "--dry-run"
+   ],
+   "code": 0,
+   "namespace": {
+    "command": "reap",
+    "controller": null,
+    "dry_run": true
+   },
+   "help": false,
+   "error": null
+  },
+  {
+   "argv": [
+    "status",
+    "--",
+    "x"
+   ],
+   "code": 2,
+   "namespace": null,
+   "help": false,
+   "error": "unrecognized arguments: -- x"
+  }
+ ]
+}
