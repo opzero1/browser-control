@@ -96,7 +96,9 @@ echo '{"jsonrpc":"2.0","id":1,"method":"createTab","params":{"session_id":"task"
 
 Each `client.js` connection is its own session. A tab must belong to that session before `attach`: create it with `createTab`, or claim it with `claimUserTab`, on the same connection. `client.js` sends every stdin line as soon as it reads it, so requests on one stream run concurrently and can finish in any order.
 
-For a multi-step sequence such as claim, `attach`, `executeCdp` and `finalizeTabs`, use the client library `native-host/transport.js`, which waits for each response. The reviewer demo at <https://browser-control.pages.dev/support/reviewers/> shows the pattern. The MCP server does the same.
+For a raw sequence such as claim, `attach`, `executeCdp` and `finalizeTabs`, keep one `--stdio` connection open and write each request only after its response arrives. For example, drive `client.js --stdio` from a script that reads stdout.
+
+To open, observe, act on and close pages, use the client library `native-host/transport.js` instead. `ChromeTransport.connect`, `open`, `observe`, `waitFor`, `act` and `close` await each step. The reviewer demo at <https://browser-control.pages.dev/support/reviewers/> shows the pattern. Its pages are bound to an origin, so raw `executeCdp` is not available on them. The MCP server also waits for each response.
 
 ## User Tab Claiming
 
