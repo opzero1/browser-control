@@ -69,6 +69,7 @@ gh workflow run chrome-web-store.yml -f ref=vX.Y.Z -f action=upload
 | `status` | Reads the published and submitted state of the item. Changes nothing. |
 | `upload` | Builds `ref`, runs the checks, and replaces the draft package. |
 | `submit` | Same as `upload`, then submits the draft for review. |
+| `cancel` | Cancels the pending review submission. It does not build `ref` or change the package. The status in the same run is read before the cancel, so run `status` again to confirm. |
 
 The workflow signs in to Google through Workload Identity Federation. GitHub's OIDC token is exchanged for a short-lived access token for the `cws-publisher` service account, so the repository holds no Google credential. The trust is limited to workflows in `opzero1/browser-control`.
 
