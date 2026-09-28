@@ -27,7 +27,7 @@ function renderStatus(status: Partial<NativeHostStatus> = {}) {
   statusPill.className = `pill ${connected ? "connected" : paused ? "paused" : "disconnected"}`;
   statusPill.textContent = connected ? "Connected" : paused ? "Paused" : "Disconnected";
   summary.textContent = connected
-    ? "Control Chrome with Chrome Control."
+    ? "Connected to the local agent host."
     : paused
       ? "Native host paused. Resume to reconnect."
       : "Install the native host to connect.";

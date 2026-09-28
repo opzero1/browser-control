@@ -40,11 +40,11 @@ function runNode(args: string[], env: NodeJS.ProcessEnv = {}) {
   });
 }
 
-describe("Chrome Control distribution", () => {
+describe("Browser Control distribution", () => {
   it("builds a loadable MV3 extension with self-contained browser entrypoints", () => {
     const manifest = readJson("dist/extension/manifest.json");
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.name).toBe("Chrome Control");
+    expect(manifest.name).toBe("Browser Control");
     expect(manifest.background.service_worker).toBe("background.js");
     expect(manifest.permissions).toEqual(expect.arrayContaining(["nativeMessaging", "debugger", "scripting", "tabs"]));
     expect(manifest.permissions).not.toEqual(expect.arrayContaining(["bookmarks", "downloads.ui", "favicon", "notifications", "readingList", "sessions", "topSites"]));
@@ -81,7 +81,7 @@ describe("Chrome Control distribution", () => {
       "dist/skill/chrome-control/chunks",
       "dist/skill/chrome-control/scripts/install-native-host.js",
       "dist/skill/chrome-control/scripts/check-native-host-manifest.js",
-      "dist/release/opzero-chrome-extension.zip",
+      "dist/release/browser-control-extension.zip",
       "dist/release/chrome-control-skill.zip"
     ];
     for (const file of files) {
@@ -175,7 +175,7 @@ describe("Chrome Control distribution", () => {
     const manifestPath = path.join(tempDir, "com.opzero.chrome.json");
     fs.writeFileSync(manifestPath, `${JSON.stringify({
       name: "com.opzero.chrome",
-      description: "Opzero Chrome native messaging host",
+      description: "Browser Control native messaging host",
       type: "stdio",
       path: process.execPath,
       allowed_origins: []

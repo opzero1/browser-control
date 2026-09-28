@@ -105,7 +105,7 @@ require_effect_services.runScript(require_Layer.gen(function* () {
 			status: "not-installed",
 			extensionId,
 			preferencesPath: prefPath,
-			message: `Opzero Chrome extension is not registered in ${prefPath}`
+			message: `Browser Control extension is not registered in ${prefPath}`
 		}, 2);
 		return;
 	}
@@ -121,7 +121,7 @@ require_effect_services.runScript(require_Layer.gen(function* () {
 			settingsPath,
 			state,
 			disabledReasons,
-			message: `Opzero Chrome extension is installed but not enabled. state=${state}, disable_reasons=${disabledReasons}`
+			message: `Browser Control extension is installed but not enabled. state=${state}, disable_reasons=${disabledReasons}`
 		}, 1);
 		return;
 	}
@@ -132,7 +132,7 @@ require_effect_services.runScript(require_Layer.gen(function* () {
 		preferencesPath: prefPath,
 		settingsPath,
 		version: settings.manifest?.version || settings.version,
-		message: `Opzero Chrome extension installed and enabled: ${extensionId}`
+		message: `Browser Control extension installed and enabled: ${extensionId}`
 	}, 0);
 }));
 //#endregion

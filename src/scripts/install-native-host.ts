@@ -78,7 +78,7 @@ runScript(Effect.gen(function* () {
   yield* io.writeText(hostPath, process.platform === "win32" ? windowsNativeHostLauncher() : nativeHostLauncher());
   const manifest = {
     name: hostName,
-    description: "Opzero Chrome native messaging host",
+    description: "Browser Control native messaging host",
     type: "stdio",
     path: hostPath,
     allowed_origins: [`chrome-extension://${extensionId}/`]

@@ -105,7 +105,7 @@ syncInstallableSkill(sourceSkill);
 syncInstallableSkill(skillDist);
 
 fs.mkdirSync(path.join(dist, "release"), { recursive: true });
-zipDir(path.join(dist, "extension"), path.join(dist, "release", "opzero-chrome-extension.zip"));
+zipDir(path.join(dist, "extension"), path.join(dist, "release", "browser-control-extension.zip"));
 zipDir(skillDist, path.join(dist, "release", "chrome-control-skill.zip"));
 
 process.stdout.write("Built dist/extension and dist/skill/chrome-control\n");

@@ -29,5 +29,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/release/opzero-chrome-extension.zip
+            dist/release/browser-control-extension.zip
             dist/release/chrome-control-skill.zip
