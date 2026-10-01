@@ -63,14 +63,14 @@ Keep the `google-site-verification` meta tag in `site/index.html`. It proves own
 
 What changed with it:
 
-- 0.2.2 replaces the pending 0.2.1 submission, which still describes the old helper. Cancel that review with `action: cancel` before you upload 0.2.2.
+- 0.2.2 replaced the pending 0.2.1 submission, which described the old helper. That review was cancelled with `action: cancel` before 0.2.2 was uploaded.
 - `store/listing.md`, `store/reviewer-test-instructions.md` and the pages under `site/` describe the 0.2.2 helper: the `/download/browser-control-skill.zip` link, the `browser-control-host` wrapper, the `BROWSER_CONTROL_HOST_SOCKET` excerpt and `"version":"0.2.2"` from `getInfo`. Only the dashboard short form still links to `/download/chrome-control-skill.zip`, through the alias above.
 - Create the repository variable `BROWSER_CONTROL_EXTENSION_ID` if the old `OPZERO_CHROME_EXTENSION_ID` variable was set. The `Release` workflow no longer reads the old name.
 - Existing installs keep working until they are reinstalled. A reinstall from the new zip goes to `~/.config/opencode/skills/browser-control`, so remove the old `skills/chrome-control` folder.
 
 ### Installer changed after 0.2.2
 
-The release zip's installer, `scripts/install-native-host.js`, changed on `afif/ts-server` after 0.2.2 was submitted. `store/`, `site/` and `docs/PRIVACY.md` still describe the 0.2.2 installer, which is deployed and under review, so they stay as they are until the next release. The installer now:
+The release zip's installer, `scripts/install-native-host.js`, changed on `afif/ts-server` after 0.2.2 was submitted. `store/`, `site/` and `docs/PRIVACY.md` still describe the 0.2.2 installer, which is deployed and published on the store, so they stay as they are until the next release. The installer now:
 
 - Publishes the host and its chunks as a stable copy, `hosts/skill-<digest>/`, under the state root (`BROWSER_CONTROL_STATE_DIR`, default `~/.local/state/browser-control`). It writes the wrapper `hosts/skill/browser-control-host` there, and the manifest names that wrapper instead of `native-host/browser-control-host` in the unzipped folder.
 - Runs the host with `process.execPath`, the Node that ran the installer, instead of searching `PATH` and fixed locations.
@@ -129,7 +129,8 @@ Then submit for review, from the dashboard or with `action: submit`. Google revi
 
 ## History
 
-- 0.1.2 was published and is live.
+- 0.1.2 was published.
 - 0.1.3 was rejected on 1 July 2026 for "User data privacy" (reference Purple Nickel). Its privacy policy link pointed to a GitHub file, and Google does not accept a repository page as a privacy policy. The fix was a hosted policy at `https://browser-control.pages.dev/privacy/`.
-- 0.2.1 renames the item from Chrome Control to Browser Control, as the branding guidelines require, and drops the unused `history` and `downloads` permissions. It was submitted for review on 28 September 2026 with automatic publishing after approval, from the extension source at `5717395`.
+- 0.2.1 renames the item from Chrome Control to Browser Control, as the branding guidelines require, and drops the unused `history` and `downloads` permissions. It was submitted for review on 28 September 2026 with automatic publishing after approval, from the extension source at `5717395`. Its review was cancelled the same day so that 0.2.2 could replace it.
+- 0.2.2 was submitted from the `v0.2.2` tag on 28 September 2026 and went live on 30 September 2026. It is the first published version named Browser Control.
 - The old `CHROME_CLIENT_ID`, `CHROME_CLIENT_SECRET` and `CHROME_REFRESH_TOKEN` secrets belong to an OAuth client whose consent screen stayed in testing mode, so its refresh tokens expired after seven days. The workflow no longer uses them.
